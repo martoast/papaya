@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Runs papaya in the background so it survives closing the terminal, and starts
+  again after a reboot.
+
+  This is the quick path. `docker compose up -d` is the better one: it also runs
+  the process as uid 10001 instead of as your own account, which is what stops a
+  bug in papaya from reaching ~/.ssh and the rest of your files.
+
+  Install:
+    cp deploy/io.papaya.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/io.papaya.plist
+  Stop:
+    launchctl unload ~/Library/LaunchAgents/io.papaya.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>io.papaya</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-lc</string>
+    <!-- Secrets stay in .env rather than in this file, which is world readable. -->
+    <string>cd "$HOME/papaya" &amp;&amp; set -a &amp;&amp; . ./.env &amp;&amp; set +a &amp;&amp; exec ./bin/papaya</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/papaya.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/papaya.log</string>
+</dict>
+</plist>

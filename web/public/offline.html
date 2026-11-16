@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Papaya — unreachable</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>▮</text></svg>"
+    />
+    <!--
+      Styles are inline because this page must render with no network at all.
+      The app's stylesheet lives on the server we cannot reach; pulling it in
+      would leave an unstyled page at the exact moment clarity matters most.
+      The server's CSP allows inline styles, and allows scripts only from this
+      origin — hence the separate, precached offline.js.
+    -->
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: 2rem 1.25rem;
+        background: #0b0d10;
+        color: #e8eaed;
+        font:
+          14px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      .card {
+        width: 100%;
+        max-width: 30rem;
+        text-align: left;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin-bottom: 1.25rem;
+      }
+      .dot {
+        width: 0.55rem;
+        height: 0.55rem;
+        border-radius: 50%;
+        background: #e5534b;
+        flex: none;
+        animation: pulse 1.6s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        50% {
+          opacity: 0.25;
+        }
+      }
+      h1 {
+        margin: 0;
+        font-size: 0.95rem;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+      }
+      p {
+        margin: 0 0 1rem;
+        color: #9aa3ad;
+      }
+      ol {
+        margin: 0 0 1.5rem;
+        padding-left: 1.2rem;
+        color: #9aa3ad;
+      }
+      li {
+        margin-bottom: 0.4rem;
+      }
+      b {
+        color: #e8eaed;
+        font-weight: 600;
+      }
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+      button {
+        font: inherit;
+        color: #e8eaed;
+        background: #171b21;
+        border: 1px solid #2a313a;
+        border-radius: 0.375rem;
+        padding: 0.45rem 0.9rem;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #1f242c;
+      }
+      #status {
+        color: #6b7480;
+        font-size: 0.8rem;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="card">
+      <div class="row">
+        <span class="dot" aria-hidden="true"></span>
+        <h1>Can't reach Papaya</h1>
+      </div>
+
+      <p>
+        This terminal is only reachable over your tailnet — there is no public
+        route to it. Nothing answered, which almost always means this device is
+        off the tailnet.
+      </p>
+
+      <ol>
+        <li>Open <b>Tailscale</b> on this device and make sure it is connected.</li>
+        <li>Confirm you are signed in as the account that owns the tailnet.</li>
+        <li>This page returns on its own once the connection is back.</li>
+      </ol>
+
+      <div class="actions">
+        <button id="retry" type="button">Try now</button>
+        <span id="status" role="status" aria-live="polite">checking…</span>
+      </div>
+    </div>
+
+    <script src="/offline.js"></script>
+  </body>
+</html>

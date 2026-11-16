@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# papaya-say: talk to another agent's papaya tab, by the name you see in papaya.
+#
+#   papaya-say --list                    open tabs: name, state, machine, workspace
+#   papaya-say <tab> <message...>        paste the message into that tab and press Enter
+#   papaya-say <tab> -                   read the message from stdin (multi-line is fine)
+#   papaya-say --peek <tab> [lines]      show the last lines of that tab (default 30)
+#
+# Options (before the tab name):
+#   --no-enter   paste without submitting
+#   --quiet      do not show the tab afterwards
+#   --force      send even if someone has unsent text in that tab's input box
+#                (normally refused: the paste would merge with their draft)
+#
+# The message is signed "<your tab> here:" (from $PAPAYA_FROM, else the tmux
+# session you are in, else the hostname). Works from any machine on the tailnet;
+# needs only bash and curl. Server: $PAPAYA_URL, e.g. https://papaya.your-tailnet.ts.net
+set -euo pipefail
+
+URL=${PAPAYA_URL:-}
+URL=${URL%/}
+usage() { sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
+[ -n "$URL" ] || { echo "papaya-say: set PAPAYA_URL to your Papaya address, e.g. https://papaya.your-tailnet.ts.net" >&2; exit 2; }
+
+api() { # method path [data]
+	local out code
+	if [ $# -ge 3 ]; then
+		out=$(curl -sS --max-time 30 -X "$1" -H 'Content-Type: application/json' --data-binary @- -w '\n%{http_code}' "$URL$2" <<<"$3") || { echo "papaya-say: cannot reach $URL (is Tailscale on?)" >&2; exit 1; }
+	else
+		out=$(curl -sS --max-time 30 -X "$1" -w '\n%{http_code}' "$URL$2") || { echo "papaya-say: cannot reach $URL (is Tailscale on?)" >&2; exit 1; }
+	fi
+	code=${out##*$'\n'}; out=${out%$'\n'*}
+	if [ "${code:0:1}" != 2 ]; then
+		err=$(printf '%s' "$out" | sed -n 's/.*"error":"\(.*\)".*/\1/p')
+		echo "papaya-say: ${err:-HTTP $code}" >&2
+		exit 1
+	fi
+	printf '%s' "$out"
+}
+
+urlenc() { local s=$1 o= c i; for ((i=0; i<${#s}; i++)); do c=${s:i:1}; case $c in [A-Za-z0-9._~-]) o+=$c;; *) o+=$(printf '%%%02X' "'$c");; esac; done; printf '%s' "$o"; }
+
+json_str() { # escape for a JSON string; papaya strips any other control character
+	local s
+	s=$(printf '%s' "$1" | tr -d '\000-\010\013\014\016-\037')
+	s=${s//\\/\\\\}; s=${s//\"/\\\"}; s=${s//$'\r'/}; s=${s//$'\t'/\\t}; s=${s//$'\n'/\\n}
+	printf '"%s"' "$s"
+}
+
+me() {
+	if [ -n "${PAPAYA_FROM:-}" ]; then printf '%s' "$PAPAYA_FROM"; return; fi
+	if [ -n "${TMUX:-}" ]; then
+		local s; s=$(tmux display-message -p '#S' 2>/dev/null || true)
+		if [ -n "$s" ]; then printf '%s' "${s#papaya-}"; return; fi
+	fi
+	hostname -s 2>/dev/null || hostname
+}
+
+peek() { api GET "/api/say/screen?to=$(urlenc "$1")&lines=${2:-30}" | grep -v '^[[:space:]]*$' | tail -n "${2:-30}"; }
+
+enter=true quiet=false force=false
+while [ $# -gt 0 ]; do
+	case $1 in
+		-h|--help) usage 0 ;;
+		--list) api GET /api/say/tabs; exit 0 ;;
+		--peek) [ $# -ge 2 ] || usage; peek "$2" "${3:-30}"; exit 0 ;;
+		--no-enter) enter=false; shift ;;
+		--quiet) quiet=true; shift ;;
+		--force) force=true; shift ;;
+		--) shift; break ;;
+		-*) [ "$1" = - ] && break; usage ;;
+		*) break ;;
+	esac
+done
+[ $# -ge 2 ] || usage
+
+to=$1; shift
+if [ "$1" = - ]; then msg=$(cat); else msg="$*"; fi
+[ -n "${msg//[[:space:]]/}" ] || { echo "papaya-say: empty message" >&2; exit 2; }
+
+from=$(me)
+shopt -s nocasematch
+if [[ "$from" == "$to" ]]; then echo "papaya-say: that is your own tab ($from)" >&2; exit 2; fi
+shopt -u nocasematch
+case $msg in "$from here"*) ;; *) msg="$from here: $msg" ;; esac
+
+api POST /api/say "{\"to\":$(json_str "$to"),\"text\":$(json_str "$msg"),\"enter\":$enter,\"force\":$force}" >/dev/null
+echo "sent to $to as \"$from\"."
+if ! $quiet; then sleep 3; echo "--- $to now:"; peek "$to" 12; fi

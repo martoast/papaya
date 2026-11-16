@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="utf-8" />
+    <!-- interactive-widget makes Android's keyboard shrink the layout viewport
+         outright; iOS ignores it, so keypad.js does the same job there from
+         window.visualViewport. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <title>Papaya</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>▮</text></svg>" />
+
+    <!-- Installable, so "Add to Dock" on macOS produces a real app with its own
+         name, icon and window rather than a nameless shortcut wearing the
+         favicon. Nothing here changes how the app behaves in an ordinary tab.
+
+         apple-mobile-web-app-capable is what makes an iOS home-screen launch
+         run without browser chrome. Worth knowing: iOS suspends a standalone
+         app when the screen locks, so its sockets drop — which is survivable
+         only because sessions live in tmux and the tab bar reattaches itself
+         on the next load. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0d1117" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Papaya" />
+    <!-- Not black-translucent: the tab bar sits at the very top and would end
+         up underneath the status bar. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  </head>
+
+  <!-- h-dvh, not h-screen: dynamic viewport height accounts for mobile browser chrome. -->
+  <body class="h-dvh bg-surface-0 text-text-hi font-mono antialiased overflow-hidden">
+    <!-- keypad.js resizes this to the visual viewport while the soft keyboard
+         is up, so the terminal refits above it instead of disappearing under it. -->
+    <div id="app" class="grid h-full grid-rows-[auto_1fr_auto]">
+      <!-- tab bar -->
+      <div
+        id="tabbar"
+        class="flex items-stretch gap-px bg-surface-1 border-b border-surface-3 px-2 h-9 select-none"
+      >
+        <div id="tabs" role="tablist" aria-label="Sessions" class="flex flex-1 min-w-0 items-stretch gap-px"></div>
+        <button
+          id="balance"
+          class="hidden shrink-0 px-2 text-text-lo hover:text-text-hi hover:bg-surface-2
+                 transition-colors text-xs"
+          title="Even out the panels"
+          aria-label="Balance panels"
+        >
+          ⤢
+        </button>
+        <!-- Full screen. Worth a button rather than leaving it to the browser's
+             own menu: this is what makes a tab stop looking like a tab, and
+             the keyboard shortcut for it is reserved by the browser. Hidden
+             where the Fullscreen API does not exist — iPhone Safari has none,
+             and a button that silently does nothing is worse than no button. -->
+        <button
+          id="fullscreen"
+          class="hidden shrink-0 px-3 text-text-lo hover:text-text-hi hover:bg-surface-2
+                 transition-colors items-center gap-1.5 text-xs"
+          data-on="false"
+          title="Full screen"
+          aria-label="Full screen"
+        >
+          <span id="fullscreen-icon" aria-hidden="true">⛶</span>
+          <span id="fullscreen-label">Full</span>
+        </button>
+        <!-- Attach a file: opens the native picker — on iOS that is Photo
+             Library / Take Photo / Files — and uploads through the same path as
+             drag-and-drop, dropping the remote path at the cursor. Sits next to
+             Voice rather than floating over the terminal. Touch only: the
+             desktop has drag-and-drop and paste. -->
+        <button
+          id="attach"
+          class="hidden touch:flex shrink-0 px-3 items-center gap-1.5 text-text-lo
+                 hover:text-text-hi hover:bg-surface-2 transition-colors text-xs"
+          aria-label="Attach a file"
+          title="Attach a file"
+        >
+          <span aria-hidden="true">📎</span>
+          <span>Attach</span>
+        </button>
+        <button
+          id="mic"
+          class="hidden shrink-0 px-3 items-center gap-1.5 text-text-lo hover:text-text-hi
+                 hover:bg-surface-2 transition-colors
+                 data-[state=recording]:text-state-err
+                 data-[state=transcribing]:text-accent
+                 disabled:opacity-30 disabled:cursor-not-allowed"
+          data-state="idle"
+          title="Hold ⌃Space to talk, or click to toggle"
+          aria-label="Voice input"
+        >
+          <span class="size-2 rounded-full bg-current
+                       data-[on=true]:animate-pulse" id="mic-dot" data-on="false"></span>
+          <span class="text-xs tabular-nums" id="mic-label">Voice</span>
+        </button>
+        <button
+          id="new-tab"
+          class="shrink-0 px-3 text-text-lo hover:text-text-hi hover:bg-surface-2
+                 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-lg leading-none"
+          title="New session (⌘T)"
+          aria-label="New session"
+        >
+          +
+        </button>
+      </div>
+
+      <!-- Two views over the same terminals. Elements are MOVED between the
+           stack and the grid; recreating one would lose its scrollback and
+           reconnect its socket. Overlays sit above both. -->
+      <div id="surface" class="relative overflow-hidden bg-surface-0">
+        <div id="stack" class="absolute inset-0 overflow-hidden bg-term-bg"></div>
+        <div id="grid" class="hidden absolute inset-0 overflow-hidden bg-surface-0 p-1.5"></div>
+
+        <!-- Shown when the server cannot be reached at all. Every other failure
+             in this app explains itself on screen; this one used to be a silent
+             "detached" tab, which is indistinguishable from a hung terminal.
+             Driven by connectivity.js, and it clears itself when the tailnet
+             comes back. -->
+        <div
+          id="offline-banner"
+          class="hidden absolute top-0 inset-x-0 z-40 items-center justify-center gap-2
+                 border-b border-state-err/40 bg-state-err/15 backdrop-blur-sm
+                 px-3 py-2 text-xs text-text-hi"
+          role="status"
+          aria-live="polite"
+        >
+          <span class="size-2 shrink-0 rounded-full bg-state-err animate-pulse"></span>
+          <span>Can't reach Papaya — check that <b class="font-semibold">Tailscale</b> is connected on this device.</span>
+        </div>
+
+        <div
+          id="empty-state"
+          class="absolute inset-0 grid place-items-center text-center text-text-lo"
+        >
+          <div>
+            <div class="text-sm">No sessions</div>
+            <div class="text-xs mt-1 opacity-70">Press ⌘T to connect to a host</div>
+
+            <!-- Work that outlived papaya. Populated from /api/resumable, and
+                 hidden when there is none, so the empty state stays quiet. -->
+            <div id="resumable" class="mt-6 hidden text-left">
+              <div class="flex items-center justify-between gap-4 mb-2">
+                <div class="text-xs uppercase tracking-wide opacity-60">
+                  Still running
+                </div>
+                <button
+                  id="resume-all"
+                  class="text-xs px-2 py-1 rounded border border-border hover:bg-surface-2"
+                >
+                  Resume all
+                </button>
+              </div>
+              <div id="resumable-list" class="flex flex-col gap-1"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- recording indicator: live waveform, elapsed time, and what to do next -->
+        <div
+          id="recording-pill"
+          data-state="idle"
+          class="hidden absolute bottom-4 left-1/2 -translate-x-1/2 z-30 items-center gap-3
+                 rounded-full border border-surface-3 bg-surface-1/95 backdrop-blur-sm
+                 px-4 py-2 shadow-2xl select-none
+                 data-[state=recording]:flex data-[state=transcribing]:flex"
+          role="status"
+          aria-live="polite"
+        >
+          <span
+            id="recording-dot"
+            class="size-2.5 shrink-0 rounded-full bg-state-err animate-pulse"
+          ></span>
+
+          <canvas id="recording-wave" class="h-7 w-40 shrink-0" aria-hidden="true"></canvas>
+
+          <span id="recording-time" class="text-xs tabular-nums text-text-hi">00:00</span>
+
+          <span id="recording-hint" class="text-xs text-text-lo whitespace-nowrap">
+            release to send · Esc cancels
+          </span>
+        </div>
+
+        <!-- drop overlay; the depth counter in upload.js drives data-on -->
+        <div
+          id="drop-overlay"
+          data-on="false"
+          class="absolute inset-0 z-20 hidden place-items-center bg-surface-0/80 backdrop-blur-sm
+                 ring-2 ring-inset ring-accent ring-dashed data-[on=true]:grid"
+        >
+          <div class="text-center pointer-events-none">
+            <div class="text-2xl text-accent">↑</div>
+            <div class="text-sm text-text-hi mt-2">Drop image to upload</div>
+            <div class="text-xs text-text-lo mt-1">Path inserted at cursor</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- status bar -->
+      <div
+        class="flex items-center justify-between h-6 px-3 text-xs bg-surface-1
+               border-t border-surface-3 text-text-lo"
+      >
+        <span id="status-left"></span>
+        <span id="status-right" class="flex items-center gap-2">
+          <span
+            id="upload-progress"
+            class="hidden h-1 w-24 rounded bg-surface-3 overflow-hidden"
+            role="progressbar"
+          >
+            <span id="upload-bar" class="block h-full w-0 bg-accent transition-[width]"></span>
+          </span>
+          <!-- The way back when a session has gone stale. An installed app has
+               no address bar and so no reload, which left a suspended laptop
+               with nothing to press. Hidden until something is actually wrong. -->
+          <button
+            id="reconnect"
+            class="hidden items-center gap-1 rounded px-1.5 py-0.5 text-xs
+                   text-state-warn hover:bg-surface-2 hover:text-text-hi transition-colors"
+            title="Reconnect stale sessions"
+          >
+            <span aria-hidden="true">⟳</span>
+            <span>Reconnect</span>
+          </button>
+          <!-- Text copied on the far side that the browser would not let us
+               write unprompted. Safari requires a user gesture for the
+               clipboard and text arriving over the network has none behind it,
+               so the copy is held here and this button is the gesture. Hidden
+               unless something is actually waiting. -->
+          <button
+            id="clipboard-pending"
+            class="hidden items-center gap-1 rounded px-1.5 py-0.5 text-xs
+                   text-state-warn hover:bg-surface-2 hover:text-text-hi transition-colors"
+            title="Put the text copied on the remote host onto this machine's clipboard"
+          >
+            <span aria-hidden="true">⧉</span>
+            <span>Copy</span>
+          </button>
+          <span id="status-text"></span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Native file picker for the attach button. accept=image/* with no
+         capture attribute is what makes iOS offer Photo Library / Take Photo /
+         Files rather than jumping straight to the camera. -->
+    <input id="file-input" type="file" accept="image/*" multiple class="hidden" />
+
+    <!-- Floating touch key pad: the keys the soft keyboard does not have — Esc
+         and the arrows — plus a chip to put it away. It floats clear of the
+         bottom edge because taps down there open the iOS keyboard, and
+         keypad.js keeps it riding just above the keyboard while typing.
+         Shown only for touch input, not merely narrow windows. -->
+    <div
+      id="keypad"
+      data-open="true"
+      class="kb-float hidden touch:grid group fixed right-3 bottom-[88px] z-30 grid-cols-3 gap-1.5 select-none"
+      role="toolbar"
+      aria-label="Terminal keys"
+    ></div>
+
+    <div id="overlays"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

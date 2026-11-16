@@ -1,0 +1,124 @@
+@import "tailwindcss";
+@import "@xterm/xterm/css/xterm.css";
+
+/* Design tokens live here once. Tailwind styles the chrome from them, and
+   theme.js reads the terminal ones at runtime to build the xterm theme object,
+   so there is never a second, divergent colour definition. */
+@theme {
+  /* chrome */
+  --color-surface-0: #0d1117;
+  --color-surface-1: #161b22;
+  --color-surface-2: #21262d;
+  --color-surface-3: #30363d;
+  --color-text-hi: #e6edf3;
+  --color-text-lo: #8b949e;
+  --color-accent: #58a6ff;
+
+  /* state */
+  --color-state-ok: #3fb950;
+  --color-state-warn: #d29922;
+  --color-state-err: #f85149;
+
+  /* terminal - consumed by theme.js */
+  --color-term-bg: #0d1117;
+  --color-term-fg: #e6edf3;
+  --color-term-cursor: #58a6ff;
+  --color-term-sel: #264f78;
+
+  --color-ansi-black: #484f58;
+  --color-ansi-red: #ff7b72;
+  --color-ansi-green: #3fb950;
+  --color-ansi-yellow: #d29922;
+  --color-ansi-blue: #58a6ff;
+  --color-ansi-magenta: #bc8cff;
+  --color-ansi-cyan: #39c5cf;
+  --color-ansi-white: #b1bac4;
+  --color-ansi-bright-black: #6e7681;
+  --color-ansi-bright-red: #ffa198;
+  --color-ansi-bright-green: #56d364;
+  --color-ansi-bright-yellow: #e3b341;
+  --color-ansi-bright-blue: #79c0ff;
+  --color-ansi-bright-magenta: #d2a8ff;
+  --color-ansi-bright-cyan: #56d4dd;
+  --color-ansi-bright-white: #f0f6fc;
+
+  /* A pure system stack: no webfont request, because a tailnet-only app may
+     have no route to a font CDN and the page would block on it. */
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  --radius-tab: 0.375rem;
+}
+
+/* xterm manages its own sizing; it must not fight the flex/grid layout. */
+.xterm {
+  height: 100%;
+  padding: 0.5rem;
+}
+
+.xterm-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-surface-3) transparent;
+}
+
+.xterm-viewport::-webkit-scrollbar {
+  width: 10px;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background: var(--color-surface-3);
+  border-radius: 5px;
+}
+
+/* Terminal hosts are hidden by moving them off-screen, never with display:none:
+   a display:none terminal measures 0x0 and FitAddon then computes garbage
+   dimensions, which would destroy the remote PTY geometry. Off-screen elements
+   keep their layout box, so measurement stays valid. */
+.term-host {
+  position: absolute;
+  inset: 0;
+}
+
+/* Only tab-stack terminals are hidden this way. In the grid view every terminal
+   is on screen at its own size, so the rule is scoped to direct children of the
+   stack rather than to the class.
+
+   Offset with a transform rather than `left`. Against `inset: 0`, overriding
+   `left` while `right` stays 0 stretches the element to the container width
+   plus the offset, so the hidden terminal would measure ~100000px and fit to an
+   absurd column count. A transform moves it without touching its layout box, so
+   measurement stays exactly as if it were visible. */
+#stack > .term-host[data-active="false"] {
+  visibility: hidden;
+  transform: translateX(-99999px);
+  pointer-events: none;
+}
+
+/* Touch variant: a coarse pointer with no hover. Narrow desktop windows should
+   not get the key row, and large tablets should. */
+@custom-variant touch (@media (pointer: coarse));
+
+/* On a phone the panel grid is unusable at four across, so panels stack and the
+   split ratios are ignored. The layout tree is untouched: rotating back to a
+   wide screen restores the arrangement exactly. */
+@media (max-width: 640px) {
+  #grid > div {
+    flex-direction: column !important;
+  }
+  #grid [data-panel-id] {
+    flex: 1 1 0% !important;
+    min-height: 8rem;
+  }
+  #grid [data-gutter] {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

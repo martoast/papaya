@@ -1,0 +1,48 @@
+# No cap_add, no devices, no network_mode. That is the entire point of tsnet:
+# the node joins the tailnet in userspace, so the container needs no NET_ADMIN,
+# no TUN device, and no host networking.
+services:
+  papaya:
+    build: .
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:?set TS_AUTHKEY to an ephemeral, pre-authorized, tagged key}
+      PAPAYA_HOSTNAME: ${PAPAYA_HOSTNAME:-papaya}
+      PAPAYA_ALLOWED_USERS: ${PAPAYA_ALLOWED_USERS:?set to a comma-separated list of tailnet logins}
+      PAPAYA_ALLOWED_TAGS: ${PAPAYA_ALLOWED_TAGS:-}
+      PAPAYA_HOSTS: ${PAPAYA_HOSTS:-}
+      PAPAYA_ALLOWED_HOSTS: ${PAPAYA_ALLOWED_HOSTS:-}
+      PAPAYA_ALLOWED_SSH_USERS: ${PAPAYA_ALLOWED_SSH_USERS:-}
+      PAPAYA_TMUX: ${PAPAYA_TMUX:-true}
+      PAPAYA_TLS: ${PAPAYA_TLS:-true}
+      PAPAYA_OPENAI_API_KEY: ${PAPAYA_OPENAI_API_KEY:-}
+      PAPAYA_SSH_USER: ${PAPAYA_SSH_USER:-}
+      # A container that restarts should keep its address rather than re-enrol.
+      PAPAYA_EPHEMERAL: ${PAPAYA_EPHEMERAL:-false}
+      PAPAYA_MAX_SESSIONS: ${PAPAYA_MAX_SESSIONS:-10}
+      PAPAYA_MAX_UPLOAD_MB: ${PAPAYA_MAX_UPLOAD_MB:-25}
+      PAPAYA_DETACHED_TTL: ${PAPAYA_DETACHED_TTL:-30m}
+      PAPAYA_KNOWN_HOSTS: /etc/papaya/known_hosts
+      PAPAYA_STATE_DIR: /var/lib/papaya
+      # Only needed for targets that cannot run Tailscale SSH, which is a
+      # Linux-only server feature — a macOS host runs its own sshd and rejects
+      # the identity-based "none" method, falling through to a password prompt.
+      # Left empty, the key is simply never offered.
+      PAPAYA_KEY_PATH: ${PAPAYA_KEY_PATH:-}
+      # Paths inside the container. deploy/ is mounted at /etc/papaya below, so
+      # a certificate issued on the host is visible here unchanged.
+      PAPAYA_TLS_CERT: ${PAPAYA_TLS_CERT_CONTAINER:-}
+      PAPAYA_TLS_KEY: ${PAPAYA_TLS_KEY_CONTAINER:-}
+      PAPAYA_INSECURE_SKIP_HOST_KEY: ${PAPAYA_INSECURE_SKIP_HOST_KEY:-false}
+    volumes:
+      # Node identity and the Tailscale certificate cache. Losing this makes the
+      # node re-enrol and take a new address.
+      - tsstate:/var/lib/papaya
+      # Host keys, and any certificate issued by deploy/setup-domain.sh. Read
+      # only: the container never needs to write here.
+      - ./deploy:/etc/papaya:ro
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  tsstate:

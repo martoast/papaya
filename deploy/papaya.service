@@ -1,0 +1,39 @@
+# Native systemd unit, for running without Docker.
+#
+# Docker is preferable: it runs the process as uid 10001 instead of a login
+# account, so a bug in papaya cannot reach that user's ~/.ssh. Use this only if
+# Docker is not an option.
+#
+#   sudo cp deploy/papaya.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now papaya
+#   journalctl -u papaya -f
+
+[Unit]
+Description=papaya — tailnet web terminal
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=papaya
+WorkingDirectory=/opt/papaya
+# Secrets live in the file, not the command line: /proc/<pid>/cmdline and the
+# process list are readable by other users.
+EnvironmentFile=/opt/papaya/.env
+ExecStart=/opt/papaya/bin/papaya
+Restart=on-failure
+RestartSec=5
+
+# The process needs no privileges: tsnet is entirely userspace.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/papaya/deploy/state
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

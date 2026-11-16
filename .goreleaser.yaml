@@ -1,0 +1,42 @@
+# Release builds: `git tag v0.1.0 && git push --tags` runs .github/workflows/release.yml.
+version: 2
+project_name: papaya
+
+before:
+  hooks:
+    # The web UI is embedded in the binary, so it is built first.
+    - npm --prefix web ci
+    - npm --prefix web run build
+
+builds:
+  - id: papaya
+    main: ./cmd/papaya
+    binary: papaya
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - AGENTS.md
+      - .env.example
+      - bin/papaya-say
+      - skills/**/*
+      - deploy/papaya.service
+      - deploy/io.papaya.plist
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github
+  sort: asc

@@ -1,0 +1,18 @@
+# A real OpenSSH server for integration tests. A mock SSH server can pass while
+# the real thing deadlocks, so anything touching PTY behaviour, SFTP, or shell
+# semantics is exercised against this.
+services:
+  sshd:
+    image: linuxserver/openssh-server:latest
+    container_name: papaya-test-sshd
+    environment:
+      PUBLIC_KEY_FILE: /keys/id_test.pub
+      USER_NAME: tester
+      SUDO_ACCESS: "false"
+      PASSWORD_ACCESS: "false"
+      DOCKER_MODS: linuxserver/mods:openssh-server-ssh-tunnel
+    volumes:
+      - ./keys:/keys:ro
+      - ./fixtures:/fixtures:ro
+    ports:
+      - "127.0.0.1:2222:2222"

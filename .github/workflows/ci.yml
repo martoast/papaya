@@ -1,0 +1,174 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# tailscale.com is a heavy dependency; an uncached build dominates CI time.
+env:
+  GOTOOLCHAIN: auto
+
+jobs:
+  unit:
+    name: Unit (race)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: mkdir -p web/dist && touch web/dist/.gitkeep
+      - name: Test with the race detector
+        run: go test -race -count=1 -timeout 600s ./...
+
+  arch:
+    name: Structural guards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: mkdir -p web/dist && touch web/dist/.gitkeep
+      - run: go test -count=1 ./test/arch/...
+
+  fuzz:
+    name: Fuzz
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: mkdir -p web/dist && touch web/dist/.gitkeep
+      - run: go test -run=FuzzSafeName -fuzz=FuzzSafeName -fuzztime=60s ./internal/sshx
+      - run: go test -run=FuzzSanitizeName -fuzz=FuzzSanitizeName -fuzztime=60s ./internal/hub
+      - run: go test -run=FuzzRing -fuzz=FuzzRing -fuzztime=60s ./internal/hub
+      - name: Upload any crashers
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-corpus
+          path: |
+            internal/**/testdata/fuzz/**
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        run: |
+          docker run --rm -v "$PWD:/src" zricethezav/gitleaks:latest detect --source /src --redact --verbose
+
+  lint:
+    name: Lint and vulnerabilities
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: mkdir -p web/dist && touch web/dist/.gitkeep
+      # `make tools` builds the analysers with this module's toolchain. Plain
+      # `go install` would build them with the older version their own go.mod
+      # declares, and they could not then parse our sources.
+      - run: make tools
+      - run: make lint
+
+  integration:
+    name: Integration (real sshd)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: mkdir -p web/dist && touch web/dist/.gitkeep
+      - name: Test against a real OpenSSH server
+        env:
+          PAPAYA_INTEGRATION: "1"
+        run: go test -race -count=1 -tags=integration -timeout 1200s ./test/integration/...
+
+  browser:
+    name: Browser (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm --prefix web ci
+      - run: npx --prefix web playwright install --with-deps chromium
+      - run: npm --prefix web run test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: web/test-results/
+
+  docker:
+    name: Container
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: papaya:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Runs unprivileged as UID 10001
+        run: |
+          id_out=$(docker run --rm --entrypoint id papaya:ci)
+          echo "$id_out"
+          echo "$id_out" | grep -q 'uid=10001' || exit 1
+      - name: Refuses to start with an empty access list
+        run: |
+          set +e
+          docker run --rm -e TS_AUTHKEY=tskey-fake papaya:ci
+          code=$?
+          set -e
+          echo "exit code: $code"
+          [ "$code" -ne 0 ] || { echo "expected a non-zero exit"; exit 1; }
+
+  smoke:
+    name: Real tailnet smoke
+    runs-on: ubuntu-latest
+    # Forks have no access to the auth key; skipping is expected there.
+    if: github.event_name == 'push'
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: mkdir -p web/dist && touch web/dist/.gitkeep
+      - name: Join a real tailnet
+        env:
+          TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
+        run: |
+          if [ -z "$TS_AUTHKEY" ]; then
+            echo "TS_AUTHKEY not set; skipping"
+            exit 0
+          fi
+          go test -race -count=1 -tags=tailnet -timeout 300s ./test/tailnet/...
