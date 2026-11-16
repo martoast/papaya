@@ -14,6 +14,7 @@ import { reachability } from './connectivity.js'
 import { rememberTabs, recallTabs } from './remember.js'
 import { runSetup, watchNewMachines } from './setup.js'
 import { initThemes } from './themes.js'
+import { initInstall } from './install.js'
 
 const el = (id) => document.getElementById(id)
 
@@ -949,6 +950,8 @@ async function start() {
     restore()
   }
   watchNewMachines(el('settings-dot'))
+  // After setup, so the install guide never covers the first-run screen.
+  initInstall(el('install-app'))
 }
 
 // openOn opens the first terminal on a machine setup has just made ready.

@@ -222,3 +222,60 @@ html[data-backdrop='on'] .bg-surface-1 {
   [data-attention='true'] .tab-dot::after,
   [data-tab-id][data-attention='true'] { animation: none; }
 }
+
+/* ---- Add to Home Screen guide (iPhone/iPad Safari; install.js) ---- */
+#install-guide {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0 12px calc(env(safe-area-inset-bottom) + 64px);
+  background: rgba(0, 0, 0, 0.35);
+  animation: ig-fade 0.25s ease-out;
+  font-family: ui-sans-serif, -apple-system, system-ui, sans-serif;
+}
+#install-guide .ig-card {
+  position: relative;
+  width: min(420px, 100%);
+  background: var(--color-surface-1);
+  color: var(--color-text-hi);
+  border: 1px solid var(--color-surface-3);
+  border-radius: 20px;
+  padding: 18px 18px 14px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  animation: ig-up 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+#install-guide .ig-close {
+  position: absolute; top: 8px; right: 10px;
+  width: 30px; height: 30px; border-radius: 99px;
+  color: var(--color-text-lo); font-size: 20px; line-height: 1;
+}
+#install-guide .ig-head { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; padding-right: 26px; }
+#install-guide .ig-head img { border-radius: 10px; }
+#install-guide .ig-head b { display: block; font-size: 16px; }
+#install-guide .ig-head span { color: var(--color-text-lo); font-size: 13px; }
+#install-guide ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; font-size: 14.5px; }
+#install-guide li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#install-guide em { color: var(--color-text-lo); font-style: normal; font-size: 12.5px; }
+#install-guide .ig-n {
+  display: grid; place-items: center; width: 22px; height: 22px; border-radius: 99px;
+  background: var(--color-accent); color: #120d0a; font-weight: 700; font-size: 12px;
+}
+#install-guide .ig-key {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px;
+  border-radius: 8px; background: var(--color-surface-2); border: 1px solid var(--color-surface-3);
+  color: var(--color-accent); font-weight: 600;
+}
+#install-guide .ig-arrow {
+  margin-top: 10px; font-size: 28px; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.6);
+  animation: ig-bounce 1.2s ease-in-out infinite;
+}
+@keyframes ig-fade { from { opacity: 0; } }
+@keyframes ig-up { from { transform: translateY(40px); opacity: 0; } }
+@keyframes ig-bounce { 50% { transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) {
+  #install-guide, #install-guide .ig-card, #install-guide .ig-arrow { animation: none; }
+}

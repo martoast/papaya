@@ -17,7 +17,8 @@
 # needs only bash and curl. Server: $PAPAYA_URL, e.g. https://papaya.your-tailnet.ts.net
 set -euo pipefail
 
-URL=${PAPAYA_URL:-}
+# PAPAYA_URL, else the address the installer saved.
+URL=${PAPAYA_URL:-$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/papaya/url" 2>/dev/null || true)}
 URL=${URL%/}
 usage() { sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
 [ -n "$URL" ] || { echo "papaya-say: set PAPAYA_URL to your Papaya address, e.g. https://papaya.your-tailnet.ts.net" >&2; exit 2; }

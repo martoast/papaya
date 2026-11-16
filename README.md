@@ -60,15 +60,14 @@ personal use) and an always-on machine to run Papaya on. That's it: no keys to
 create, no settings file.
 
 ```bash
-docker run -d --name papaya --restart unless-stopped \
-  -v papaya-data:/var/lib/papaya ghcr.io/martoast/papaya
-docker logs -f papaya
+curl -fsSL https://papaya.fullstacklabs.org/install.sh | sh
 ```
 
-1. **Sign in.** The log shows a *Sign in with Tailscale* link and a QR code.
-   Open it (on your phone, scan the code) and approve the new device. Papaya
-   joins your tailnet as *your* device, so only you can use it.
-2. **Open it.** The log then prints Papaya's address, like
+1. **Sign in.** The installer starts Papaya (in Docker if you have it,
+   otherwise as a background service) and shows a *Sign in with Tailscale*
+   link. Approve the new device; Papaya joins your tailnet as *your* device,
+   so only you can use it.
+2. **Open it.** The installer then prints Papaya's address, like
    `https://papaya.your-tailnet.ts.net`. Open it from any device on your
    tailnet.
 3. **Follow the setup screen.** Tick the machines you want, type your account
@@ -76,7 +75,23 @@ docker logs -f papaya
    machines pass on the first try; anything that doesn't is explained in plain
    words, with what to do next.
 
-On a machine without Docker, download the binary for Linux or macOS from the
+On each machine your agents run on, install the agent tools (`papaya-say`,
+`papaya-theme`, `papaya-status` and their skills):
+
+```bash
+curl -fsSL https://papaya.fullstacklabs.org/install.sh | sh -s -- --tools --url https://papaya.your-tailnet.ts.net
+```
+
+The installer is [one readable script](site/install.sh): it verifies the
+release checksum, and re-running it upgrades in place. Prefer Docker by hand?
+
+```bash
+docker run -d --name papaya --restart unless-stopped -e PAPAYA_TMUX=true \
+  -v papaya-data:/var/lib/papaya ghcr.io/martoast/papaya
+docker logs -f papaya
+```
+
+On a machine without Docker, you can also download the binary for Linux or macOS from the
 [releases page](https://github.com/martoast/papaya/releases) and run `papaya`
 with `PAPAYA_STATE_DIR` pointing at a folder it can keep (`deploy/papaya.service`
 is a systemd unit; `make service-install` sets up launchd on macOS).
@@ -427,6 +442,32 @@ off.
 The format, the scene API and the rules agents follow:
 [docs/THEMES.md](docs/THEMES.md) and the skill
 [skills/papaya-theme/SKILL.md](skills/papaya-theme/SKILL.md).
+
+## Agent status on every tab
+
+Each tab shows whether its agent is working, finished while you looked
+elsewhere (*your turn*), or needs you, worked out from the terminal output
+with no setup. Agents can also say it exactly, with their own words on the tab,
+through `papaya-status`:
+
+```bash
+papaya-status --setup    # prints the hooks for Claude Code and Codex
+```
+
+With the Claude Code hooks, submitting a prompt marks the tab working, Claude
+stopping marks it done, and a notification ("Claude needs your permission to
+use Bash") turns it amber with that message. The command finds its tab from the
+tmux session, like papaya-say, and never slows the agent down or fails it.
+Programs outside tmux can print OSC 7501 (`ESC ] 7501 ; state=working ESC \`),
+the open status code herdr published; tmux drops unknown escape codes, which is
+why the command exists.
+
+## Tabs survive restarts and updates
+
+With tmux on (`PAPAYA_TMUX=true`, which the installer sets), Papaya keeps its
+tab list in `$PAPAYA_STATE_DIR/sessions.json`. After a restart or an upgrade
+every tab comes back with its id, name and order, attached to its workspace
+again, and open browsers simply reconnect.
 
 ## Picking work back up after a restart
 

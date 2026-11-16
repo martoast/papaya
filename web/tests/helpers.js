@@ -2,15 +2,21 @@ import { expect } from '@playwright/test'
 
 // resetSessions clears server-side state so each test starts clean. Sessions
 // deliberately outlive the browser, so a reload alone is not a reset.
+//
+// It runs from /healthz, a page on the same origin with no app on it. Doing it
+// from the app raced: the app would show the previous test's tabs, its
+// once-a-second sweep would remember them, and after the delete and reload it
+// resumed them from that memory (their fake workspaces still "running").
 export async function resetSessions(page) {
-  await page.goto('/')
+  await page.goto('/healthz')
   await page.evaluate(async () => {
     const sessions = await fetch('/api/sessions').then((r) => r.json())
     await Promise.all(
       sessions.map((s) => fetch(`/api/sessions/${s.id}`, { method: 'DELETE' })),
     )
+    localStorage.removeItem('papaya.tabs.v1')
   })
-  await page.reload()
+  await page.goto('/')
   await expect(page.locator('#empty-state')).toBeVisible()
 }
 

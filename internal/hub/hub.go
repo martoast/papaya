@@ -53,6 +53,12 @@ type Hub struct {
 	// waiting out another full dial timeout. See Resumable.
 	unreachMu   sync.Mutex
 	unreachable map[Target]time.Time
+
+	// persistMu orders saving the tab list against shutting tabs down: a save
+	// in flight finishes before CloseAll empties the registry, and none starts
+	// after (closing), so the saved list is never the empty one.
+	persistMu sync.Mutex
+	closing   bool
 }
 
 func New(pool *sshx.Pool, opts Options) *Hub {
@@ -422,6 +428,12 @@ func (h *Hub) RunReaper(ctx context.Context, every time.Duration) {
 
 // CloseAll terminates every session. Used on shutdown.
 func (h *Hub) CloseAll(reason string) {
+	h.persistMu.Lock()
+	h.mu.Lock()
+	h.closing = true
+	h.mu.Unlock()
+	h.persistMu.Unlock()
+
 	h.mu.Lock()
 	all := make([]*Session, 0, len(h.sessions))
 	for id, s := range h.sessions {

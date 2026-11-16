@@ -108,6 +108,7 @@ func (s *Server) Handler() http.Handler {
 	protected.HandleFunc("GET /api/say/tabs", s.sayTabs)
 	protected.HandleFunc("POST /api/say", s.say)
 	protected.HandleFunc("GET /api/say/screen", s.screen)
+	protected.HandleFunc("POST /api/status", s.agentStatus)
 	protected.HandleFunc("GET /api/hosts", s.listHosts)
 	protected.HandleFunc("GET /api/resumable", s.listResumable)
 	protected.HandleFunc("POST /api/sessions/resume", s.resumeSession)

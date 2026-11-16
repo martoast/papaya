@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# papaya-status: tell Papaya what the agent in this tab is doing, so the tab
+# shows it exactly: a spinner while working, "your turn" when done, an amber
+# "needs you" with the message when it is waiting on a person.
+#
+#   papaya-status working|done|needs-you|idle ["message"]
+#   papaya-status needs-you --hook       for agent hooks: reads the hook's JSON
+#                                        on stdin for the message, never fails,
+#                                        never blocks the agent
+#   papaya-status --setup                print the hook settings for Claude Code
+#                                        and Codex
+#
+# The tab is the one this runs in (from $PAPAYA_FROM, else the tmux session,
+# else the hostname); --tab NAME picks another. Server: $PAPAYA_URL, e.g.
+# https://papaya.your-tailnet.ts.net. Needs only bash and curl.
+set -uo pipefail
+
+# PAPAYA_URL, else the address the installer saved.
+URL=${PAPAYA_URL:-$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/papaya/url" 2>/dev/null || true)}
+URL=${URL%/}
+usage() { sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
+
+setup() {
+	cat <<'EOF'
+Claude Code: add to ~/.claude/settings.json (merge with any "hooks" you have):
+
+  {
+    "hooks": {
+      "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "papaya-status working --hook" }] }],
+      "Stop":             [{ "hooks": [{ "type": "command", "command": "papaya-status done --hook" }] }],
+      "Notification":     [{ "hooks": [{ "type": "command", "command": "papaya-status needs-you --hook" }] }]
+    }
+  }
+
+Codex: add to ~/.codex/config.toml:
+
+  notify = ["papaya-status", "done", "--hook"]
+
+PAPAYA_URL must be set where the agent runs. Without hooks, Papaya still
+works out working / your turn from the terminal output; hooks make it exact
+and put the agent's own words ("Claude needs your permission to use Bash")
+on the tab.
+EOF
+}
+
+me() {
+	if [ -n "${PAPAYA_FROM:-}" ]; then printf '%s' "$PAPAYA_FROM"; return; fi
+	if [ -n "${TMUX:-}" ]; then
+		local s; s=$(tmux display-message -p '#S' 2>/dev/null || true)
+		if [ -n "$s" ]; then printf '%s' "${s#papaya-}"; return; fi
+	fi
+	hostname -s 2>/dev/null || hostname
+}
+
+json_str() {
+	local s
+	s=$(printf '%s' "$1" | tr -d '\000-\037')
+	s=${s//\\/\\\\}; s=${s//\"/\\\"}
+	printf '"%s"' "$s"
+}
+
+state="" msg="" tab="" hook=false
+while [ $# -gt 0 ]; do
+	case $1 in
+		-h|--help) usage 0 ;;
+		--setup) setup; exit 0 ;;
+		--hook) hook=true; shift ;;
+		--tab) tab=${2:-}; shift 2 ;;
+		working|done|needs-you|idle) [ -z "$state" ] && state=$1 || msg=$1; shift ;;
+		*) if $hook; then shift; else msg=$1; shift; fi ;;
+	esac
+done
+[ -n "$state" ] || usage
+
+if $hook; then
+	# Claude Code passes a JSON object on stdin; its "message" is the text to
+	# show (Notification). Read it without waiting on a terminal.
+	if [ ! -t 0 ]; then
+		input=$(timeout 1 cat 2>/dev/null || true)
+		msg=$(printf '%s' "$input" | tr -d '\n' | sed -n 's/.*"message" *: *"\([^"]*\)".*/\1/p' | head -c 200)
+	fi
+	[ -n "$URL" ] || exit 0
+fi
+[ -n "$URL" ] || { echo "papaya-status: set PAPAYA_URL to your Papaya address" >&2; exit 2; }
+[ -n "$tab" ] || tab=$(me)
+
+body="{\"tab\":$(json_str "$tab"),\"state\":\"$state\",\"msg\":$(json_str "$msg")}"
+out=$(curl -sS --max-time 3 -X POST -H 'Content-Type: application/json' --data-binary "$body" -w '\n%{http_code}' "$URL/api/status" 2>&1)
+code=${out##*$'\n'}
+if [ "${code:0:1}" != 2 ]; then
+	$hook && exit 0
+	err=$(printf '%s' "${out%$'\n'*}" | sed -n 's/.*"error":"\(.*\)".*/\1/p')
+	echo "papaya-status: ${err:-cannot reach $URL}" >&2
+	exit 1
+fi
+$hook || echo "$tab: $state"
+exit 0

@@ -34,14 +34,24 @@ function osLabel(os) {
   return os || 'Device'
 }
 
-// papaya draws the logo: a papaya cut in half, its seeds forming a >_ prompt.
-// Same mark as site/logo.svg, without ids so it can appear twice on a page.
+// papaya draws the logo: a papaya cut in half, seeds and all. Same mark as
+// site/logo.svg, with flat colours and no ids so it can appear twice on a page.
 // There is no papaya emoji, and a mango is not one.
 const papaya = (size = 20) => `<svg width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true">
-  <path d="M32 3 C42.5 3 50.5 12 54.5 25 C58 37 56.5 50 46.5 57 C41.5 60.5 37 61.5 32 61.5 C27 61.5 22.5 60.5 17.5 57 C7.5 50 6 37 9.5 25 C13.5 12 21.5 3 32 3Z" fill="#3d9c50"/>
-  <path d="M32 3 C42.5 3 50.5 12 54.5 25 C58 37 56.5 50 46.5 57 C41.5 60.5 37 61.5 32 61.5 C27 61.5 22.5 60.5 17.5 57 C7.5 50 6 37 9.5 25 C13.5 12 21.5 3 32 3Z" fill="#ff9447" transform="translate(32 34) scale(.855) translate(-32 -34)"/>
-  <path d="M32 3 C42.5 3 50.5 12 54.5 25 C58 37 56.5 50 46.5 57 C41.5 60.5 37 61.5 32 61.5 C27 61.5 22.5 60.5 17.5 57 C7.5 50 6 37 9.5 25 C13.5 12 21.5 3 32 3Z" fill="#e5541d" transform="translate(32 34.5) scale(.53 .55) translate(-32 -34)"/>
-  <g stroke="#1d120c" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M24.5 25.5 L31.5 32 L24.5 38.5"/><path d="M33.5 41.5 L38.5 41.5"/></g>
+  
+  <g transform="rotate(-24 32 32)">
+    <path d="M32 3.5c6.5 0 10 5.5 12 12.5 1.6 5.6 6.5 9.5 7.6 17.5C53.4 47 44.5 60.5 32 60.5S10.6 47 12.4 33.5C13.5 25.5 18.4 21.6 20 16c2-7 5.5-12.5 12-12.5z" fill="#2f8a47"/>
+    <path d="M32 6.5c5 0 8.2 4.6 9.9 10.9 1.7 6 6.2 9.7 7.2 16.4C50.6 45.3 42.7 57.5 32 57.5S13.4 45.3 14.9 33.8c1-6.7 5.5-10.4 7.2-16.4C23.8 11.1 27 6.5 32 6.5z" fill="#f3d36a"/>
+    <path d="M32 8.5c4.2 0 7 4.1 8.5 9.6 1.7 6.1 5.9 9.6 6.8 15.9C48.6 44.4 41.6 55.5 32 55.5S15.4 44.4 16.7 34c.9-6.3 5.1-9.8 6.8-15.9C25 12.6 27.8 8.5 32 8.5z" fill="#ff8f4f"/>
+    <path d="M32 22c4.6 0 7.5 6.5 7.5 14.5S36.2 50 32 50s-7.5-5.5-7.5-13.5S27.4 22 32 22z" fill="#e2582a"/>
+    <g fill="#1c120d">
+      <circle cx="30" cy="27" r="2"/><circle cx="34" cy="28.5" r="2"/><circle cx="29" cy="32" r="2.1"/><circle cx="33.4" cy="33.4" r="2.1"/>
+      <circle cx="28.8" cy="37.4" r="2.1"/><circle cx="33.6" cy="38.6" r="2.1"/><circle cx="30.4" cy="42.4" r="2"/><circle cx="34.2" cy="43.6" r="1.8"/><circle cx="31.6" cy="46.6" r="1.6"/>
+    </g>
+    <g fill="#fff" opacity=".45">
+      <circle cx="29.4" cy="26.4" r=".6"/><circle cx="33.4" cy="27.9" r=".6"/><circle cx="28.4" cy="31.4" r=".6"/><circle cx="32.8" cy="32.8" r=".6"/><circle cx="28.2" cy="36.8" r=".6"/><circle cx="33" cy="38" r=".6"/>
+    </g>
+  </g>
 </svg>`
 
 const isMac = (m) => (m.os || '').toLowerCase().startsWith('mac')

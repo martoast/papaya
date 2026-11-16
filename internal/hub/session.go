@@ -79,6 +79,12 @@ type Session struct {
 	rows      int
 	attention bool
 	lastBell  time.Time
+
+	// agentState and agentMsg are what the program in this tab last said about
+	// itself through papaya-status (working, done, needs-you, idle). Replayed
+	// to every browser that attaches.
+	agentState string
+	agentMsg   string
 	// clients are every socket watching this session. A phone opening the same
 	// tab as a laptop is a second viewer, not a replacement: evicting the first
 	// made both browsers reconnect and evict each other about once a second,
@@ -785,6 +791,28 @@ func (s *Session) attach(c *wsConn) {
 		s.sendEvent(c, map[string]any{"type": "status", "state": st, "msg": ""})
 	}
 	s.sendEvent(c, map[string]any{"type": "rename", "name": s.Name()})
+	s.mu.Lock()
+	as, am := s.agentState, s.agentMsg
+	s.mu.Unlock()
+	if as != "" {
+		s.sendEvent(c, map[string]any{"type": "agent", "state": as, "msg": am})
+	}
+}
+
+// AgentStates are what a program may say about itself with papaya-status.
+var AgentStates = map[string]bool{"working": true, "done": true, "needs-you": true, "idle": true}
+
+// SetAgentStatus records what the program in this tab says it is doing and
+// tells every attached browser. needs-you also raises attention, as a bell
+// does, so it survives a browser that was not open.
+func (s *Session) SetAgentStatus(state, msg string) {
+	s.mu.Lock()
+	s.agentState, s.agentMsg = state, msg
+	if state == "needs-you" {
+		s.attention = true
+	}
+	s.mu.Unlock()
+	s.emitEvent(map[string]any{"type": "agent", "state": state, "msg": msg})
 }
 
 // detach unbinds a WebSocket. The SSH session deliberately stays alive: that is

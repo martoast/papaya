@@ -184,6 +184,7 @@ export class TerminalTab {
     this.useWebgl(!themeState().backdrop)
 
     this.installClipboardBridge()
+    this.installStatusProtocol()
     this.installTouchGestures()
 
     this.term.attachCustomKeyEventHandler((e) => {
@@ -544,13 +545,60 @@ export class TerminalTab {
       this.lastWorkAt = now
       return
     }
-    if (this.activity === 'working' && now - this.lastOutputAt > 2500) {
+    if (this.activity === 'working' && !this.explicitWorking && now - this.lastOutputAt > 2500) {
       const long = this.lastWorkAt - this.workStart >= 3000
       if (long && !watched) {
         this.setActivity('done')
         sceneEvent({ type: 'done', id: this.id, tab: this.session.name || this.session.host })
       } else this.setActivity('idle')
     }
+  }
+
+  // applyAgentStatus takes what the program says about itself (papaya-status,
+  // or OSC 7501 when there is no tmux in between). It outranks the guess from
+  // the output stream: an explicit "working" holds through quiet stretches
+  // until the program says otherwise.
+  applyAgentStatus(state, msg) {
+    this.agentMsg = msg || ''
+    if (state === 'working') {
+      this.explicitWorking = true
+      this.workStart = this.workStart || Date.now()
+      this.setActivity('working')
+    } else if (state === 'done') {
+      this.explicitWorking = false
+      const watched = this.active && document.visibilityState === 'visible'
+      this.setActivity(watched ? 'idle' : 'done')
+      if (!watched) sceneEvent({ type: 'done', id: this.id, tab: this.session.name || this.session.host })
+    } else if (state === 'needs-you') {
+      this.explicitWorking = false
+      this.setActivity('idle')
+      if (!this.focused || document.visibilityState !== 'visible') {
+        this.attention = true
+        this.onAttention?.(this, true)
+      }
+      sceneEvent({ type: 'bell', id: this.id, tab: this.session.name || this.session.host })
+    } else {
+      this.explicitWorking = false
+      this.setActivity('idle')
+    }
+  }
+
+  // OSC 7501, the open Program Status Protocol herdr published:
+  //   ESC ] 7501 ; state=working:app=claude ESC \
+  // tmux drops unknown OSC sequences, so this only arrives for tabs without
+  // tmux; papaya-status is the route that works through it.
+  installStatusProtocol() {
+    this.term.parser?.registerOscHandler?.(7501, (data) => {
+      const kv = {}
+      for (const part of String(data).split(/[:;]/)) {
+        const [k, v] = part.split('=')
+        if (k) kv[k.trim()] = (v || '').trim()
+      }
+      const map = { working: 'working', busy: 'working', done: 'done', finished: 'done', blocked: 'needs-you', waiting: 'needs-you', input: 'needs-you', idle: 'idle' }
+      const state = map[kv.state]
+      if (state) this.applyAgentStatus(state, kv.msg || kv.app || '')
+      return true
+    })
   }
 
   setActivity(state) {
@@ -816,6 +864,10 @@ export class TerminalTab {
           this.session.name = ev.name
           this.onRename?.(this, ev.name)
         }
+        break
+
+      case 'agent':
+        this.applyAgentStatus(ev.state, ev.msg)
         break
 
       case 'bell':

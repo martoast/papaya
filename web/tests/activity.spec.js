@@ -52,3 +52,33 @@ test('typing and a quick command are not "working"', async ({ page }) => {
   await page.waitForTimeout(2500)
   await expect(tab).toHaveAttribute('data-activity', 'idle')
 })
+
+// papaya-status (Claude Code hooks call it) says exactly what the agent is
+// doing. It outranks the guess from the output stream.
+test('an agent that reports its status is shown exactly, message and all', async ({ page }) => {
+  const first = await newTab(page, { name: 'lead' })
+  const agent = await newTab(page, { name: 'helper' })
+  await first.click()
+  const status = (state, msg = '') =>
+    page.evaluate(([state, msg]) => fetch('/api/status', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tab: 'helper', state, msg }),
+    }).then((r) => r.status), [state, msg])
+
+  expect(await status('working')).toBe(204)
+  await expect(agent).toHaveAttribute('data-activity', 'working')
+  await page.waitForTimeout(3500) // no output at all: an explicit "working" still holds
+  await expect(agent).toHaveAttribute('data-activity', 'working')
+
+  expect(await status('needs-you', 'Claude needs your permission to use Bash')).toBe(204)
+  await expect(agent).toHaveAttribute('data-attention', 'true')
+  await expect(agent).toHaveAttribute('title', /needs you: Claude needs your permission to use Bash/)
+  await expect(page).toHaveTitle(/^\(1\) /)
+
+  expect(await status('done')).toBe(204)
+  await expect(agent).toHaveAttribute('data-activity', 'done')
+
+  await agent.click()
+  await expect(agent).toHaveAttribute('data-attention', 'false')
+  await expect(agent).toHaveAttribute('data-activity', 'idle')
+})

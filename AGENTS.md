@@ -267,6 +267,13 @@ machine whose agents should be able to message each other. Steps, the API and
 the rules are in [docs/AGENT-MESSAGING.md](docs/AGENT-MESSAGING.md). Check it
 with `papaya-say --list` from each machine.
 
+## Agent tools on other machines
+
+On each machine whose agents should use papaya-say, papaya-theme and
+papaya-status:
+
+    curl -fsSL https://papaya.fullstacklabs.org/install.sh | sh -s -- --tools --url https://papaya.<tailnet>.ts.net
+
 ## Themes (`papaya-theme`)
 
 Install `bin/papaya-theme` and `skills/papaya-theme/` the same way as

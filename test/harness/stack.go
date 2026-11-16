@@ -279,6 +279,7 @@ type Session struct {
 	User      string    `json:"user"`
 	State     string    `json:"state"`
 	Order     int       `json:"order"`
+	Workspace string    `json:"workspace"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 

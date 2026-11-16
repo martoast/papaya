@@ -101,6 +101,24 @@
   .copy:hover { background: #2a231d; }
   [hidden] { display: none !important; }
 
+
+  /* one-line install */
+  .install1 { margin-top: 44px; max-width: 760px; }
+  .install1-row { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line-2); border-radius: 14px; background: var(--bg-2); padding: 14px 14px 14px 18px; box-shadow: 0 0 0 4px rgba(255, 138, 61, .06); }
+  .install1-row pre { margin: 0; flex: 1; min-width: 0; overflow-x: auto; font: 500 14.5px/1.6 var(--mono); color: var(--text); white-space: pre; }
+  .install1-row .p { color: var(--papaya); user-select: none; margin-right: 6px; }
+  .install1-note { margin: 12px 2px 0; color: var(--dim); font-size: 14px; }
+  .install1-more { margin-top: 6px; border: 0; padding: 0; }
+  .install1-more summary { font-size: 14px; font-weight: 400; color: var(--muted); display: inline-flex; gap: 6px; padding: 6px 2px; }
+  .install1-more summary::after { font-size: 16px; }
+  .install1-alt { display: grid; gap: 8px; margin-top: 8px; }
+  .install1-alt .lbl { color: var(--dim); font-size: 13.5px; }
+  .install1-alt .lbl a { color: var(--papaya-2); }
+  .install1-alt-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .install1-alt-row .copy { padding: 5px 10px; font-size: 12px; }
+  .install1-alt pre { flex: 1; min-width: 0; margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2); font: 12.5px/1.6 var(--mono); color: var(--text); overflow-x: auto; white-space: pre; }
+  .install1-alt pre .p { color: var(--dim); user-select: none; margin-right: 6px; }
+
   /* ---------- demo window ---------- */
   .demo { position: relative; margin-top: 64px; }
   .demo::before { content: ""; position: absolute; inset: 8% 4% -6%; background: radial-gradient(closest-side, rgba(255, 138, 61, .18), transparent); filter: blur(30px); z-index: -1; }
@@ -311,6 +329,45 @@
     .tw-tab .h { display: none; }
   }
 
+
+  /* iPhone install steps */
+  .pocket { margin-top: 88px; padding-top: 56px; border-top: 1px solid var(--line); }
+  .pocket h3.big { font-size: clamp(26px, 3vw, 36px); font-weight: 500; letter-spacing: -.03em; margin: 0 0 8px; }
+  .pocket > p { color: var(--muted); margin: 0 0 36px; max-width: 640px; }
+  .psteps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+  .pstep { display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; }
+  .pstep p { margin: 0; color: var(--muted); font-size: 15px; max-width: 240px; }
+  .pstep p b { color: var(--text); font-weight: 500; }
+  .mini { position: relative; width: 190px; height: 390px; border-radius: 34px; background: #050505; padding: 8px; box-shadow: 0 0 0 1px #2a2420, 0 0 0 5px #17130f, 0 0 0 6px #2a2420, 0 30px 60px -20px rgba(0,0,0,.9); }
+  .mini .scr { text-align: left; position: relative; height: 100%; border-radius: 27px; overflow: hidden; background: #0d0d0f; font: 9px/1.5 var(--mono); color: #cfcfd4; }
+  .mini .isl { position: absolute; top: 7px; left: 50%; transform: translateX(-50%); width: 58px; height: 17px; border-radius: 10px; background: #000; z-index: 3; }
+  .mini .sb { display: flex; justify-content: space-between; padding: 9px 16px 0; font: 600 9px var(--sans); color: #fff; height: 28px; }
+  .mini .pg { padding: 6px 10px; }
+  .mini .pg .tb { display: flex; gap: 4px; margin-bottom: 8px; }
+  .mini .pg .tb i { flex: 1; height: 12px; border-radius: 4px; background: #1d1d23; }
+  .mini .pg .tb i:first-child { background: #2b2b33; box-shadow: inset 0 1px 0 var(--papaya); }
+  .mini .pg .ln { height: 5px; border-radius: 3px; background: #24242b; margin: 6px 0; }
+  .mini .url { position: absolute; left: 10px; right: 10px; bottom: 44px; height: 24px; border-radius: 12px; background: rgba(40,40,46,.92); display: flex; align-items: center; justify-content: center; font: 500 8.5px var(--sans); color: #e8e8ea; }
+  .mini .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 40px; background: rgba(28,28,32,.96); display: flex; justify-content: space-around; align-items: center; color: #4f9dff; font-size: 13px; }
+  .mini .bar .sh { position: relative; display: grid; place-items: center; }
+  .ring { position: absolute; inset: -7px; border-radius: 99px; border: 2px solid var(--papaya); animation: ping 1.6s cubic-bezier(0,0,.2,1) infinite; }
+  @keyframes ping { 75%, 100% { transform: scale(1.7); opacity: 0; } }
+  .mini .dim { position: absolute; inset: 0; background: rgba(0,0,0,.45); }
+  .mini .sheet { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 16px 16px 0 0; background: #1f1f24; padding: 10px 10px 14px; font: 9.5px var(--sans); color: #e8e8ea; }
+  .mini .sheet .ttl { display: flex; gap: 7px; align-items: center; margin-bottom: 10px; }
+  .mini .sheet .ttl img { width: 26px; height: 26px; border-radius: 6px; }
+  .mini .sheet .ttl small { color: #8e8e93; display: block; font-size: 8px; }
+  .mini .sheet .row { position: relative; display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: #2a2a30; border-radius: 8px; margin-top: 5px; }
+  .mini .sheet .row.hl { background: #33333a; box-shadow: 0 0 0 1.5px var(--papaya); }
+  .mini .sheet .row .ring { border-radius: 10px; inset: -4px; }
+  .mini .home { position: absolute; inset: 0; background: radial-gradient(120% 90% at 20% 10%, #3b2a6b, #1b1440 55%, #0e0b20); padding: 40px 14px 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 8px; align-content: start; }
+  .mini .app { display: flex; flex-direction: column; align-items: center; gap: 3px; font: 7.5px var(--sans); color: #eee; }
+  .mini .app i { width: 34px; height: 34px; border-radius: 9px; display: block; opacity: .5; }
+  .mini .app img { width: 34px; height: 34px; border-radius: 9px; box-shadow: 0 0 0 2px var(--papaya), 0 6px 16px rgba(255,138,61,.45); }
+  .mini .app.me { position: relative; }
+  .mini .app.me span { color: #fff; font-weight: 600; }
+  @media (max-width: 760px) { .psteps { grid-template-columns: 1fr; gap: 44px; } }
+
   /* ---------- responsive ---------- */
   @media (max-width: 1020px) {
     .hero-grid, .s-head, .any, .sec, .shot, .readme { grid-template-columns: 1fr; }
@@ -353,16 +410,25 @@
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
-    <path id="lg-s" d="M32 3 C42.5 3 50.5 12 54.5 25 C58 37 56.5 50 46.5 57 C41.5 60.5 37 61.5 32 61.5 C27 61.5 22.5 60.5 17.5 57 C7.5 50 6 37 9.5 25 C13.5 12 21.5 3 32 3Z"/>
-    <linearGradient id="lg-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffab66"/><stop offset="1" stop-color="#ff7a2c"/></linearGradient>
+    <linearGradient id="lg-fl" x1="0.2" y1="0" x2="0.8" y2="1"><stop offset="0" stop-color="#ffb066"/><stop offset="1" stop-color="#ff6f3c"/></linearGradient>
+    <radialGradient id="lg-cv" cx="0.5" cy="0.45" r="0.6"><stop offset="0" stop-color="#ff7a45"/><stop offset="1" stop-color="#d9481f"/></radialGradient>
   </defs>
   <symbol id="logo" viewBox="0 0 64 64">
-    <use href="#lg-s" fill="#3d9c50"/>
-    <use href="#lg-s" fill="url(#lg-f)" transform="translate(32 34) scale(.855) translate(-32 -34)"/>
-    <use href="#lg-s" fill="#e5541d" transform="translate(32 34.5) scale(.53 .55) translate(-32 -34)"/>
-    <g stroke="#1d120c" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M24.5 25.5 L31.5 32 L24.5 38.5"/><path d="M33.5 41.5 L38.5 41.5"/></g>
-    <path d="M23.8 24.4 L25.6 26" stroke="#fff" stroke-opacity=".3" stroke-width="1.5" stroke-linecap="round"/>
-  </symbol>
+  
+  <g transform="rotate(-24 32 32)">
+    <path d="M32 3.5c6.5 0 10 5.5 12 12.5 1.6 5.6 6.5 9.5 7.6 17.5C53.4 47 44.5 60.5 32 60.5S10.6 47 12.4 33.5C13.5 25.5 18.4 21.6 20 16c2-7 5.5-12.5 12-12.5z" fill="#2f8a47"/>
+    <path d="M32 6.5c5 0 8.2 4.6 9.9 10.9 1.7 6 6.2 9.7 7.2 16.4C50.6 45.3 42.7 57.5 32 57.5S13.4 45.3 14.9 33.8c1-6.7 5.5-10.4 7.2-16.4C23.8 11.1 27 6.5 32 6.5z" fill="#f3d36a"/>
+    <path d="M32 8.5c4.2 0 7 4.1 8.5 9.6 1.7 6.1 5.9 9.6 6.8 15.9C48.6 44.4 41.6 55.5 32 55.5S15.4 44.4 16.7 34c.9-6.3 5.1-9.8 6.8-15.9C25 12.6 27.8 8.5 32 8.5z" fill="url(#lg-fl)"/>
+    <path d="M32 22c4.6 0 7.5 6.5 7.5 14.5S36.2 50 32 50s-7.5-5.5-7.5-13.5S27.4 22 32 22z" fill="url(#lg-cv)"/>
+    <g fill="#1c120d">
+      <circle cx="30" cy="27" r="2"/><circle cx="34" cy="28.5" r="2"/><circle cx="29" cy="32" r="2.1"/><circle cx="33.4" cy="33.4" r="2.1"/>
+      <circle cx="28.8" cy="37.4" r="2.1"/><circle cx="33.6" cy="38.6" r="2.1"/><circle cx="30.4" cy="42.4" r="2"/><circle cx="34.2" cy="43.6" r="1.8"/><circle cx="31.6" cy="46.6" r="1.6"/>
+    </g>
+    <g fill="#fff" opacity=".45">
+      <circle cx="29.4" cy="26.4" r=".6"/><circle cx="33.4" cy="27.9" r=".6"/><circle cx="28.4" cy="31.4" r=".6"/><circle cx="32.8" cy="32.8" r=".6"/><circle cx="28.2" cy="36.8" r=".6"/><circle cx="33" cy="38" r=".6"/>
+    </g>
+  </g>
+</symbol>
   <symbol id="gh" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></symbol>
 </svg>
 
@@ -400,23 +466,22 @@
       </div>
     </div>
 
-    <div class="install" id="install">
-      <div class="install-tabs" role="tablist">
-        <button role="tab" aria-selected="true" data-tab="docker">Docker</button>
-        <button role="tab" aria-selected="false" data-tab="binary">Linux · macOS binary</button>
+    <div class="install1" id="install">
+      <div class="install1-row">
+        <pre id="cmd-install"><span class="p">$</span> curl -fsSL https://papaya.fullstacklabs.org/install.sh | sh</pre>
+        <button class="copy" data-copy="cmd-install">Copy</button>
       </div>
-      <div class="install-body" data-panel="docker">
-        <pre id="cmd-docker"><span class="p">$ </span>docker run -d --name papaya --restart unless-stopped \
-    -v papaya-data:/var/lib/papaya ghcr.io/martoast/papaya
-<span class="p">$ </span>docker logs -f papaya   <span class="c"># open the sign-in link it prints</span></pre>
-        <button class="copy" data-copy="cmd-docker">Copy</button>
-      </div>
-      <div class="install-body" data-panel="binary" hidden>
-        <pre id="cmd-binary"><span class="c"># download papaya_*_&lt;os&gt;_&lt;arch&gt;.tar.gz from the releases page, then</span>
-<span class="p">$ </span>tar xzf papaya_*.tar.gz
-<span class="p">$ </span>PAPAYA_STATE_DIR=~/.papaya ./papaya</pre>
-        <a class="copy" href="https://github.com/martoast/papaya/releases/latest" style="text-decoration:none">Releases ↗</a>
-      </div>
+      <p class="install1-note">Starts Papaya, shows a Tailscale sign-in link, and prints your address once you approve it. Linux and macOS.</p>
+      <details class="install1-more">
+        <summary>Agent machines · Docker · other ways</summary>
+        <div class="install1-alt">
+          <span class="lbl">Each machine your agents run on gets the agent tools (papaya-say, papaya-theme, papaya-status):</span>
+          <div class="install1-alt-row"><pre id="cmd-tools"><span class="p">$</span> curl -fsSL https://papaya.fullstacklabs.org/install.sh | sh -s -- --tools --url https://papaya.&lt;tailnet&gt;.ts.net</pre><button class="copy" data-copy="cmd-tools">Copy</button></div>
+          <span class="lbl">Or run the server yourself in Docker:</span>
+          <div class="install1-alt-row"><pre id="cmd-docker"><span class="p">$</span> docker run -d --name papaya --restart unless-stopped -e PAPAYA_TMUX=true -v papaya-data:/var/lib/papaya ghcr.io/martoast/papaya</pre><button class="copy" data-copy="cmd-docker">Copy</button></div>
+          <span class="lbl">Binaries for Linux and macOS (Intel and ARM): <a href="https://github.com/martoast/papaya/releases/latest">releases ↗</a> · the installer is <a href="install.sh">one readable script</a>.</span>
+        </div>
+      </details>
     </div>
 
     <div class="demo" id="demo">
@@ -571,6 +636,35 @@ MSG</div>
         <div class="point"><span class="n">04</span><div><h3>See what every agent is doing</h3><p>Each tab shows a spinner while its agent works, turns green when it finishes while you're elsewhere, and pulses amber when it needs an answer. The page title counts the tabs waiting on you.</p></div></div>
       </div>
     </div>
+
+    <div class="pocket">
+      <h3 class="big">Papaya in your pocket.</h3>
+      <p>Add it to your iPhone's Home Screen and it opens like an app: full screen, its own icon, every session one tap away. Papaya shows you these steps the first time you open it in Safari. On Android and in desktop Chrome it's a single Install button.</p>
+      <div class="psteps">
+        <div class="pstep">
+          <div class="mini" aria-hidden="true"><div class="scr"><div class="isl"></div><div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+            <div class="pg"><div class="tb"><i></i><i></i><i></i></div><div class="ln" style="width:80%"></div><div class="ln" style="width:65%"></div><div class="ln" style="width:72%"></div><div class="ln" style="width:40%"></div><div class="ln" style="width:58%"></div></div>
+            <div class="url">🔒 papaya.your-tailnet.ts.net</div>
+            <div class="bar"><span>‹</span><span>›</span><span class="sh"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 00-1 1v8a1 1 0 001 1h14a1 1 0 001-1v-8a1 1 0 00-1-1h-1"/></svg><i class="ring"></i></span><span>▢</span><span>⧉</span></div></div></div>
+          <p><b>1.</b> Open your Papaya in Safari and tap <b>Share</b>.</p>
+        </div>
+        <div class="pstep">
+          <div class="mini" aria-hidden="true"><div class="scr"><div class="isl"></div><div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+            <div class="pg"><div class="tb"><i></i><i></i><i></i></div><div class="ln" style="width:80%"></div><div class="ln" style="width:65%"></div></div>
+            <div class="dim"></div>
+            <div class="sheet"><div class="ttl"><img src="apple-touch-icon.png" alt=""><div>Papaya<small>papaya.your-tailnet.ts.net</small></div></div>
+              <div class="row">Copy<span>⧉</span></div>
+              <div class="row">Add to Reading List<span>∞</span></div>
+              <div class="row hl">Add to Home Screen<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/></svg><i class="ring"></i></div>
+              <div class="row">Find on Page<span>⌕</span></div></div></div></div>
+          <p><b>2.</b> Choose <b>Add to Home Screen</b>, then <b>Add</b>.</p>
+        </div>
+        <div class="pstep">
+          <div class="mini" aria-hidden="true"><div class="scr"><div class="isl"></div><div class="home"><div class="app"><i style="background:#3b82f6"></i>Mail</div><div class="app"><i style="background:#22c55e"></i>Messages</div><div class="app"><i style="background:#f59e0b"></i>Notes</div><div class="app"><i style="background:#ef4444"></i>Music</div><div class="app"><i style="background:#a855f7"></i>Podcasts</div><div class="app"><i style="background:#64748b"></i>Settings</div><div class="app"><i style="background:#06b6d4"></i>Weather</div><div class="app me"><img src="apple-touch-icon.png" alt=""><span>Papaya</span></div></div></div></div>
+          <p><b>3.</b> Open it from your Home Screen, <b>like any app</b>.</p>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -581,8 +675,8 @@ MSG</div>
       <p>No keys to create, no settings file, no ports to open. If your machines are on Tailscale, Papaya finds them and walks you through the rest.</p>
     </div>
     <div class="steps">
-      <div class="step"><span class="n">01</span><h3>Run it and sign in</h3><p>Start the container on any always-on machine. It prints a <b>Sign in with Tailscale</b> link and a QR code. Approve it and Papaya joins your network as <i>your</i> device.</p></div>
-      <div class="step"><span class="n">02</span><h3>Open the address</h3><p>The log prints something like <code>papaya.your-tailnet.ts.net</code>. Open it from your laptop, phone or tablet.</p></div>
+      <div class="step"><span class="n">01</span><h3>Run one command</h3><p>Paste the install line on any always-on machine. It shows a <b>Sign in with Tailscale</b> link; approve it and Papaya joins your network as <i>your</i> device.</p></div>
+      <div class="step"><span class="n">02</span><h3>Open the address</h3><p>The installer prints something like <code>papaya.your-tailnet.ts.net</code>. Open it from your laptop, phone or tablet.</p></div>
       <div class="step"><span class="n">03</span><h3>Pick your machines</h3><p>Tick the machines you want, run the one command shown for each, press Test. Anything that fails is explained in plain words, with the fix.</p></div>
     </div>
     <div class="shot">
@@ -709,7 +803,7 @@ MSG</div>
   });
   document.querySelectorAll('button[data-copy]').forEach(function (b) {
     b.addEventListener('click', function () {
-      var t = document.getElementById(b.dataset.copy).innerText.replace(/^\$ /gm, '').replace(/\s+#.*$/gm, '');
+      var t = document.getElementById(b.dataset.copy).innerText.replace(/^\$\s*/gm, '').replace(/\s+#.*$/gm, '');
       var done = function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy'; }, 1600); };
       try { navigator.clipboard.writeText(t).then(done, function () { b.textContent = 'Select to copy'; }); } catch (e) { b.textContent = 'Select to copy'; }
     });

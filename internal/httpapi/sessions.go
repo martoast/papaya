@@ -503,6 +503,39 @@ func (s *Server) say(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// agentStatus is papaya-status: the program in a tab saying what it is doing,
+// so the tab can show it exactly (Claude Code hooks call it on submit, stop and
+// notification). The tab is found by name, as for papaya-say.
+func (s *Server) agentStatus(w http.ResponseWriter, r *http.Request) {
+	user, ok := owner(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Tab   string `json:"tab"`
+		State string `json:"state"`
+		Msg   string `json:"msg"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	if !hub.AgentStates[req.State] {
+		writeError(w, http.StatusBadRequest, "state is working, done, needs-you or idle")
+		return
+	}
+	sess, err := findTab(s.hub.List(user), req.Tab)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	sess.SetAgentStatus(req.State, cleanLabel(req.Msg, 200))
+	if req.State == "done" || req.State == "needs-you" {
+		s.events.publish(user, map[string]any{"type": "agent", "tab": sess.Name(), "state": req.State})
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // sayFrom reads the sender from a message signed "<name> here: ...".
 func sayFrom(text string) string {
 	head, _, found := strings.Cut(text, " here:")

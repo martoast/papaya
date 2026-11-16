@@ -297,8 +297,9 @@ export class TabManager {
     const entry = this.tabs.get(id)
     if (!entry) return
     entry.el.dataset.activity = state
+    const msg = entry.tab.agentMsg ? ` · ${entry.tab.agentMsg}` : ''
     entry.el.title = tabTitle(entry.tab.session.name || entry.tab.session.host, entry.tab.session.host) +
-      (state === 'working' ? ' · working' : state === 'done' ? ' · finished, your turn' : '')
+      (state === 'working' ? ' · working' : state === 'done' ? ' · finished, your turn' : '') + msg
     this.onSessionUpdate?.(id, { activity: state })
     this.refreshTitle()
   }
@@ -318,6 +319,7 @@ export class TabManager {
     const entry = this.tabs.get(id)
     if (!entry) return
     entry.el.dataset.attention = String(on)
+    if (on && entry.tab.agentMsg) entry.el.title = `${tabTitle(entry.tab.session.name || entry.tab.session.host, entry.tab.session.host)} · needs you: ${entry.tab.agentMsg}`
     this.onSessionUpdate?.(id, { attention: on })
     this.refreshTitle()
   }

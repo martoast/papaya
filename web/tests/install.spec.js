@@ -80,3 +80,45 @@ test('the button says how to get back out once full screen', async ({ page }) =>
   await expect(page.locator('#fullscreen-label')).toHaveText('Exit')
   await expect(page.locator('#fullscreen')).toHaveAttribute('data-on', 'true')
 })
+
+// Home screen install: a real one-click install where the browser offers it,
+// the Add to Home Screen guide on iPhone, where nothing else is possible.
+test('on an iPhone, Papaya shows how to add it to the Home Screen, once', async ({ browser }) => {
+  const ctx = await browser.newContext({
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  })
+  const page = await ctx.newPage()
+  await resetSessions(page)
+  const guide = page.locator('#install-guide')
+  await expect(guide).toBeVisible({ timeout: 8000 })
+  await expect(guide).toContainText('Add to Home Screen')
+  await expect(page.locator('#install-app')).toBeVisible()
+
+  await guide.locator('.ig-close').click()
+  await expect(guide).toHaveCount(0)
+  await page.reload()
+  await page.waitForTimeout(5000)
+  await expect(guide).toHaveCount(0) // dismissed stays dismissed
+
+  // The status-bar button brings it back on request.
+  await page.locator('#install-app').click()
+  await expect(guide).toBeVisible()
+  await ctx.close()
+})
+
+test('where the browser can install apps, one click installs Papaya', async ({ page }) => {
+  await expect(page.locator('#install-app')).toBeHidden()
+  await page.evaluate(() => {
+    const e = new Event('beforeinstallprompt', { cancelable: true })
+    e.prompt = () => { window.__prompted = true }
+    e.userChoice = Promise.resolve({ outcome: 'accepted' })
+    window.dispatchEvent(e)
+  })
+  await expect(page.locator('#install-app')).toBeVisible()
+  await page.locator('#install-app').click()
+  expect(await page.evaluate(() => window.__prompted)).toBe(true)
+  await expect(page.locator('#install-app')).toBeHidden()
+})

@@ -148,6 +148,19 @@ func run(addr string, verbose bool) error {
 	}
 	defer h.CloseAll("server shutting down")
 
+	// Tabs survive papaya restarts and updates: the list is kept in the state
+	// directory and every tab is recreated, with its id, attached to its tmux
+	// workspace again. Browsers that were open just reconnect.
+	if cfg.Tmux {
+		tabsPath := filepath.Join(cfg.StateDir, "sessions.json")
+		if n, err := h.RestoreSessions(tabsPath); err != nil {
+			log.Printf("restore tabs from %s: %v", tabsPath, err)
+		} else if n > 0 {
+			log.Printf("restored %d tab(s) from before the restart", n)
+		}
+		go h.RunPersist(ctx, tabsPath, 3*time.Second)
+	}
+
 	go h.RunReaper(ctx, time.Minute)
 
 	var transcriber *transcribe.Client

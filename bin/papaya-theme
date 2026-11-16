@@ -20,7 +20,8 @@
 # Needs only bash and curl. Server: $PAPAYA_URL, e.g. https://papaya.your-tailnet.ts.net
 set -euo pipefail
 
-URL=${PAPAYA_URL:-}
+# PAPAYA_URL, else the address the installer saved.
+URL=${PAPAYA_URL:-$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/papaya/url" 2>/dev/null || true)}
 URL=${URL%/}
 usage() { sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
 die() { echo "papaya-theme: $*" >&2; exit 1; }
