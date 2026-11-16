@@ -277,6 +277,40 @@
   footer a { color: var(--muted); text-decoration: none; }
   footer a:hover { color: var(--text); }
 
+
+  /* themes */
+  .th-bar { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+  .chips, .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { font: 500 14px var(--sans); color: var(--muted); background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 999px; padding: 8px 14px; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; transition: color .15s, border-color .15s, background .15s; }
+  .chip:hover { color: var(--text); }
+  .chip[aria-pressed="true"] { color: #120d0a; background: var(--text); border-color: var(--text); }
+  .chip .sw { width: 10px; height: 10px; border-radius: 50%; }
+  .chip .tag { font: 500 10.5px var(--mono); color: var(--papaya); border: 1px solid rgba(255,138,61,.4); border-radius: 99px; padding: 0 6px; }
+  .chip[aria-pressed="true"] .tag { color: #a3460f; border-color: rgba(163,70,15,.4); }
+  .act { font: 500 13px var(--mono); color: var(--muted); background: none; border: 1px dashed var(--line-2); border-radius: 10px; padding: 7px 12px; cursor: pointer; }
+  .act:hover { color: var(--text); border-style: solid; }
+  .act:active { transform: scale(.97); }
+  .tstage { position: relative; height: 560px; border-radius: 16px; overflow: hidden; border: 1px solid var(--line-2); background: var(--t-s0, #0e0b09); box-shadow: 0 50px 120px -40px rgba(0,0,0,.9); }
+  .tstage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; }
+  .tw { position: absolute; inset: 0; display: grid; grid-template-rows: auto 1fr auto; pointer-events: none; font: 12.5px/1.6 var(--mono); }
+  .tw-tabs { display: flex; gap: 2px; padding: 6px 8px 0; background: color-mix(in srgb, var(--t-s1) 84%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--t-s3); }
+  .tw-tab { display: flex; gap: 8px; align-items: center; padding: 7px 14px 8px; color: var(--t-lo); border-radius: 7px 7px 0 0; transition: background .3s; }
+  .tw-tab.on { color: var(--t-hi); background: color-mix(in srgb, var(--t-bg) var(--t-op), transparent); box-shadow: inset 0 2px 0 var(--t-accent); }
+  .tw-tab i { width: 7px; height: 7px; border-radius: 50%; background: var(--t-ok); transition: background .2s; }
+  .tw-tab i.work { background: var(--t-accent); }
+  .tw-tab b { display: none; background: var(--t-accent); color: #120d0a; font-size: 10px; border-radius: 99px; padding: 0 6px; font-weight: 700; }
+  .tw-tab b.show { display: inline; }
+  .tw-term { background: color-mix(in srgb, var(--t-bg) var(--t-op), transparent); color: var(--t-fg); padding: 14px 18px; white-space: pre-wrap; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-start; }
+  .tw-term .k1 { color: var(--t-green); } .tw-term .k2 { color: var(--t-dim); } .tw-term .k3 { color: var(--t-accent); } .tw-term .k4 { color: var(--t-hi); font-weight: 600; } .tw-term .k5 { color: var(--t-blue); } .tw-term .k6 { color: var(--t-yellow); }
+  .tw-status { display: flex; justify-content: space-between; padding: 4px 12px; font-size: 11px; color: var(--t-lo); background: color-mix(in srgb, var(--t-s1) 84%, transparent); border-top: 1px solid var(--t-s3); }
+  .th-foot { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: start; margin-top: 18px; color: var(--dim); font-size: 14px; }
+  .th-foot code { white-space: nowrap; }
+  @media (max-width: 760px) {
+    .tstage { height: 440px; }
+    .th-foot { grid-template-columns: 1fr; }
+    .tw-tab .h { display: none; }
+  }
+
   /* ---------- responsive ---------- */
   @media (max-width: 1020px) {
     .hero-grid, .s-head, .any, .sec, .shot, .readme { grid-template-columns: 1fr; }
@@ -337,6 +371,7 @@
     <a class="brand" href="#top"><svg><use href="#logo"/></svg>Papaya</a>
     <div class="nav-links">
       <a href="#agents">Agents</a>
+      <a href="#themes">Themes</a>
       <a href="#anywhere">Anywhere</a>
       <a href="#setup">Setup</a>
       <a href="#security">Security</a>
@@ -353,7 +388,7 @@
   <div class="wrap">
     <div class="hero-grid">
       <div>
-        <span class="eyebrow"><span class="dot"></span>Open source · self-hosted · v0.1</span>
+        <span class="eyebrow"><span class="dot"></span>Open source · self-hosted · v0.2: themes</span>
         <h1>Every agent, every machine.<br><span class="tone">One browser </span><span class="serif">tab.</span></h1>
       </div>
       <div>
@@ -473,6 +508,40 @@ papaya-say web "the API changed, see orders.ts"
 papaya-say qa - &lt;&lt;'MSG'
 Run the orders e2e suite and report back to api.
 MSG</div>
+    </div>
+  </div>
+</section>
+
+<section id="themes">
+  <div class="wrap">
+    <div class="s-head">
+      <div><span class="kicker">themes · new in v0.2</span><h2>Tell your agent the vibe.<br><span class="tone">It builds it, live.</span></h2></div>
+      <p>Say "make Papaya a koi pond". Your agent writes the colours and an animated backdrop, runs <code>papaya-theme push</code>, and every Papaya window you have open switches. The backdrop reacts to your agents: work, bells, messages between tabs.</p>
+    </div>
+    <div class="th-bar">
+      <div class="chips" id="th-chips" role="group" aria-label="Pick a theme"></div>
+      <div class="acts" role="group" aria-label="Fire an event">
+        <button class="act" data-ev="activity">▶ agent working</button>
+        <button class="act" data-ev="bell">🔔 bell</button>
+        <button class="act" data-ev="say">→ papaya-say</button>
+        <button class="act" data-ev="cue">✦ cue merged</button>
+      </div>
+    </div>
+    <div class="tstage" id="th-stage" aria-label="A live preview of the selected Papaya theme">
+      <iframe id="th-frame" sandbox="allow-scripts" title="Theme backdrop" tabindex="-1" aria-hidden="true"></iframe>
+      <div class="tw">
+        <div class="tw-tabs">
+          <div class="tw-tab on" data-t="api"><i></i>api <span class="h k2">devbox</span><b>1</b></div>
+          <div class="tw-tab" data-t="web"><i></i>web <span class="h k2">macbook</span><b>1</b></div>
+          <div class="tw-tab" data-t="qa"><i></i>qa <span class="h k2">build-box</span><b>1</b></div>
+        </div>
+        <div class="tw-term" id="th-term"></div>
+        <div class="tw-status"><span>alice@devbox · connected · 3 sessions</span><span id="th-name">theme: orchard</span></div>
+      </div>
+    </div>
+    <div class="th-foot">
+      <span>These are the real scenes, running in the same sandbox Papaya uses: no network, no access to your terminals. Press the buttons to see what a backdrop does when your agents work and talk.</span>
+      <code>papaya-theme push ./koi-pond</code>
     </div>
   </div>
 </section>
@@ -645,6 +714,100 @@ MSG</div>
       try { navigator.clipboard.writeText(t).then(done, function () { b.textContent = 'Select to copy'; }); } catch (e) { b.textContent = 'Select to copy'; }
     });
   });
+
+
+  // ---- live theme previews ----
+  (function () {
+    var stage = document.getElementById('th-stage');
+    if (!stage) return;
+    var frame = document.getElementById('th-frame');
+    var term = document.getElementById('th-term');
+    var chips = document.getElementById('th-chips');
+    var label = document.getElementById('th-name');
+    var themes = [], current = null, ready = false, visible = false, timers = [];
+    var TABS = [{ id: 't1', name: 'api', host: 'devbox' }, { id: 't2', name: 'web', host: 'macbook' }, { id: 't3', name: 'qa', host: 'build-box' }];
+    var ORDER = ['orchard', 'koi-pond', 'synthwave', 'night-sky'];
+    var ASK = { orchard: 'use the orchard theme', 'koi-pond': 'make Papaya a koi pond', synthwave: 'synthwave sunset with pink accents', 'night-sky': 'something calm, like a night sky' };
+    var NICE = { orchard: 'Orchard', 'koi-pond': 'Koi Pond', synthwave: 'Synthwave', 'night-sky': 'Night Sky' };
+    function esc(t) { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+    function post(m) { if (ready && frame.contentWindow) frame.contentWindow.postMessage(m, '*'); }
+    function ev(e) { post({ papaya: 'host', type: 'event', event: e }); }
+    function tab(n) { return stage.querySelector('.tw-tab[data-t="' + n + '"]'); }
+    function flash(n, cls, ms) { var t = tab(n); if (!t) return; var el = cls === 'badge' ? t.querySelector('b') : t.querySelector('i'); el.classList.add(cls === 'badge' ? 'show' : 'work'); setTimeout(function () { el.classList.remove(cls === 'badge' ? 'show' : 'work'); }, ms); }
+    var sayIdx = 0;
+    function fire(kind) {
+      var t = TABS[Math.floor(Math.random() * 3)];
+      if (kind === 'activity') { ev({ type: 'activity', id: t.id, tab: t.name }); flash(t.name, 'work', 1500); }
+      if (kind === 'bell') { ev({ type: 'bell', id: t.id, tab: t.name }); flash(t.name, 'badge', 2500); }
+      if (kind === 'say') { var a = TABS[sayIdx % 3], b = TABS[(sayIdx + 1) % 3]; sayIdx++; ev({ type: 'say', from: a.name, to: b.name }); flash(b.name, 'badge', 2000); }
+      if (kind === 'cue') ev({ type: 'cue', name: 'merged' });
+    }
+    function setColors(t) {
+      var c = t.colors || {}, st = stage.style;
+      var map = { 's0': 'surface-0', 's1': 'surface-1', 's3': 'surface-3', 'hi': 'text-hi', 'lo': 'text-lo', 'accent': 'accent', 'ok': 'state-ok', 'bg': 'term-bg', 'fg': 'term-fg', 'green': 'ansi-green', 'dim': 'ansi-bright-black', 'blue': 'ansi-blue', 'yellow': 'ansi-yellow' };
+      for (var k in map) st.setProperty('--t-' + k, c[map[k]] || '');
+      st.setProperty('--t-op', Math.round((t.opacity || .8) * 100) + '%');
+    }
+    function transcript(t) {
+      var n = t.name;
+      term.innerHTML =
+        '<div class="k4">&gt; ' + esc(ASK[n] || ('make me a ' + n + ' theme')) + '</div><div> </div>' +
+        '<div><span class="k1">⏺</span> <span class="k4">Write</span>(' + n + '/theme.json)</div>' +
+        '<div><span class="k2">  ⎿  </span>' + Object.keys(t.colors || {}).length + ' colours, terminal opacity ' + (t.opacity || .8) + '</div>' +
+        '<div><span class="k1">⏺</span> <span class="k4">Write</span>(' + n + '/scene.js)</div>' +
+        '<div><span class="k1">⏺</span> <span class="k4">Bash</span>(<span class="k3">papaya-theme push ./' + n + '</span>)</div>' +
+        '<div><span class="k2">  ⎿  </span>pushed ' + n + ' and switched to it.</div>' +
+        '<div><span class="k2">     </span>viewers: 2 open Papaya window(s)</div>' +
+        '<div><span class="k2">     </span>scene:   <span class="k1">running at 60 fps</span></div><div> </div>' +
+        '<div>' + esc(t.description || '') + '</div>' +
+        '<div><span class="k6">It is on in every Papaya window.</span></div><div> </div>' +
+        '<div><span class="k3">❯</span> </div>';
+    }
+    function load(name) {
+      var t = themes.filter(function (x) { return x.name === name; })[0];
+      if (!t) return;
+      current = t; ready = false;
+      setColors(t); transcript(t);
+      label.textContent = 'theme: ' + name;
+      [].forEach.call(chips.children, function (b) { b.setAttribute('aria-pressed', b.dataset.name === name); });
+      frame.src = visible ? 'themes/' + name + '.html' : 'about:blank';
+    }
+    window.addEventListener('message', function (e) {
+      if (e.source !== frame.contentWindow) return;
+      var m = e.data;
+      if (m && m.papaya === 'scene' && m.type === 'ready') { ready = true; post({ papaya: 'host', type: 'init', tabs: TABS }); }
+    });
+    document.querySelectorAll('.act').forEach(function (b) { b.addEventListener('click', function () { fire(b.dataset.ev); }); });
+    function autoplay(on) {
+      timers.forEach(clearInterval); timers = [];
+      if (!on) return;
+      timers.push(setInterval(function () { fire('activity'); }, 1700));
+      timers.push(setInterval(function () { fire('say'); }, 6500));
+      timers.push(setInterval(function () { fire('bell'); }, 11000));
+    }
+    fetch('themes/themes.json').then(function (r) { return r.json(); }).then(function (list) {
+      themes = list.sort(function (a, b) { return ORDER.indexOf(a.name) - ORDER.indexOf(b.name); });
+      themes.forEach(function (t) {
+        var b = document.createElement('button');
+        b.className = 'chip'; b.dataset.name = t.name; b.setAttribute('aria-pressed', 'false');
+        b.innerHTML = '<span class="sw" style="background:' + ((t.colors || {}).accent || '#fff') + '"></span>' + (NICE[t.name] || t.name) + (t.builtin ? '' : '<span class="tag">made by an agent</span>');
+        b.addEventListener('click', function () { load(t.name); });
+        chips.appendChild(b);
+      });
+      load(themes[0].name);
+      if ('IntersectionObserver' in window) {
+        new IntersectionObserver(function (es) {
+          var v = es[0].isIntersecting;
+          if (v === visible) return;
+          visible = v;
+          // Only run a scene while it is on screen.
+          frame.src = v && current ? 'themes/' + current.name + '.html' : 'about:blank';
+          ready = false;
+          autoplay(v);
+        }, { threshold: .15 }).observe(stage);
+      } else { visible = true; load(themes[0].name); autoplay(true); }
+    });
+  })();
 
   // ---- the replay ----
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;

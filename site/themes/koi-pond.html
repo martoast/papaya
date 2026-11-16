@@ -1,0 +1,253 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}canvas{position:fixed;inset:0;width:100%;height:100%;display:block}</style></head><body><canvas id="c"></canvas><script nonce="preview">window.__PAPAYA_THEME__={"colors":{"accent":"#ff9a4d","ansi-black":"#2c4a47","ansi-blue":"#79b8ff","ansi-bright-black":"#5f8580","ansi-bright-blue":"#a8d1ff","ansi-bright-cyan":"#94ece4","ansi-bright-green":"#9ff0c6","ansi-bright-magenta":"#efc7ff","ansi-bright-red":"#ffb1a8","ansi-bright-white":"#f4fffc","ansi-bright-yellow":"#ffdd99","ansi-cyan":"#5fdcd0","ansi-green":"#6fe0a8","ansi-magenta":"#e0a3ff","ansi-red":"#ff8a80","ansi-white":"#cde8e1","ansi-yellow":"#f5c76a","state-err":"#ff8a80","state-ok":"#6fe0a8","state-warn":"#f5c76a","surface-0":"#06201f","surface-1":"#0a2b29","surface-2":"#103634","surface-3":"#1b4a46","term-bg":"#06201f","term-cursor":"#ff9a4d","term-fg":"#e3fbf4","term-sel":"#1f5650","text-hi":"#e6fff8","text-lo":"#8fbfb4"},"name":"koi-pond","version":"f576949724fc"};
+(function () {
+  'use strict';
+  var THEME = window.__PAPAYA_THEME__ || { colors: {} };
+  var canvas = document.getElementById('c');
+  var def = null, dead = false, started = false, frames = 0, statsSent = false, t0 = 0, last = 0;
+  var colors = {};
+  for (var k in THEME.colors) colors[k] = THEME.colors[k];
+
+  function post(m) { m.papaya = 'scene'; m.version = THEME.version; try { parent.postMessage(m, '*'); } catch (e) {} }
+  function fail(err) {
+    if (dead) return;
+    dead = true;
+    var msg = err && err.stack ? String(err.stack) : String(err);
+    post({ type: 'error', message: msg.slice(0, 2000) });
+  }
+  window.addEventListener('error', function (e) {
+    fail(e.error || (e.message + ' (line ' + e.lineno + ')'));
+  });
+  window.addEventListener('unhandledrejection', function (e) { fail(e.reason); });
+
+  // Deterministic random numbers: s.rand(seed) returns a function giving 0..1.
+  function rand(seed) {
+    var a = (seed === undefined ? Math.random() * 4294967296 : seed) >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  // Smooth 2D value noise, 0..1.
+  var perm = (function () { var r = rand(1337), p = []; for (var i = 0; i < 512; i++) p[i] = Math.floor(r() * 256); return p; })();
+  function hash(x, y) { return perm[(perm[x & 255] + y) & 511] / 255; }
+  function fade(t) { return t * t * (3 - 2 * t); }
+  function noise(x, y) {
+    var xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    var a = hash(xi, yi), b = hash(xi + 1, yi), c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
+    var u = fade(xf), v = fade(yf);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  }
+  // A theme colour (or any CSS colour) with an alpha, as an rgba() string.
+  var probe = document.createElement('canvas').getContext('2d');
+  function color(name, alpha) {
+    var c = colors[name] || name;
+    probe.fillStyle = '#000'; probe.fillStyle = c;
+    var v = probe.fillStyle;
+    if (alpha === undefined) return v;
+    if (v[0] === '#') {
+      var n = parseInt(v.slice(1), 16);
+      return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + alpha + ')';
+    }
+    return v.replace(/rgba?\(([^)]+?)(,\s*[\d.]+)?\)/, 'rgba($1,' + alpha + ')');
+  }
+
+  var s = {
+    canvas: canvas, ctx: null, w: 0, h: 0, dpr: 1, t: 0, dt: 0, frame: 0,
+    theme: THEME.name, colors: colors, tabs: [], state: {},
+    reducedMotion: false,
+    rand: rand, noise: noise, color: color,
+    lerp: function (a, b, t) { return a + (b - a) * t; },
+    clamp: function (v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  };
+  var rm = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+  s.reducedMotion = !!(rm && rm.matches);
+
+  window.papaya = {
+    scene: function (d) { def = d || {}; },
+    version: 1
+  };
+
+  function call(fn, arg) {
+    if (!def || typeof def[fn] !== 'function' || dead) return;
+    try { def[fn](s, arg); } catch (e) { fail(e); }
+  }
+
+  function resize() {
+    s.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    s.w = window.innerWidth; s.h = window.innerHeight;
+    canvas.width = Math.max(1, Math.round(s.w * s.dpr));
+    canvas.height = Math.max(1, Math.round(s.h * s.dpr));
+    if (s.ctx && s.ctx.setTransform) s.ctx.setTransform(s.dpr, 0, 0, s.dpr, 0, 0);
+    if (s.ctx && s.ctx.viewport) s.ctx.viewport(0, 0, canvas.width, canvas.height);
+    if (started) call('resize');
+  }
+
+  function tick(now) {
+    if (dead) return;
+    requestAnimationFrame(tick);
+    // With reduced motion asked for, a scene still draws, but twice a second.
+    if (s.reducedMotion && now - last < 500 && s.frame > 0) return;
+    s.dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
+    last = now;
+    s.t += s.dt;
+    call('draw');
+    s.frame++; frames++;
+    if (!statsSent && now - t0 > 3000) {
+      statsSent = true;
+      post({ type: 'running', fps: Math.round(frames * 1000 / (now - t0)) });
+    }
+  }
+
+  window.addEventListener('message', function (e) {
+    if (e.source !== parent) return;
+    var m = e.data;
+    if (!m || m.papaya !== 'host') return;
+    if (m.type === 'init') {
+      s.tabs = Array.isArray(m.tabs) ? m.tabs : [];
+      call('init');
+      return;
+    }
+    if (m.type === 'event' && m.event && typeof m.event.type === 'string') {
+      var ev = m.event;
+      if (ev.type === 'tab-open' && !s.tabs.some(function (x) { return x.id === ev.id; })) {
+        s.tabs.push({ id: ev.id, name: ev.tab, host: ev.host });
+      } else if (ev.type === 'tab-close') {
+        s.tabs = s.tabs.filter(function (x) { return x.id !== ev.id; });
+      } else if (ev.type === 'tab-rename') {
+        s.tabs.forEach(function (x) { if (x.id === ev.id) x.name = ev.tab; });
+      }
+      call('on', ev);
+    }
+  });
+  window.addEventListener('resize', resize);
+
+  window.__papayaStart = function () {
+    if (dead) return;
+    if (!def) { fail(new Error('scene.js never called papaya.scene({ ... })')); return; }
+    var kind = def.context || '2d';
+    try {
+      s.ctx = canvas.getContext(kind, kind === '2d' ? { alpha: true } : { alpha: true, premultipliedAlpha: true, antialias: true });
+    } catch (e) { fail(e); return; }
+    if (!s.ctx) { fail(new Error('this browser gave no "' + kind + '" canvas context')); return; }
+    resize();
+    call('setup');
+    started = true;
+    call('resize');
+    t0 = performance.now();
+    requestAnimationFrame(tick);
+    post({ type: 'ready' });
+  };
+})();
+</script>
+<script nonce="preview">
+// Koi pond: pixel koi drift under lily pads. Each tab owns a koi; it darts
+// when its agent prints, and on papaya-say the sender's koi swims to the
+// receiver's. A cue scatters ripples across the pond.
+
+const PX = 4
+
+function makeKoi(r, i) {
+  const palettes = [['#ffffff', '#ff6a2b'], ['#ff8a3d', '#1a1a1a'], ['#fff4e0', '#e83a3a'], ['#ffd27a', '#ff6a2b']]
+  return { x: r(), y: r(), a: r() * 6.28, v: 0.02 + r() * 0.02, phase: r() * 6.28, pal: palettes[i % palettes.length], dash: 0, target: null, tab: null }
+}
+
+papaya.scene({
+  setup(s) {
+    const r = s.rand(11)
+    s.state.koi = Array.from({ length: 6 }, (_, i) => makeKoi(r, i))
+    s.state.pads = Array.from({ length: 9 }, () => ({ x: r(), y: r(), size: 5 + Math.floor(r() * 5), flower: r() < 0.35 }))
+    s.state.ripples = []
+    s.state.low = document.createElement('canvas')
+    s.state.lc = s.state.low.getContext('2d')
+  },
+  resize(s) {
+    s.state.low.width = Math.ceil(s.w / PX)
+    s.state.low.height = Math.ceil(s.h / PX)
+  },
+  init(s) { assign(s) },
+  on(s, ev) {
+    const st = s.state
+    if (ev.type.startsWith('tab-')) assign(s)
+    const own = st.koi.find((k) => k.tab && (k.tab.id === ev.id || k.tab.name === ev.tab))
+    if (ev.type === 'activity' && own) own.dash = 1
+    if (ev.type === 'bell' && own) st.ripples.push({ x: own.x, y: own.y, t: 0 })
+    if (ev.type === 'say') {
+      const from = st.koi.find((k) => k.tab && k.tab.name.toLowerCase() === String(ev.from).toLowerCase())
+      const to = st.koi.find((k) => k.tab && k.tab.name.toLowerCase() === String(ev.to).toLowerCase())
+      if (from && to) from.target = to
+    }
+    if (ev.type === 'cue') for (let i = 0; i < 8; i++) st.ripples.push({ x: Math.random(), y: Math.random(), t: -i * 0.15 })
+  },
+  draw(s) {
+    const st = s.state
+    const lc = st.lc, W = st.low.width, H = st.low.height
+    if (!W) return
+    // water
+    const g = lc.createLinearGradient(0, 0, W, H)
+    g.addColorStop(0, '#0b3a37'); g.addColorStop(1, '#05201e')
+    lc.fillStyle = g
+    lc.fillRect(0, 0, W, H)
+    // caustic shimmer
+    lc.fillStyle = 'rgba(120,220,200,0.06)'
+    for (let y = 0; y < H; y += 3) for (let x = (y * 7) % 5; x < W; x += 5) {
+      if (s.noise(x * 0.08 + s.t * 0.4, y * 0.08 - s.t * 0.3) > 0.68) lc.fillRect(x, y, 2, 1)
+    }
+    // ripples
+    st.ripples = st.ripples.filter((rp) => {
+      rp.t += s.dt
+      if (rp.t < 0) return true
+      const rad = rp.t * 30
+      lc.strokeStyle = `rgba(200,255,240,${Math.max(0, 0.5 - rp.t * 0.25)})`
+      lc.beginPath(); lc.ellipse(rp.x * W, rp.y * H, rad, rad * 0.6, 0, 0, 6.28); lc.stroke()
+      return rp.t < 2
+    })
+    // koi
+    for (const k of st.koi) {
+      if (k.target) {
+        const dx = k.target.x - k.x, dy = k.target.y - k.y
+        k.a = Math.atan2(dy, dx)
+        if (Math.hypot(dx, dy) < 0.03) { k.target.dash = 1; st.ripples.push({ x: k.x, y: k.y, t: 0 }); k.target = null }
+      } else {
+        k.a += (s.noise(k.phase, s.t * 0.2) - 0.5) * 0.04
+      }
+      const speed = (k.target ? 0.18 : k.v) * (1 + k.dash * 3)
+      k.dash = Math.max(0, k.dash - s.dt * 0.8)
+      k.x = (k.x + Math.cos(k.a) * speed * s.dt + 1) % 1
+      k.y = (k.y + Math.sin(k.a) * speed * s.dt * 1.4 + 1) % 1
+      drawKoi(lc, k.x * W, k.y * H, k.a, k.pal, s.t + k.phase)
+    }
+    // lily pads above the fish
+    for (const p of st.pads) {
+      const x = Math.round(p.x * W), y = Math.round(p.y * H)
+      lc.fillStyle = '#2f7a3e'
+      lc.beginPath(); lc.arc(x, y, p.size, 0.35, 6.0); lc.lineTo(x, y); lc.fill()
+      lc.fillStyle = '#3f9550'
+      lc.fillRect(x - 1, y - p.size + 2, 2, 2)
+      if (p.flower) { lc.fillStyle = '#ffb3d1'; lc.fillRect(x - 1, y - 1, 3, 3); lc.fillStyle = '#ffe680'; lc.fillRect(x, y, 1, 1) }
+    }
+    const ctx = s.ctx
+    ctx.imageSmoothingEnabled = false
+    ctx.drawImage(st.low, 0, 0, W * PX, H * PX)
+  },
+})
+
+function assign(s) {
+  s.state.koi.forEach((k, i) => { k.tab = s.tabs[i] || null })
+}
+
+function drawKoi(lc, x, y, a, pal, t) {
+  // a 9-segment body that sways; head first
+  for (let i = 0; i < 9; i++) {
+    const sway = Math.sin(t * 4 - i * 0.6) * i * 0.12
+    const px = x - Math.cos(a + sway) * i * 0.9
+    const py = y - Math.sin(a + sway) * i * 0.9
+    const w = i < 2 ? 2 : i < 6 ? 3 : i < 8 ? 2 : 1
+    lc.fillStyle = (i === 2 || i === 5) ? pal[1] : pal[0]
+    lc.fillRect(Math.round(px - w / 2), Math.round(py - w / 2), w, w)
+  }
+}
+
+</script>
+<script nonce="preview">window.__papayaStart()</script></body></html>
