@@ -455,3 +455,48 @@ html[data-backdrop='on'] .bg-surface-1 {
 .su-mt { margin-top: 14px; }
 .su-callout .su-btn { margin-top: 2px; }
 @media (prefers-reduced-motion: reduce) { .su-dot { animation: none; } }
+
+/* Safe areas. viewport-fit=cover lets an iPhone home-screen launch use the
+   whole screen, so the bars pad themselves clear of the notch, the rounded
+   corners and the home indicator (all zero in an ordinary browser tab). With
+   the keyboard up it covers the home indicator, so that padding goes. */
+.safe-top {
+  height: calc(2.25rem + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+  padding-left: max(0.5rem, env(safe-area-inset-left));
+  padding-right: max(0.5rem, env(safe-area-inset-right));
+}
+.safe-bottom {
+  height: calc(1.5rem + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: max(0.75rem, env(safe-area-inset-left));
+  padding-right: max(0.75rem, env(safe-area-inset-right));
+}
+html.kb-open .safe-bottom { height: 1.5rem; padding-bottom: 0; }
+/* On a touch screen the bottom bar's buttons are thumb-sized. */
+@media (pointer: coarse) {
+  .safe-bottom { height: calc(2.25rem + env(safe-area-inset-bottom)); font-size: 13px; }
+  html.kb-open .safe-bottom { height: 2.25rem; }
+  #statusbar button { min-height: 32px; min-width: 32px; justify-content: center; font-size: 15px; }
+}
+
+/* Turn on voice (voicesetup.js) */
+#voice-setup { position: fixed; inset: 0; z-index: 60; display: grid; place-items: end center; background: rgba(0,0,0,0.55); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); padding: 12px 12px calc(12px + env(safe-area-inset-bottom)); font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif; animation: vs-fade 0.2s ease-out; }
+@media (min-width: 640px) { #voice-setup { place-items: center; } }
+.vs-card { position: relative; width: min(420px, 100%); background: #1c1c1e; color: #f2f2f7; border-radius: 24px; padding: 28px 22px 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); animation: vs-up 0.28s cubic-bezier(0.2, 0.9, 0.3, 1); }
+.vs-close { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 99px; background: rgba(118,118,128,0.24); color: #aeaeb2; font-size: 20px; line-height: 1; }
+.vs-icon { font-size: 34px; margin-bottom: 8px; }
+.vs-card h2 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 8px; }
+.vs-lede { color: #aeaeb2; font-size: 15px; line-height: 1.45; margin: 0 0 16px; }
+.vs-steps { margin: 0 0 14px; padding-left: 20px; color: #f2f2f7; font-size: 15px; line-height: 1.9; }
+.vs-steps a { color: #ff9f43; font-weight: 600; text-decoration: none; }
+.vs-card input { width: 100%; box-sizing: border-box; font: 16px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 14px 16px; border-radius: 14px; background: #000; color: #f2f2f7; border: 1px solid rgba(84,84,88,0.65); outline: none; }
+.vs-card input:focus { border-color: #ff9f43; box-shadow: 0 0 0 3px rgba(255,159,67,0.25); }
+.vs-err { color: #ff6961; font-size: 14px; margin: 10px 2px 0; }
+.vs-go { width: 100%; margin-top: 14px; padding: 15px; border-radius: 14px; font-size: 17px; font-weight: 600; color: #1c1206; background: linear-gradient(180deg, #ffa25a, #ff7a2f); transition: opacity 0.2s; }
+.vs-go:disabled { opacity: 0.6; }
+.vs-card.is-done .vs-go { background: #30d158; color: #04290f; opacity: 1; }
+.vs-fine { color: #8e8e93; font-size: 12.5px; line-height: 1.45; margin: 12px 2px 0; text-align: center; }
+@keyframes vs-fade { from { opacity: 0; } }
+@keyframes vs-up { from { transform: translateY(24px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { #voice-setup, .vs-card { animation: none; } }

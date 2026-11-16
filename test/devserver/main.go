@@ -213,6 +213,17 @@ func run(addr, user string) error {
 	// A stub transcription endpoint so the voice UI is exercisable without an
 	// API key. It echoes a fixed phrase rather than recognising anything.
 	stub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Key checks (voice turned on from the app): any key works except one
+		// containing "wrong".
+		if r.URL.Path == "/models" {
+			if strings.Contains(r.Header.Get("Authorization"), "wrong") {
+				w.WriteHeader(http.StatusUnauthorized)
+				io.WriteString(w, `{"error":{"message":"Incorrect API key","code":"invalid_api_key"}}`)
+				return
+			}
+			io.WriteString(w, `{"data":[]}`)
+			return
+		}
 		r.Body = http.MaxBytesReader(w, r.Body, 30<<20)
 		io.Copy(io.Discard, r.Body)
 		w.Header().Set("Content-Type", "application/json")
@@ -241,6 +252,7 @@ func run(addr, user string) error {
 			MaxSessions:    10,
 			Hostname:       "localhost",
 			SSHUserForHost: setup.AccountResolver(nil, store.UserFor, ""),
+			VoiceKeyPath:   filepath.Join(work, "openai-key"),
 		})
 	api.EnableSetup(httpapi.SetupDeps{
 		Store:     store,

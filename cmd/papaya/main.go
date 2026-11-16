@@ -163,18 +163,24 @@ func run(addr string, verbose bool) error {
 
 	go h.RunReaper(ctx, time.Minute)
 
-	var transcriber *transcribe.Client
-	if cfg.TranscriptionEnabled() {
-		transcriber = transcribe.New(transcribe.Options{
-			APIKey:    cfg.OpenAIAPIKey,
-			BaseURL:   cfg.OpenAIBaseURL,
-			Model:     cfg.TranscribeModel,
-			Languages: cfg.TranscribeLangs,
-			Keywords:  cfg.TranscribeWords,
-		})
+	// Voice: the key comes from the environment, or from the app (saved in the
+	// state directory). The client always exists so the app can turn it on.
+	voiceKeyPath := filepath.Join(cfg.StateDir, "openai-key")
+	voiceKey := cfg.OpenAIAPIKey
+	if voiceKey == "" {
+		voiceKey = httpapi.LoadVoiceKey(voiceKeyPath)
+	}
+	transcriber := transcribe.New(transcribe.Options{
+		APIKey:    voiceKey,
+		BaseURL:   cfg.OpenAIBaseURL,
+		Model:     cfg.TranscribeModel,
+		Languages: cfg.TranscribeLangs,
+		Keywords:  cfg.TranscribeWords,
+	})
+	if transcriber.Enabled() {
 		log.Printf("voice transcription enabled (model %s)", cfg.TranscribeModel)
 	} else {
-		log.Printf("voice transcription disabled (set PAPAYA_OPENAI_API_KEY to enable)")
+		log.Printf("voice transcription off: tap the mic in the app to turn it on")
 	}
 
 	// Account precedence: "user@host" in PAPAYA_HOSTS, then the account chosen
@@ -184,15 +190,17 @@ func run(addr string, verbose bool) error {
 	api := httpapi.NewWithTranscriber(h,
 		tsnode.NewAuth(node.LocalClient(), allowedUsers, cfg.AllowedTags),
 		node, web.Assets(), transcriber, httpapi.Options{
-			DefaultSSHUser: cfg.SSHUser,
-			StaticHosts:    append(append([]string(nil), cfg.Hosts...), store.Hosts()...),
-			MaxUploadBytes: cfg.MaxUploadBytes,
-			MaxAudioBytes:  cfg.MaxAudioBytes,
-			MaxSessions:    cfg.MaxSessions,
-			Hostname:       cfg.Hostname,
-			HostAllowed:    cfg.HostAllowed,
-			SSHUserAllowed: cfg.SSHUserAllowed,
-			SSHUserForHost: userForHost,
+			DefaultSSHUser:  cfg.SSHUser,
+			StaticHosts:     append(append([]string(nil), cfg.Hosts...), store.Hosts()...),
+			MaxUploadBytes:  cfg.MaxUploadBytes,
+			MaxAudioBytes:   cfg.MaxAudioBytes,
+			MaxSessions:     cfg.MaxSessions,
+			Hostname:        cfg.Hostname,
+			HostAllowed:     cfg.HostAllowed,
+			SSHUserAllowed:  cfg.SSHUserAllowed,
+			SSHUserForHost:  userForHost,
+			VoiceKeyPath:    voiceKeyPath,
+			VoiceKeyFromEnv: cfg.OpenAIAPIKey != "",
 		})
 
 	https := &httpsState{}

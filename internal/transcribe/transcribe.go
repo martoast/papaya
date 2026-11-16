@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 )
@@ -60,6 +61,11 @@ type Options struct {
 type Client struct {
 	opts Options
 	http *http.Client
+
+	// The key can be set while papaya runs (pasted in the app), so it is read
+	// under a lock rather than from opts.
+	mu  sync.RWMutex
+	key string
 }
 
 func New(opts Options) *Client {
@@ -72,7 +78,48 @@ func New(opts Options) *Client {
 	if opts.Timeout <= 0 {
 		opts.Timeout = 2 * time.Minute
 	}
-	return &Client{opts: opts, http: &http.Client{Timeout: opts.Timeout}}
+	return &Client{opts: opts, http: &http.Client{Timeout: opts.Timeout}, key: opts.APIKey}
+}
+
+// SetAPIKey replaces the key; an empty key turns transcription off.
+func (c *Client) SetAPIKey(key string) {
+	c.mu.Lock()
+	c.key = strings.TrimSpace(key)
+	c.mu.Unlock()
+}
+
+func (c *Client) apiKey() string {
+	if c == nil {
+		return ""
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.key
+}
+
+// ErrKeyRejected means the API refused the key.
+var ErrKeyRejected = errors.New("the API key was rejected")
+
+// CheckKey asks the API whether key works, without transcribing anything.
+func (c *Client) CheckKey(ctx context.Context, key string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(c.opts.BaseURL, "/")+"/models", nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(key))
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("could not reach the API: %w", err)
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
+	switch {
+	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
+		return ErrKeyRejected
+	case resp.StatusCode >= 300:
+		return fmt.Errorf("the API answered %d", resp.StatusCode)
+	}
+	return nil
 }
 
 // keywordsFor combines the per-request hints with the configured and built-in
@@ -88,7 +135,7 @@ func (c *Client) keywordsFor(extra []string) []string {
 }
 
 // Enabled reports whether an API key is configured.
-func (c *Client) Enabled() bool { return c != nil && c.opts.APIKey != "" }
+func (c *Client) Enabled() bool { return c.apiKey() != "" }
 
 // Result is a completed transcription.
 type Result struct {
@@ -145,7 +192,7 @@ func (c *Client) Transcribe(ctx context.Context, filename string, audio io.Reade
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.opts.APIKey)
+	req.Header.Set("Authorization", "Bearer "+c.apiKey())
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 
 	resp, err := c.http.Do(req)

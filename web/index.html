@@ -39,7 +39,7 @@
       <!-- tab bar -->
       <div
         id="tabbar"
-        class="flex items-stretch gap-px bg-surface-1 border-b border-surface-3 px-2 h-9 select-none"
+        class="flex items-stretch gap-px bg-surface-1 border-b border-surface-3 px-2 h-9 select-none safe-top"
       >
         <div id="tabs" role="tablist" aria-label="Sessions" class="flex flex-1 min-w-0 items-stretch gap-px"></div>
         <button
@@ -200,9 +200,12 @@
       </div>
 
       <!-- status bar -->
+      <!-- safe-bottom: from the home screen the page runs edge to edge, so the
+           bar keeps clear of the home indicator and the rounded corners. -->
       <div
+        id="statusbar"
         class="flex items-center justify-between h-6 px-3 text-xs bg-surface-1
-               border-t border-surface-3 text-text-lo"
+               border-t border-surface-3 text-text-lo safe-bottom"
       >
         <span id="status-left" class="min-w-0 flex-1 truncate pr-2"></span>
         <span id="status-right" class="flex shrink-0 items-center gap-2">

@@ -46,6 +46,12 @@ type Options struct {
 	// that do not share a username coexist. Nil falls back to DefaultSSHUser
 	// everywhere, which is the behaviour when no "user@host" entry is set.
 	SSHUserForHost func(host string) string
+
+	// VoiceKeyPath is where a voice (OpenAI) key pasted in the app is kept.
+	// Empty means it cannot be set from the app; VoiceKeyFromEnv means the
+	// server's environment already provides one, which the app does not touch.
+	VoiceKeyPath    string
+	VoiceKeyFromEnv bool
 }
 
 // Server holds the handler dependencies.
@@ -116,6 +122,8 @@ func (s *Server) Handler() http.Handler {
 	protected.HandleFunc("POST /upload", s.upload)
 	protected.HandleFunc("POST /api/transcribe", s.transcribeAudio)
 	protected.HandleFunc("GET /api/capabilities", s.capabilities)
+	protected.HandleFunc("PUT /api/voice/key", s.setVoiceKey)
+	protected.HandleFunc("DELETE /api/voice/key", s.deleteVoiceKey)
 	s.setupRoutes(protected)
 	s.themeRoutes(protected)
 	protected.Handle("/", s.staticHandler())

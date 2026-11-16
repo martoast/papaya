@@ -15,6 +15,7 @@ import { rememberTabs, recallTabs } from './remember.js'
 import { runSetup, watchNewMachines } from './setup.js'
 import { initThemes } from './themes.js'
 import { initInstall } from './install.js'
+import { showVoiceSetup } from './voicesetup.js'
 
 const el = (id) => document.getElementById(id)
 
@@ -550,6 +551,10 @@ async function stopVoiceAndTranscribe() {
 
 // Click toggles; holding the hotkey is push-to-talk.
 micBtn.addEventListener('click', () => {
+  if (!voiceEnabled) {
+    if (micBtn.dataset.setup === 'true') showVoiceSetup({ onEnabled: initVoice })
+    return
+  }
   // isBusy, not isRecording: a press during the acquire window must stop rather
   // than queue a second recording.
   if (voice.isBusy) stopVoiceAndTranscribe()
@@ -596,7 +601,19 @@ async function initVoice() {
     return // older server, or not reachable; leave the button hidden
   }
 
-  if (!caps.transcription) return
+  if (!caps.transcription) {
+    // Not on yet, but it can be turned on from here: the mic stays, and
+    // tapping it asks for the key.
+    if (caps.voiceSettable) {
+      micBtn.dataset.setup = 'true'
+      micBtn.classList.remove('hidden')
+      micBtn.classList.add('flex')
+      micBtn.title = 'Turn on voice input'
+      setMicState('idle')
+    }
+    return
+  }
+  delete micBtn.dataset.setup
 
   if (!micAvailable()) {
     // The server supports it but this page cannot use it. Show why rather than
@@ -807,7 +824,7 @@ window.__papaya_tab_for = (id) => tabs.get(id)
 // workspace that has since died would open an empty shell wearing the name of
 // work that is gone, which is worse than an empty tab bar.
 async function reattachRemembered(live, remembered = recallTabs()) {
-  const key = (host, user, workspace) => `${host} ${user} ${workspace}`
+  const key = (host, user, workspace) => `${host}\u0000${user}\u0000${workspace}`
 
   if (!remembered.length) return
 

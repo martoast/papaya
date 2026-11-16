@@ -148,6 +148,7 @@ export function wireViewport(app) {
     // remote PTY because someone zoomed in would be wrong twice over.
     const zoomed = Math.abs((vv.scale || 1) - 1) > 0.01
 
+    document.documentElement.classList.toggle('kb-open', hidden > 0 && !zoomed)
     if (hidden > 0 && !zoomed) {
       app.style.height = `${Math.round(vv.height)}px`
       app.style.transform = `translateY(${Math.round(vv.offsetTop)}px)`
@@ -159,7 +160,7 @@ export function wireViewport(app) {
       app.style.transform = ''
     }
 
-    const bottom = `${hidden + (hidden > 0 ? 8 : 88)}px`
+    const bottom = hidden > 0 ? `${hidden + 8}px` : 'calc(88px + env(safe-area-inset-bottom))'
     for (const f of floats) f.style.bottom = bottom
   }
 

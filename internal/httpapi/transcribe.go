@@ -20,6 +20,8 @@ type Capabilities struct {
 	MaxAudioMB    int64  `json:"maxAudioMB"`
 	MaxSessions   int    `json:"maxSessions"`
 	DefaultUser   string `json:"defaultUser"`
+	// VoiceSettable says the voice key can be pasted (or removed) in the app.
+	VoiceSettable bool `json:"voiceSettable"`
 }
 
 func (s *Server) capabilities(w http.ResponseWriter, r *http.Request) {
@@ -32,6 +34,7 @@ func (s *Server) capabilities(w http.ResponseWriter, r *http.Request) {
 		MaxAudioMB:    s.opts.MaxAudioBytes >> 20,
 		MaxSessions:   s.opts.MaxSessions,
 		DefaultUser:   s.opts.DefaultSSHUser,
+		VoiceSettable: s.transcriber != nil && s.opts.VoiceKeyPath != "" && !s.opts.VoiceKeyFromEnv,
 	})
 }
 

@@ -253,3 +253,42 @@ test('pressing the mic twice quickly does not start two recordings', async ({ pa
   await expect(mic).toHaveAttribute('data-state', 'idle')
   await expect(page.locator('#recording-pill')).toBeHidden()
 })
+
+// Voice not set up yet: the mic still shows, and tapping it asks for the key
+// right there. A rejected key says so; a good one turns voice on at once.
+test('tapping the mic before voice is on asks for a key, then voice works', async ({ page }) => {
+  const status = await page.evaluate(async () => (await fetch('/api/voice/key', { method: 'DELETE' })).status)
+  expect(status).toBe(200)
+  try {
+    await page.reload()
+    const mic = page.locator('#mic')
+    await expect(mic).toBeVisible()
+    await expect(mic).toHaveAttribute('data-setup', 'true')
+    await mic.click()
+
+    const sheet = page.locator('#voice-setup')
+    await expect(sheet).toBeVisible()
+    await expect(sheet).toContainText('OpenAI')
+    await sheet.locator('input').fill('sk-wrong-key-0123456789abcdef')
+    await sheet.locator('button[type=submit]').click()
+    await expect(sheet.locator('.vs-err')).toContainText("didn't accept")
+
+    await sheet.locator('input').fill('sk-good-key-0123456789abcdef')
+    await sheet.locator('button[type=submit]').click()
+    await expect(sheet).toHaveCount(0, { timeout: 5_000 })
+    await expect(mic).not.toHaveAttribute('data-setup', 'true')
+
+    // And it records straight away.
+    await newTab(page, { name: 'voice-on' })
+    await mic.click()
+    await expect(mic).toHaveAttribute('data-state', 'recording')
+    await page.waitForTimeout(1200)
+    await mic.click()
+    await expect.poll(() => termText(page), { timeout: 15_000 }).toContain('git status --short')
+  } finally {
+    // Leave voice on for the other tests.
+    await page.evaluate(() =>
+      fetch('/api/voice/key', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: 'sk-devserver-stub-0123456789' }) }),
+    )
+  }
+})

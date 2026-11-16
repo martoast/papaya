@@ -45,6 +45,8 @@ export const api = {
     request('POST', '/api/sessions/resume', { host, user, name, workspace, cols, rows }),
 
   capabilities: () => request('GET', '/api/capabilities'),
+  setVoiceKey: (key) => request('PUT', '/api/voice/key', { key }),
+  deleteVoiceKey: () => request('DELETE', '/api/voice/key'),
 
   // First-run setup: connect machines, test them, finish.
   setup: () => request('GET', '/api/setup'),
