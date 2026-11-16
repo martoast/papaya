@@ -441,3 +441,17 @@ html[data-backdrop='on'] .bg-surface-1 {
 @media (prefers-reduced-motion: reduce) {
   .su-main, .su-hero .su-mark, .su-done .su-mark, .su-done .su-mark::after, .su-wait i { animation: none; }
 }
+
+/* one-line connect (setup.js viewAccess) */
+.su-pill { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 99px; font-size: 13px; font-weight: 600; background: rgba(118, 118, 128, 0.24); color: var(--ob-sub); }
+.su-pill-ok { background: rgba(48, 209, 88, 0.16); color: var(--ob-green); }
+.su-pill-warn { background: rgba(255, 214, 10, 0.14); color: var(--ob-yellow); }
+.su-dot { width: 7px; height: 7px; border-radius: 99px; background: var(--ob-accent); animation: su-blip 1.2s ease-in-out infinite; }
+@keyframes su-blip { 50% { opacity: 0.25; } }
+.su-oneline { display: grid; gap: 10px; }
+.su-oneline code { display: block; padding: 14px 16px; border-radius: 14px; background: #000; border: 0.5px solid var(--ob-sep); font-size: 14px; line-height: 1.5; color: #f2f2f7; word-break: break-all; white-space: pre-wrap; }
+.su-linkbtn { display: block; margin: 14px auto 0; padding: 6px 10px; font-size: 14px; color: var(--ob-sub); background: none; }
+.su-linkbtn:hover { color: var(--ob-text); }
+.su-mt { margin-top: 14px; }
+.su-callout .su-btn { margin-top: 2px; }
+@media (prefers-reduced-motion: reduce) { .su-dot { animation: none; } }

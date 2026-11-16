@@ -53,13 +53,37 @@ async function shot(page, width, name) {
   await page.screenshot({ path: path.join(SHOTS, `setup-${name}-${width}.png`), fullPage: true })
 }
 
+// joinFrom plays a machine running the one-line join: the script reports the
+// account it ran as, and Papaya learns which machine from Tailscale (here the
+// dev server's test header).
+async function joinFrom(page, machine, { user = 'tester', sshd = true, os = 'Linux' } = {}) {
+  return page.evaluate(
+    async ([machine, body]) =>
+      (await fetch('/api/setup/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Papaya-Test-Caller': machine },
+        body: JSON.stringify(body),
+      })).status,
+    [machine, { user, sshd, os }],
+  )
+}
+
+async function settleReady(card) {
+  await expect(card).toHaveAttribute('data-status', /^(trust|ok)$/, { timeout: 20_000 })
+  if ((await card.getAttribute('data-status')) === 'trust') {
+    await expect(card.locator('[data-fingerprint]')).toContainText('SHA256:')
+    await card.locator('[data-trust]').click()
+  }
+  await expect(card).toHaveAttribute('data-status', 'ok', { timeout: 20_000 })
+}
+
 for (const width of [1440, 390]) {
-  test(`a new user goes from sign-in to a terminal (${width}px)`, async ({ page }) => {
+  test(`a new user goes from sign-in to a terminal by pasting one line (${width}px)`, async ({ page }) => {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 900 })
     await freshSetup(page)
     const setup = page.locator('[data-modal="setup"]')
 
-    // 1. Machines: the tailnet's devices, with what matters for choosing.
+    // 1. Choose machines.
     await expect(setup).toHaveAttribute('data-step', 'machines')
     await expect(setup.locator('[data-machine]')).toHaveCount(3)
     await expect(setup.locator('[data-machine="web-server"]')).toContainText('Tailscale SSH on')
@@ -71,35 +95,30 @@ for (const width of [1440, 390]) {
     await shot(page, width, '1-machines')
     await setup.locator('[data-act="next"]').click()
 
-    // 2. Let Papaya in: one account and one command per machine.
+    // 2. Connect: one line per machine, no username to type.
     await expect(setup).toHaveAttribute('data-step', 'access')
-    await expect(setup.locator('[data-access="web-server"]')).toContainText('Tailscale SSH is on')
-    await expect(setup.locator('[data-access="macbook"]')).toContainText('authorized_keys')
-    await expect(setup.locator('[data-access="macbook"]')).toContainText('Remote Login')
-    await expect(setup.locator('[data-policy]')).toContainText('"accept"')
-    await expect(setup.locator('[data-act="next"]')).toBeDisabled()
-    await setup.locator('[data-user="web-server"]').fill('tester')
-    await setup.locator('[data-user="macbook"]').fill('tester')
-    await expect(setup.locator('[data-act="next"]')).toHaveText('Next: test')
-    await shot(page, width, '2-access')
-    await setup.locator('[data-act="next"]').click()
+    const mac = setup.locator('[data-access="macbook"]')
+    const srv = setup.locator('[data-access="web-server"]')
+    await expect(mac).toContainText('/join | sh')
+    await expect(mac).toContainText('Terminal')
+    await expect(setup.locator('[data-user]')).toHaveCount(0)
+    await expect(setup.locator('[data-act="finish"]')).toBeDisabled()
+    await shot(page, width, '2-connect')
 
-    // 3. Test: the Tailscale SSH machine passes outright; the Mac shows its
-    // fingerprint once (unless an earlier run already trusted it).
-    await expect(setup).toHaveAttribute('data-step', 'test')
-    await expect(setup.locator('[data-test="web-server"]')).toHaveAttribute('data-status', 'ok', { timeout: 20_000 })
-    const mac = setup.locator('[data-test="macbook"]')
-    await expect(mac).toHaveAttribute('data-status', /^(trust|ok)$/, { timeout: 20_000 })
-    if ((await mac.getAttribute('data-status')) === 'trust') {
-      await expect(mac.locator('[data-fingerprint]')).toContainText('SHA256:')
-      await shot(page, width, '3-test-trust')
-      await mac.locator('[data-trust]').click()
-    }
-    await expect(mac).toHaveAttribute('data-status', 'ok', { timeout: 20_000 })
-    await shot(page, width, '3-test-ready')
+    // Pasting it on the Mac: its card connects by itself.
+    expect(await joinFrom(page, 'macbook', { os: 'Darwin' })).toBe(200)
+    await expect(mac).toHaveAttribute('data-joined', 'true', { timeout: 10_000 })
+    await settleReady(mac)
+    await expect(mac).toContainText('Connected as tester')
+    await expect(setup.locator('[data-act="finish"]')).toBeEnabled()
+
+    // And on the server.
+    expect(await joinFrom(page, 'web-server')).toBe(200)
+    await settleReady(srv)
+    await shot(page, width, '3-ready')
     await setup.locator('[data-act="finish"]').click()
 
-    // 4. Done: one button to the first terminal.
+    // 3. Done: one button to the first terminal.
     await expect(setup).toHaveAttribute('data-step', 'done')
     await shot(page, width, '4-done')
     await setup.locator('[data-act="open"]').click()
@@ -107,24 +126,61 @@ for (const width of [1440, 390]) {
     await expect(page.locator('[data-tab-id]')).toHaveCount(1)
     await waitForConnected(page)
 
-    // Finished for good: a reload goes straight to the app.
     await page.reload()
     await expect(page.locator('[data-modal="setup"]')).toHaveCount(0)
   })
 }
+
+test('a Mac without Remote Login is told the one thing to do', async ({ page }) => {
+  await freshSetup(page)
+  const setup = page.locator('[data-modal="setup"]')
+  await setup.locator('[data-pick="macbook"]').check()
+  await setup.locator('[data-act="next"]').click()
+  expect(await joinFrom(page, 'macbook', { sshd: false, os: 'Darwin' })).toBe(200)
+  const mac = setup.locator('[data-access="macbook"]')
+  await expect(mac).toContainText('Remote Login', { timeout: 10_000 })
+  await expect(mac).toContainText('One more step')
+  // Turned on: one tap checks again and connects.
+  await mac.locator('[data-retest]').click()
+  await settleReady(mac)
+})
+
+test('running the line on a machine that was not ticked chooses it', async ({ page }) => {
+  await freshSetup(page)
+  const setup = page.locator('[data-modal="setup"]')
+  await setup.locator('[data-pick="macbook"]').check()
+  await setup.locator('[data-act="next"]').click()
+  expect(await joinFrom(page, 'web-server')).toBe(200)
+  await expect(setup.locator('[data-access="web-server"]')).toBeVisible({ timeout: 10_000 })
+})
+
+test('the other way in still works: a username and Tailscale SSH', async ({ page }) => {
+  await freshSetup(page)
+  const setup = page.locator('[data-modal="setup"]')
+  await setup.locator('[data-pick="web-server"]').check()
+  await setup.locator('[data-act="next"]').click()
+  const card = setup.locator('[data-access="web-server"]')
+  await card.locator('[data-manual]').click()
+  await expect(card).toContainText('Tailscale SSH is on')
+  await expect(card.locator('[data-policy]')).toContainText('"accept"')
+  await card.locator('[data-user="web-server"]').fill('tester')
+  await card.locator('button[data-retest]').click()
+  await expect(card).toHaveAttribute('data-status', 'ok', { timeout: 20_000 })
+})
 
 test('an offline machine says what to do', async ({ page }) => {
   await freshSetup(page)
   const setup = page.locator('[data-modal="setup"]')
   await setup.locator('[data-pick="nas"]').check()
   await setup.locator('[data-act="next"]').click()
-  await setup.locator('[data-user="nas"]').fill('tester')
-  await setup.locator('[data-act="next"]').click()
-  const row = setup.locator('[data-test="nas"]')
-  await expect(row).toHaveAttribute('data-status', 'error', { timeout: 30_000 })
-  await expect(row).toContainText(/can't be reached|didn't answer|Nothing answered/)
+  const card = setup.locator('[data-access="nas"]')
+  await expect(card).toContainText('offline')
+  await card.locator('[data-manual]').click()
+  await card.locator('[data-user="nas"]').fill('tester')
+  await card.locator('button[data-retest]').click()
+  await expect(card).toHaveAttribute('data-status', 'error', { timeout: 30_000 })
+  await expect(card).toContainText(/can't be reached|didn't answer|Nothing answered/)
   await expect(setup.locator('[data-act="finish"]')).toBeDisabled()
-  await shot(page, 1280, 'error-offline')
 })
 
 test('root is refused with a reason', async ({ page }) => {
@@ -132,10 +188,12 @@ test('root is refused with a reason', async ({ page }) => {
   const setup = page.locator('[data-modal="setup"]')
   await setup.locator('[data-pick="web-server"]').check()
   await setup.locator('[data-act="next"]').click()
-  await setup.locator('[data-user="web-server"]').fill('root')
-  await setup.locator('[data-act="next"]').click()
+  expect(await joinFrom(page, 'web-server', { user: 'root' })).toBe(400)
+  const card = setup.locator('[data-access="web-server"]')
+  await card.locator('[data-manual]').click()
+  await card.locator('[data-user="web-server"]').fill('root')
+  await card.locator('button[data-retest]').click()
   await expect(setup.locator('[data-error]')).toContainText('everyday account')
-  await expect(setup).toHaveAttribute('data-step', 'access')
 })
 
 test('the settings button reopens setup, and it can be closed', async ({ page }) => {
@@ -154,10 +212,11 @@ test('typing an account survives the background refresh', async ({ page }) => {
   const setup = page.locator('[data-modal="setup"]')
   await setup.locator('[data-pick="web-server"]').check()
   await setup.locator('[data-act="next"]').click()
+  await setup.locator('[data-access="web-server"] [data-manual]').click()
   const input = setup.locator('[data-user="web-server"]')
   await input.click()
   await page.keyboard.type('tes')
-  await page.waitForTimeout(4500) // one refresh cycle
+  await page.waitForTimeout(3000) // a refresh cycle
   await page.keyboard.type('ter')
   await expect(input).toHaveValue('tester')
 })

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -31,7 +32,9 @@ import (
 type whoIs struct{ login string }
 
 func (w whoIs) WhoIs(context.Context, string) (*apitype.WhoIsResponse, error) {
-	return &apitype.WhoIsResponse{Node: &tailcfg.Node{}, UserProfile: &tailcfg.UserProfile{LoginName: w.login}}, nil
+	// Every request in these tests comes from the "laptop" machine, which is
+	// what the one-line join reads to know which machine ran it.
+	return &apitype.WhoIsResponse{Node: &tailcfg.Node{Name: "laptop.tail1234.ts.net."}, UserProfile: &tailcfg.UserProfile{LoginName: w.login}}, nil
 }
 
 // peers is a fake tailnet whose machines a test can change.
@@ -296,4 +299,34 @@ func TestOwnerOnlyAccess(t *testing.T) {
 	require.Equal(t, http.StatusOK, mk(owner))
 	require.Equal(t, http.StatusForbidden, mk("bob@example.com"))
 	require.Equal(t, http.StatusForbidden, mk(""))
+}
+
+// The one-line join: the script carries Papaya's address and key, and running
+// it tells Papaya the account on the machine Tailscale says it came from.
+func TestOneLineJoinConnectsTheCallingMachine(t *testing.T) {
+	f := newFixture(t)
+
+	res, err := http.Get(f.srv.URL + "/join")
+	require.NoError(t, err)
+	b, _ := io.ReadAll(res.Body)
+	res.Body.Close()
+	script := string(b)
+	require.Equal(t, 200, res.StatusCode)
+	require.Contains(t, script, "ssh-ed25519 AAAAtest papaya")
+	require.Contains(t, script, "PAPAYA='"+f.srv.URL+"'")
+	require.Contains(t, script, "/api/setup/join")
+
+	var v httpapi.SetupView
+	require.Equal(t, 400, f.call(t, "POST", "/api/setup/join", map[string]any{"user": "root", "sshd": true}, nil), "root is refused")
+	require.Equal(t, 400, f.call(t, "POST", "/api/setup/join", map[string]any{"user": "a b", "sshd": true}, nil))
+	require.Equal(t, 200, f.call(t, "POST", "/api/setup/join", map[string]any{"user": "alex", "sshd": false, "os": "Darwin"}, nil))
+
+	require.Equal(t, 200, f.call(t, "GET", "/api/setup", nil, &v))
+	m := machine(v, "laptop")
+	require.True(t, m.Selected, "running the line chooses the machine")
+	require.True(t, m.Joined)
+	require.False(t, m.SSHD, "Remote Login was off")
+	require.Equal(t, "alex", m.User)
+	require.Equal(t, "key", m.Method)
+	require.False(t, machine(v, "server").Joined, "only the calling machine is affected")
 }

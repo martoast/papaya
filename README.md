@@ -70,10 +70,10 @@ curl -fsSL https://papaya.fullstacklabs.org/install.sh | sh
 2. **Open it.** The installer then prints Papaya's address, like
    `https://papaya.your-tailnet.ts.net`. Open it from any device on your
    tailnet.
-3. **Follow the setup screen.** Tick the machines you want, type your account
-   on each, run the one command it shows you there, and press Test. Most
-   machines pass on the first try; anything that doesn't is explained in plain
-   words, with what to do next.
+3. **Connect your machines.** Pick the ones you want, then paste the one line
+   the setup screen shows (`curl -fsSL papaya/join | sh`) into a terminal on
+   each. It tells Papaya who you are there and lets it in; the machine turns
+   green on the setup screen by itself. No usernames, keys or policy edits.
 
 On each machine your agents run on, install the agent tools (`papaya-say`,
 `papaya-theme`, `papaya-status` and their skills):

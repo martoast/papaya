@@ -4,13 +4,17 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"strings"
 
 	"tailscale.com/client/tailscale/apitype"
 )
 
 type ctxKey int
 
-const ctxUserKey ctxKey = iota
+const (
+	ctxUserKey ctxKey = iota
+	ctxNodeKey
+)
 
 // WhoIser resolves a tailnet remote address to an identity. *local.Client
 // implements it; tests substitute a fake.
@@ -52,7 +56,15 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxUserKey, login)))
+		ctx := context.WithValue(r.Context(), ctxUserKey, login)
+		if who.Node != nil {
+			c := Caller{Name: strings.TrimSuffix(who.Node.Name, "."), Tagged: len(who.Node.Tags) > 0}
+			if who.Node.Hostinfo.Valid() {
+				c.Hostname = who.Node.Hostinfo.Hostname()
+			}
+			ctx = context.WithValue(ctx, ctxNodeKey, c)
+		}
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
@@ -92,6 +104,25 @@ func tagsOf(who *apitype.WhoIsResponse) []string {
 func UserFrom(ctx context.Context) (string, bool) {
 	u, ok := ctx.Value(ctxUserKey).(string)
 	return u, ok && u != ""
+}
+
+// Caller is the tailnet machine a request came from, as Tailscale reports it.
+// Name is its MagicDNS name (e.g. "macbook.tail1234.ts.net").
+type Caller struct {
+	Name     string
+	Hostname string
+	Tagged   bool
+}
+
+// CallerFrom returns the machine a request came from, attached by Middleware.
+func CallerFrom(ctx context.Context) (Caller, bool) {
+	n, ok := ctx.Value(ctxNodeKey).(Caller)
+	return n, ok && (n.Name != "" || n.Hostname != "")
+}
+
+// WithCaller injects a calling machine. Test-only helper.
+func WithCaller(ctx context.Context, n Caller) context.Context {
+	return context.WithValue(ctx, ctxNodeKey, n)
 }
 
 // WithUser injects an identity. Test-only helper.

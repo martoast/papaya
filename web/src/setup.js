@@ -10,7 +10,7 @@ import { writeClipboard } from './terminal.js'
 const ADMIN_ACLS = 'https://login.tailscale.com/admin/acls/file'
 const ADMIN_DNS = 'https://login.tailscale.com/admin/dns'
 const DOWNLOAD = 'https://tailscale.com/download'
-const POLL_MS = 4000
+const POLL_MS = 2500
 
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
@@ -114,6 +114,7 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
         // every few seconds made it flicker.
         if (JSON.stringify(next) === JSON.stringify(state)) return
         state = next
+        autoTest()
         render({ keepFocus: true })
       } catch {
         // A missed refresh is harmless; the next one will do.
@@ -129,8 +130,7 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
 
     const stepNames = [
       ['machines', 'Choose machines'],
-      ['access', 'Let Papaya in'],
-      ['test', 'Test'],
+      ['access', 'Connect them'],
     ]
 
     function header() {
@@ -224,88 +224,167 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
       }
     }
 
-    function viewAccess() {
-      const anyTailscale = chosen().some((m) => (picks.get(m.name).method || m.method) === 'tailscale')
-      const policy = anyTailscale
-        ? `<section data-policy class="su-card su-policy">
-            <div class="su-policy-head">
-              <span class="su-policy-ico" aria-hidden="true">🔐</span>
-              <div>
-                <div class="su-name-sans">One-time Tailscale permission</div>
-                <p class="su-sub-p">Let Papaya log in without asking you every 12 hours. In <b>Access controls</b>,
-                  change <code>"check"</code> to <code>"accept"</code> in the <code>"ssh"</code> section, or paste this snippet there.</p>
-              </div>
-            </div>
-            <details class="su-fold"><summary>Show the snippet</summary>${copyBox(state.policySnippet || '', 'Copy snippet')}</details>
-            <div class="su-row">
-              <button data-copy="${esc(state.policySnippet || '')}" class="su-btn su-btn-ghost">Copy snippet</button>
-              <a class="su-btn su-btn-ghost" target="_blank" rel="noopener" href="${ADMIN_ACLS}">Open Access controls ↗</a>
-            </div>
-          </section>`
-        : ''
+    // Machines the person chose to set up by hand (username, method), instead
+    // of with the one-line join.
+    const manual = new Set()
+    // The join each machine was last tested for, so a fresh join tests again.
+    const testedJoin = new Map()
 
+    // The line to paste. On plain http over the tailnet it uses Papaya's short
+    // MagicDNS name ("papaya-dev"), which every machine on the tailnet resolves
+    // and a person can actually type; https keeps the full name its certificate
+    // is for.
+    const joinCommand = () => {
+      const h = location.hostname
+      if (location.protocol === 'http:' && /\.ts\.net$/i.test(h)) {
+        const short = h.split('.')[0] + (location.port ? `:${location.port}` : '')
+        return `curl -fsSL ${short}/join | sh`
+      }
+      return `curl -fsSL ${location.origin}/join | sh`
+    }
+
+    function resultBody(m, r) {
+      if (!r || r.status === 'idle') return ''
+      if (r.status === 'testing') return `<p class="su-wait"><i></i>Connecting to ${esc(m.name)}…</p>`
+      if (r.status === 'ok') return ''
+      if (r.status === 'trust') {
+        return `<div class="su-callout su-callout-warn">
+            <p>${esc(r.message)}</p>
+            <p class="su-sub-p">Its fingerprint (${esc(r.keyType || 'host key')}):</p>
+            <code data-fingerprint class="su-fp">${esc(r.fingerprint)}</code>
+            <button data-trust="${esc(m.name)}" class="su-btn su-btn-primary su-wide">Trust and connect</button>
+          </div>`
+      }
+      return `<div data-test-error class="su-callout su-callout-err">
+          <p>${esc(r.message)}</p>
+          ${r.url ? `<a target="_blank" rel="noopener" href="${esc(r.url)}">Open the link it asked for ↗</a>` : ''}
+          <button data-retest="${esc(m.name)}" class="su-btn su-btn-ghost">Try again</button>
+        </div>`
+    }
+
+    // manualBody is the old way in: type the account, pick how Papaya logs in.
+    function manualBody(m) {
+      const p = picks.get(m.name)
+      const method = p.method || m.method
+      const user = p.user
+      const policy = method === 'tailscale'
+        ? `<div data-policy class="su-callout">
+            <p><b>One-time Tailscale permission.</b> In Access controls, change <code>"check"</code> to
+            <code>"accept"</code> in the <code>"ssh"</code> section, or paste this snippet there.</p>
+            ${copyBox(state.policySnippet || '', 'Copy snippet')}
+            <a class="su-btn su-btn-ghost" target="_blank" rel="noopener" href="${ADMIN_ACLS}">Open Access controls ↗</a>
+          </div>`
+        : ''
+      const how = method === 'tailscale'
+        ? m.tailscaleSSH
+          ? `<p class="su-good">✓ Tailscale SSH is on for ${esc(m.name)}.</p>`
+          : `<p class="su-step-p">On <b class="su-mono">${esc(m.name)}</b>, run:</p>${copyBox('sudo tailscale set --ssh')}`
+        : `<p class="su-step-p">On <b class="su-mono">${esc(m.name)}</b>${user ? `, as <b>${esc(user)}</b>` : ''}, run:</p>
+           ${copyBox(keyCommand(state.publicKey || ''))}
+           ${isMac(m) ? '<p class="su-note">On a Mac, also turn on <b>Remote Login</b>: System Settings → General → Sharing.</p>' : ''}`
+      return `
+        <label class="su-label" for="user-${esc(m.name)}">Your username on ${esc(m.name)}</label>
+        <input id="user-${esc(m.name)}" data-user="${esc(m.name)}" value="${esc(user)}"
+          placeholder="e.g. alex" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+          enterkeyhint="done" class="su-input ${user ? '' : 'is-empty'}">
+        <p class="su-label">Connect with</p>
+        <div class="su-seg" role="tablist">
+          <button data-method="tailscale" data-for="${esc(m.name)}" role="tab" aria-selected="${method === 'tailscale'}"
+            class="${method === 'tailscale' ? 'is-on' : ''}">Tailscale SSH<small>${isMac(m) ? 'Linux only' : 'no keys'}</small></button>
+          <button data-method="key" data-for="${esc(m.name)}" role="tab" aria-selected="${method === 'key'}"
+            class="${method === 'key' ? 'is-on' : ''}">Papaya key<small>any SSH server</small></button>
+        </div>
+        ${how}
+        ${policy}
+        <button data-retest="${esc(m.name)}" class="su-btn su-btn-primary su-wide su-mt" ${user ? '' : 'disabled'}>Test the connection</button>
+        <button data-auto="${esc(m.name)}" class="su-linkbtn">Use the one-line way instead</button>`
+    }
+
+    // viewAccess is "Connect your machines": one line to paste on each, and
+    // the card turns green by itself.
+    function viewAccess() {
       const cards = chosen()
         .map((m) => {
+          const r = results.get(m.name)
           const p = picks.get(m.name)
-          const method = p.method || m.method
-          const user = p.user
-          const tailscaleBody = m.tailscaleSSH
-            ? `<p class="su-good">✓ Tailscale SSH is on for ${esc(m.name)}. Nothing to run there.</p>`
-            : `<p class="su-step-p">On <b class="su-mono">${esc(m.name)}</b>, run:</p>
-               ${copyBox('sudo tailscale set --ssh')}
-               <p class="su-wait" data-wait="${esc(m.name)}"><i></i>Waiting for ${esc(m.name)}… this turns green by itself.</p>`
-          const keyBody = `<p class="su-step-p">On <b class="su-mono">${esc(m.name)}</b>${
-            user ? `, logged in as <b>${esc(user)}</b>` : ''
-          }, run:</p>
-            ${copyBox(keyCommand(state.publicKey || ''))}
-            ${
-              isMac(m)
-                ? '<p class="su-note">On a Mac, also turn on <b>Remote Login</b>: System Settings → General → Sharing.</p>'
-                : ''
-            }`
-          return `<section data-access="${esc(m.name)}" class="su-card">
+          let pill = '<span class="su-pill"><i class="su-dot"></i>Waiting</span>'
+          let body = ''
+          if (r?.status === 'ok') {
+            pill = '<span class="su-pill su-pill-ok">✓ Ready</span>'
+            body = `<p class="su-good">Connected as ${esc(p.user)}. You can open it from Papaya now.</p>`
+          } else if (manual.has(m.name)) {
+            pill = r?.status === 'testing' ? '<span class="su-pill"><i class="su-dot"></i>Testing</span>' : ''
+            body = manualBody(m) + resultBody(m, r)
+          } else if (m.joined && !m.sshd && r?.status !== 'testing' && r?.status !== 'trust') {
+            pill = '<span class="su-pill su-pill-warn">One more step</span>'
+            body = isMac(m) || /darwin|mac/i.test(m.os)
+              ? `<p class="su-step-p"><b>Almost there.</b> Turn on <b>Remote Login</b> on ${esc(m.name)}:
+                 System Settings → General → Sharing → Remote Login. It just opened for you.</p>
+                 <button data-retest="${esc(m.name)}" class="su-btn su-btn-primary su-wide">I turned it on</button>`
+              : `<p class="su-step-p"><b>Almost there.</b> ${esc(m.name)} needs an SSH server. On Ubuntu or Debian:</p>
+                 ${copyBox('sudo apt install -y openssh-server')}
+                 <button data-retest="${esc(m.name)}" class="su-btn su-btn-primary su-wide su-mt">Check again</button>`
+            body += resultBody(m, r?.status === 'error' ? r : null)
+          } else if (m.joined) {
+            pill = '<span class="su-pill"><i class="su-dot"></i>Connecting</span>'
+            body = resultBody(m, r) || `<p class="su-wait"><i></i>Connecting to ${esc(m.name)}…</p>`
+          } else {
+            const mac = isMac(m) || /darwin|mac/i.test(m.os)
+            body = `
+              <p class="su-step-p">${
+                mac
+                  ? `On <b>${esc(m.name)}</b>, open <b>Terminal</b> (⌘ Space, type “Terminal”) and paste:`
+                  : `On <b>${esc(m.name)}</b>, open a terminal and paste:`
+              }</p>
+              <div class="su-oneline">
+                <code>${esc(joinCommand())}</code>
+                <button data-copy="${esc(joinCommand())}" class="su-btn su-btn-primary su-wide">Copy</button>
+              </div>
+              <p class="su-wait" data-wait="${esc(m.name)}"><i></i>Waiting for ${esc(m.name)}… this turns green by itself.</p>
+              <button data-manual="${esc(m.name)}" class="su-linkbtn">Set up another way</button>`
+          }
+          return `<section data-access="${esc(m.name)}" data-joined="${m.joined ? 'true' : 'false'}" data-status="${r?.status || 'idle'}" class="su-card">
               <div class="su-cardhead">
                 <span class="su-os" aria-hidden="true">${osIcon(m.os)}</span>
-                <span class="su-name">${esc(m.name)}</span>
-                ${m.online ? '' : '<span class="su-chip su-chip-warn">offline</span>'}
+                <span class="su-grow"><span class="su-name">${esc(m.name)}</span>
+                  ${m.online ? '' : '<span class="su-sub"><span class="su-chip su-chip-warn">offline</span></span>'}</span>
+                ${pill}
               </div>
-
-              <label class="su-label" for="user-${esc(m.name)}">Your username on ${esc(m.name)}</label>
-              <input id="user-${esc(m.name)}" data-user="${esc(m.name)}" value="${esc(user)}"
-                placeholder="e.g. alex" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
-                enterkeyhint="done" class="su-input ${user ? '' : 'is-empty'}">
-              <p class="su-help">The account you log in to ${esc(m.name)} with${
-                isMac(m) ? ' (on a Mac: your short user name, shown in Terminal as you@mac)' : ''
-              }.</p>
-
-              <p class="su-label">Connect with</p>
-              <div class="su-seg" role="tablist">
-                <button data-method="tailscale" data-for="${esc(m.name)}" role="tab" aria-selected="${method === 'tailscale'}"
-                  class="${method === 'tailscale' ? 'is-on' : ''}">Tailscale SSH<small>${isMac(m) ? 'Linux only' : 'recommended'}</small></button>
-                <button data-method="key" data-for="${esc(m.name)}" role="tab" aria-selected="${method === 'key'}"
-                  class="${method === 'key' ? 'is-on' : ''}">Papaya key<small>${isMac(m) ? 'for Macs' : 'any SSH server'}</small></button>
-              </div>
-              ${
-                isMac(m) && method === 'tailscale'
-                  ? '<p class="su-warn">Tailscale SSH only runs on Linux, so a Mac usually needs Papaya key.</p>'
-                  : ''
-              }
-              ${method === 'tailscale' ? tailscaleBody : keyBody}
+              ${body}
             </section>`
         })
         .join('')
 
-      const missing = chosen().filter((m) => !picks.get(m.name).user)
+      const ready = chosen().filter((m) => results.get(m.name)?.status === 'ok')
       return {
         body: `
-          <h1>Let Papaya in</h1>
-          <p class="su-lede">For each machine, the account to log in as and one quick step.</p>
-          ${policy}
+          <h1>Connect your machines</h1>
+          <p class="su-lede">Paste one line on each machine. That's it.</p>
           <div class="su-list">${cards}</div>
           <p data-error class="su-err hidden"></p>`,
-        foot: `<p data-hint class="su-hint ${missing.length ? '' : 'hidden'}">${missing.length ? `Enter your username on ${esc(missing[0].name)}` : ''}</p>
+        foot: `<p data-hint class="su-hint ${ready.length ? 'hidden' : ''}">${ready.length ? '' : 'Waiting for a machine to connect'}</p>
           <button data-act="back" class="su-btn su-btn-ghost">Back</button>
-          <button data-act="next" ${missing.length ? 'disabled' : ''} class="su-btn su-btn-primary su-grow">Next: test</button>`,
+          <button data-act="finish" ${ready.length ? '' : 'disabled'} class="su-btn su-btn-primary su-grow">Done</button>`,
+      }
+    }
+
+    // autoTest tests every machine whose one-line join has come in and not
+    // been tested yet, so the person never has to press anything.
+    function autoTest() {
+      if (step !== 'access') return
+      for (const m of machines()) {
+        if (m.selected && m.ready && !results.has(m.name)) results.set(m.name, { status: 'ok' })
+        if (!m.joined) continue
+        if (!picks.has(m.name)) picks.set(m.name, { user: m.user, method: m.method })
+        const p = picks.get(m.name)
+        if (m.user) p.user = m.user
+        p.method = m.method || 'key'
+        manual.delete(m.name)
+        const key = m.joinedAt || 'joined'
+        if (!m.sshd || testedJoin.get(m.name) === key) continue
+        if (results.get(m.name)?.status === 'testing') continue
+        testedJoin.set(m.name, key)
+        test(m.name)
       }
     }
 
@@ -465,7 +544,30 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
         render()
         return
       }
-      if (t.dataset.retest) return test(t.dataset.retest)
+      if (t.dataset.manual) {
+        manual.add(t.dataset.manual)
+        return render()
+      }
+      if (t.dataset.auto) {
+        manual.delete(t.dataset.auto)
+        return render()
+      }
+      if (t.dataset.retest) {
+        // A manual setup is saved first, so the test uses what was typed.
+        if (manual.has(t.dataset.retest)) {
+          try {
+            await save()
+          } catch (err) {
+            const el = root.querySelector('[data-error]')
+            if (el) {
+              el.textContent = err.message
+              el.classList.remove('hidden')
+            }
+            return
+          }
+        }
+        return test(t.dataset.retest)
+      }
       if (t.dataset.trust) {
         const r = results.get(t.dataset.trust)
         return test(t.dataset.trust, r?.fingerprint || '')
@@ -480,6 +582,8 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
         case 'next':
           if (step === 'machines') {
             step = 'access'
+            try { await save() } catch { /* saved again before testing */ }
+            autoTest()
             return render()
           }
           if (step === 'access') {
@@ -523,14 +627,8 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
       e.target.classList.toggle('is-empty', !e.target.value.trim())
       // Only the footer depends on the typed account; re-rendering the whole
       // step on each keystroke would be wasteful and jumpy.
-      const next = root.querySelector('[data-act="next"]')
-      const hint = root.querySelector('[data-hint]')
-      const missing = chosen().filter((m) => !picks.get(m.name).user)
-      if (next) next.disabled = missing.length > 0
-      if (hint) {
-        hint.textContent = missing.length ? `Enter your username on ${missing[0].name}` : ''
-        hint.classList.toggle('hidden', !missing.length)
-      }
+      const btn = root.querySelector(`[data-retest="${CSS.escape(name)}"].su-btn-primary`)
+      if (btn) btn.disabled = !e.target.value.trim()
     })
 
     render()

@@ -50,14 +50,33 @@ func (f *fakeTailnet) Status(context.Context) (*ipnstate.Status, error) {
 	return f.st, nil
 }
 
-// fakeWhoIs reports a fixed identity for every request.
+// fakeWhoIs reports a fixed identity for every request. The machine a request
+// comes from can be named per request with the X-Papaya-Test-Caller header
+// (see withTestCaller), which is how browser tests play a machine running the
+// one-line join.
 type fakeWhoIs struct{ login string }
 
-func (f fakeWhoIs) WhoIs(context.Context, string) (*apitype.WhoIsResponse, error) {
+var testCallers sync.Map // remote addr -> machine name
+
+func (f fakeWhoIs) WhoIs(_ context.Context, addr string) (*apitype.WhoIsResponse, error) {
+	node := &tailcfg.Node{}
+	if v, ok := testCallers.Load(addr); ok {
+		node.Name = v.(string) + ".tail1234.ts.net."
+	}
 	return &apitype.WhoIsResponse{
-		Node:        &tailcfg.Node{},
+		Node:        node,
 		UserProfile: &tailcfg.UserProfile{LoginName: f.login},
 	}, nil
+}
+
+func withTestCaller(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if c := r.Header.Get("X-Papaya-Test-Caller"); c != "" {
+			testCallers.Store(r.RemoteAddr, c)
+			defer testCallers.Delete(r.RemoteAddr)
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func main() {
@@ -246,7 +265,7 @@ func run(addr, user string) error {
 	log.Printf("devserver listening on http://%s (identity %s)", addr, user)
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           api.Handler(),
+		Handler:           withTestCaller(api.Handler()),
 		ReadHeaderTimeout: 15 * time.Second,
 	}
 	return srv.ListenAndServe()

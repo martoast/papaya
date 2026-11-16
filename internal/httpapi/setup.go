@@ -58,6 +58,8 @@ type setupAPI struct {
 	// race two dials against one machine.
 	mu      sync.Mutex
 	testing map[string]bool
+	// joins is what each machine reported when its one-line join ran.
+	joins map[string]joined
 }
 
 // EnableSetup turns on the setup screen's API.
@@ -69,6 +71,7 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/setup/test", s.testSetupMachine)
 	mux.HandleFunc("POST /api/setup/complete", s.completeSetup)
 	mux.HandleFunc("POST /api/setup/seen", s.seenSetup)
+	s.joinRoutes(mux)
 }
 
 // MachineView is one tailnet machine as the setup screen shows it.
@@ -85,6 +88,11 @@ type MachineView struct {
 	Method       string `json:"method"`
 	Ready        bool   `json:"ready"`
 	New          bool   `json:"new"`
+	// Joined is set once the one-line join ran on this machine; SSHD says
+	// whether it found an SSH server listening there.
+	Joined   bool      `json:"joined"`
+	SSHD     bool      `json:"sshd"`
+	JoinedAt time.Time `json:"joinedAt,omitempty"`
 }
 
 // SetupView is the whole state of the setup screen.
@@ -194,6 +202,13 @@ func (a *setupAPI) view(ctx context.Context) SetupView {
 					}
 					mv.Ready = m.Ready
 				}
+				if j, ok := a.joinOf(name); ok {
+					mv.Joined, mv.SSHD, mv.JoinedAt = true, j.SSHD, j.At
+					mv.Selected = true
+					if mv.User == "" {
+						mv.User = j.User
+					}
+				}
 				mv.New = !seen[strings.ToLower(name)] && !mv.Selected
 				if mv.New && st.Complete {
 					v.NewMachines++
@@ -281,6 +296,18 @@ func (s *Server) putSetupMachines(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not save: "+err.Error())
 		return
 	}
+	// A machine taken out of setup forgets its one-line join too.
+	keep := map[string]bool{}
+	for _, c := range req.Machines {
+		keep[strings.ToLower(c.Name)] = true
+	}
+	s.setup.mu.Lock()
+	for name := range s.setup.joins {
+		if !keep[name] {
+			delete(s.setup.joins, name)
+		}
+	}
+	s.setup.mu.Unlock()
 	writeJSON(w, http.StatusOK, s.setup.view(r.Context()))
 }
 
