@@ -459,29 +459,8 @@ html[data-backdrop='on'] .bg-surface-1 {
 .su-callout .su-btn { margin-top: 2px; }
 @media (prefers-reduced-motion: reduce) { .su-dot { animation: none; } }
 
-/* Safe areas. viewport-fit=cover lets an iPhone home-screen launch use the
-   whole screen, so the bars pad themselves clear of the notch, the rounded
-   corners and the home indicator (all zero in an ordinary browser tab). With
-   the keyboard up it covers the home indicator, so that padding goes. */
-.safe-top {
-  height: calc(2.25rem + env(safe-area-inset-top));
-  padding-top: env(safe-area-inset-top);
-  padding-left: max(0.5rem, env(safe-area-inset-left));
-  padding-right: max(0.5rem, env(safe-area-inset-right));
-}
-.safe-bottom {
-  height: calc(1.5rem + env(safe-area-inset-bottom));
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-left: max(0.75rem, env(safe-area-inset-left));
-  padding-right: max(0.75rem, env(safe-area-inset-right));
-}
-html.kb-open .safe-bottom { height: 1.5rem; padding-bottom: 0; }
-/* On a touch screen the bottom bar's buttons are thumb-sized. */
-@media (pointer: coarse) {
-  .safe-bottom { height: calc(2.25rem + env(safe-area-inset-bottom)); font-size: 13px; }
-  html.kb-open .safe-bottom { height: 2.25rem; }
-  #statusbar button { min-height: 32px; min-width: 32px; justify-content: center; font-size: 15px; }
-}
+
+
 
 /* Turn on voice (voicesetup.js) */
 #voice-setup { position: fixed; inset: 0; z-index: 60; display: grid; place-items: end center; background: rgba(0,0,0,0.55); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); padding: 12px 12px calc(12px + env(safe-area-inset-bottom)); font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif; animation: vs-fade 0.2s ease-out; }

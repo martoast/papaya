@@ -41,7 +41,7 @@
       <!-- tab bar -->
       <div
         id="tabbar"
-        class="lg-bar lg-top flex items-center gap-1 select-none"
+        class="lg-bar lg-top relative flex items-center gap-0.5 select-none"
       >
         <div id="tabs" role="tablist" aria-label="Sessions" class="flex flex-1 min-w-0 items-center gap-1"></div>
         <button
@@ -99,6 +99,21 @@
         >
           <svg class="lg-ico" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         </button>
+        <button id="more" class="lg-btn shrink-0" aria-label="More" aria-haspopup="menu" aria-expanded="false" title="More">
+          <svg class="lg-ico" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.5" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="18.5" cy="12" r="1.4" fill="currentColor"/></svg>
+        </button>
+        <!-- The menu: the rarely needed things, out of the way. -->
+        <div id="more-menu" class="lg-menu hidden" role="menu">
+          <button id="settings" class="lg-menu-item" role="menuitem" title="Machines and setup" aria-label="Machines and setup">
+            <svg class="lg-ico" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2.5"/><path d="M8 20h8M12 16v4"/></svg>
+            <span class="lg-label">Machines</span>
+            <span id="settings-dot" class="hidden lg-dot"></span>
+          </button>
+          <button id="install-app" class="lg-menu-item hidden" role="menuitem" title="Install Papaya as an app">
+            <svg class="lg-ico" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M12 8v6M9.5 11.5L12 14l2.5-2.5"/></svg>
+            <span class="lg-label">Add to Home Screen</span>
+          </button>
+        </div>
       </div>
 
       <!-- Two views over the same terminals. Elements are MOVED between the
@@ -113,16 +128,34 @@
              "detached" tab, which is indistinguishable from a hung terminal.
              Driven by connectivity.js, and it clears itself when the tailnet
              comes back. -->
-        <div
-          id="offline-banner"
-          class="lg-glass lg-toast hidden absolute top-3 left-1/2 -translate-x-1/2 z-40 items-center justify-center gap-2
-                 px-4 py-2.5 text-sm text-text-hi"
-          role="status"
-          aria-live="polite"
-        >
-          <span class="size-2 shrink-0 rounded-full bg-state-err animate-pulse"></span>
-          <span>Can't reach Papaya — check that <b class="font-semibold">Tailscale</b> is connected on this device.</span>
+        <!-- Toasts: everything the old status bar said, said only when there
+             is something to say. Notices fade on their own; Reconnect and Copy
+             stay until they are pressed or no longer true. -->
+        <div id="toasts" class="lg-toasts" aria-live="polite">
+          <div
+            id="offline-banner"
+            class="lg-glass lg-toast lg-toast-err hidden items-center justify-center gap-2"
+            role="status"
+            aria-live="polite"
+          >
+            <span class="size-2 shrink-0 rounded-full bg-state-err animate-pulse"></span>
+            <span>Can't reach Papaya — check that <b class="font-semibold">Tailscale</b> is connected on this device.</span>
+          </div>
+          <span id="status-text" class="lg-glass lg-toast"></span>
+          <button id="reconnect" class="lg-glass lg-toast lg-toast-btn hidden items-center gap-2" title="Reconnect stale sessions">
+            <svg class="lg-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7"/></svg>
+            <span>Reconnect</span>
+          </button>
+          <button id="clipboard-pending" class="lg-glass lg-toast lg-toast-btn hidden items-center gap-2"
+            title="Put the text copied on the remote host onto this machine's clipboard">
+            <svg class="lg-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2"/></svg>
+            <span>Copy</span>
+          </button>
+          <span id="upload-progress" class="lg-glass lg-toast lg-upload hidden" role="progressbar">
+            <span class="lg-upload-track"><span id="upload-bar" class="block h-full w-0 transition-[width]"></span></span>
+          </span>
         </div>
+        <span id="status-left" class="sr-only" aria-live="polite"></span>
 
         <div
           id="empty-state"
@@ -191,72 +224,18 @@
         </div>
       </div>
 
-      <!-- status bar -->
-      <!-- safe-bottom: from the home screen the page runs edge to edge, so the
-           bar keeps clear of the home indicator and the rounded corners. -->
-      <div
-        id="statusbar"
-        class="lg-bar lg-bottom flex items-center justify-between text-text-lo"
-      >
-        <span id="status-left" class="min-w-0 flex-1 truncate pr-2"></span>
-        <span id="status-right" class="flex shrink-0 items-center gap-2">
-          <span
-            id="upload-progress"
-            class="hidden h-1 w-24 rounded bg-surface-3 overflow-hidden"
-            role="progressbar"
-          >
-            <span id="upload-bar" class="block h-full w-0 bg-accent transition-[width]"></span>
-          </span>
-          <!-- The way back when a session has gone stale. An installed app has
-               no address bar and so no reload, which left a suspended laptop
-               with nothing to press. Hidden until something is actually wrong. -->
-          <button
-            id="reconnect"
-            class="lg-btn lg-warn hidden items-center gap-1"
-            title="Reconnect stale sessions"
-          >
-            <span aria-hidden="true">⟳</span>
-            <span>Reconnect</span>
-          </button>
-          <!-- Text copied on the far side that the browser would not let us
-               write unprompted. Safari requires a user gesture for the
-               clipboard and text arriving over the network has none behind it,
-               so the copy is held here and this button is the gesture. Hidden
-               unless something is actually waiting. -->
-          <button
-            id="clipboard-pending"
-            class="lg-btn lg-warn hidden items-center gap-1"
-            title="Put the text copied on the remote host onto this machine's clipboard"
-          >
-            <span aria-hidden="true">⧉</span>
-            <span>Copy</span>
-          </button>
-          <span id="status-text"></span>
-          <!-- Machines and setup: reopens the setup screen to add or fix a
-               machine. Down here rather than in the tab bar, which is already
-               full on a phone. The dot lights when a machine joins the tailnet
-               that the owner has not been shown yet. -->
-          <!-- Install as an app: a real install on Chrome/Edge, the Add to Home
-               Screen guide on iPhone and iPad (install.js). Hidden elsewhere. -->
-          <button
-            id="install-app"
-            class="lg-btn lg-tint hidden items-center gap-1"
-            title="Install Papaya as an app"
-          >
-            <span aria-hidden="true">⤓</span>
-            <span>Install<span class="max-sm:hidden"> app</span></span>
-          </button>
-          <button
-            id="settings"
-            class="lg-btn relative inline-flex items-center gap-1.5"
-            title="Machines and setup"
-            aria-label="Machines and setup"
-          >
-            <svg class="lg-ico" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
-            <span class="lg-label hidden sm:inline">Machines</span>
-            <span id="settings-dot" class="hidden absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-accent"></span>
-          </button>
-        </span>
+      <!-- The dock (touch screens): the keys a soft keyboard lacks, in one glass
+           capsule, and the mic beside it as its own round button. It is a row
+           of the layout, not an overlay, so when the keyboard opens and
+           keypad.js shrinks #app to what is visible, the dock rides up with it. -->
+      <div id="dock" class="lg-dockrow hidden touch:flex">
+        <div
+          id="keypad"
+          data-open="true"
+          class="lg-dock group"
+          role="toolbar"
+          aria-label="Terminal keys"
+        ></div>
       </div>
     </div>
 
@@ -264,19 +243,6 @@
          capture attribute is what makes iOS offer Photo Library / Take Photo /
          Files rather than jumping straight to the camera. -->
     <input id="file-input" type="file" accept="image/*" multiple class="hidden" />
-
-    <!-- Floating touch key pad: the keys the soft keyboard does not have — Esc
-         and the arrows — plus a chip to put it away. It floats clear of the
-         bottom edge because taps down there open the iOS keyboard, and
-         keypad.js keeps it riding just above the keyboard while typing.
-         Shown only for touch input, not merely narrow windows. -->
-    <div
-      id="keypad"
-      data-open="true"
-      class="kb-float hidden touch:grid group fixed right-3 bottom-[88px] z-30 grid-cols-3 gap-1.5 select-none"
-      role="toolbar"
-      aria-label="Terminal keys"
-    ></div>
 
     <div id="overlays"></div>
     <script type="module" src="/src/main.js"></script>

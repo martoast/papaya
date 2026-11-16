@@ -33,26 +33,26 @@ html, body { background: #06070a; }
 body { font-family: var(--font-ui); }
 #app { position: relative; z-index: 1; }
 
-/* The light behind the glass. Static: an animated layer under backdrop-filter
-   would re-blur every frame and cost an iPhone its battery. */
+/* The light behind the glass: one warm source above, one cool below, and
+   nothing in the corners to muddy it. Static: an animated layer under
+   backdrop-filter would re-blur every frame and cost an iPhone its battery. */
 #ambient {
   position: fixed;
-  inset: -12%;
+  inset: 0;
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(38% 32% at 10% 6%, rgba(255, 132, 64, 0.5), transparent 70%),
-    radial-gradient(34% 30% at 94% 12%, rgba(176, 92, 255, 0.32), transparent 70%),
-    radial-gradient(46% 40% at 88% 96%, rgba(24, 190, 170, 0.26), transparent 70%),
-    radial-gradient(40% 34% at 4% 92%, rgba(255, 70, 120, 0.24), transparent 70%),
-    #06070a;
+    radial-gradient(90% 48% at 50% -14%, rgba(255, 140, 70, 0.42), rgba(255, 110, 60, 0.12) 45%, transparent 72%),
+    radial-gradient(70% 40% at 50% 112%, rgba(120, 90, 255, 0.26), transparent 70%),
+    linear-gradient(180deg, #0b0a0d, #050507);
 }
 html[data-backdrop='on'] #ambient { display: none; }
 
 /* ---- the material ---- */
 .lg-glass,
 .lg-bar,
-.lg-key,
+.lg-dock,
+.lg-menu,
 .lg-sheet,
 .lg-row,
 .lg-empty-new {
@@ -63,11 +63,12 @@ html[data-backdrop='on'] #ambient { display: none; }
   box-shadow: var(--lg-rim), var(--lg-drop);
   isolation: isolate;
 }
-/* The specular sheen: light caught along the top-left of the curve. */
+/* The specular sheen: light caught along the top of the curve. */
 .lg-glass::before,
 .lg-bar::before,
+.lg-dock::before,
+.lg-menu::before,
 .lg-sheet::before,
-.lg-key::before,
 .lg-empty-new::before {
   content: '';
   position: absolute;
@@ -76,116 +77,229 @@ html[data-backdrop='on'] #ambient { display: none; }
   pointer-events: none;
   z-index: -1;
   background:
-    radial-gradient(120% 70% at 18% -10%, rgba(255, 255, 255, 0.16), transparent 55%),
-    radial-gradient(80% 60% at 100% 120%, rgba(255, 255, 255, 0.06), transparent 60%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.09), transparent 46%),
+    radial-gradient(90% 120% at 50% -30%, rgba(255, 255, 255, 0.1), transparent 60%);
 }
 
-/* ---- bars: floating capsules ---- */
-.lg-bar { border-radius: var(--lg-radius); }
+/* ---- the top bar: one slim capsule ---- */
+.lg-bar { border-radius: 999px; }
 .lg-top {
-  height: 48px;
+  height: 46px;
   margin: calc(env(safe-area-inset-top) + var(--lg-gutter)) max(var(--lg-gutter), env(safe-area-inset-right)) 8px
     max(var(--lg-gutter), env(safe-area-inset-left));
-  padding: 0 6px;
+  padding: 0 5px;
 }
-.lg-bottom {
-  height: 40px;
-  margin: 8px max(var(--lg-gutter), env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + var(--lg-gutter))
-    max(var(--lg-gutter), env(safe-area-inset-left));
-  padding: 0 6px 0 16px;
-  border-radius: 20px;
-  font-size: 12.5px;
-  letter-spacing: 0.01em;
-}
-html.kb-open .lg-bottom { margin-bottom: 6px; }
-@media (pointer: coarse) {
-  .lg-bottom { height: 44px; border-radius: 22px; font-size: 13px; }
-}
+@media (pointer: coarse) { .lg-top { height: 50px; } }
 
 /* ---- the content layer: the terminal, solid, on a rounded card ---- */
 .lg-surface {
-  margin: 0 max(var(--lg-gutter), env(safe-area-inset-right)) 0 max(var(--lg-gutter), env(safe-area-inset-left));
-  border-radius: calc(var(--lg-radius) - 2px);
+  margin: 0 max(var(--lg-gutter), env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + var(--lg-gutter))
+    max(var(--lg-gutter), env(safe-area-inset-left));
+  border-radius: 26px;
   background: transparent;
-  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.09), 0 24px 60px -20px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.08), 0 30px 70px -24px rgba(0, 0, 0, 0.8);
 }
+@media (pointer: coarse) { .lg-surface { margin-bottom: 8px; border-radius: 24px; } }
 .lg-surface #stack { border-radius: inherit; }
 .lg-surface #grid { background: transparent; padding: 0; gap: 8px; }
-.xterm { padding: 10px 12px; }
 
-/* ---- buttons in the bars ---- */
+/* ---- buttons in the bar ---- */
 .lg-btn {
   height: 36px;
   min-width: 36px;
   padding: 0 10px;
-  border-radius: 18px;
+  border-radius: 999px;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-lo);
-  transition: background-color 0.2s, color 0.2s, transform 0.25s cubic-bezier(0.3, 1.6, 0.5, 1);
+  color: rgba(235, 235, 245, 0.72);
+  transition: background-color 0.2s, color 0.2s, transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
   -webkit-tap-highlight-color: transparent;
 }
+@media (pointer: coarse) { .lg-btn { height: 40px; min-width: 40px; } }
 .lg-btn:not(.hidden) { display: inline-flex; }
-.lg-btn:hover { background: rgba(255, 255, 255, 0.08); color: var(--color-text-hi); }
-.lg-btn:active { transform: scale(0.9); background: rgba(255, 255, 255, 0.16); }
-.lg-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
-.lg-bottom .lg-btn { height: 32px; min-width: 32px; padding: 0 9px; border-radius: 16px; }
-.lg-label { font-size: 13px; font-weight: 500; }
+.lg-btn:hover, .lg-btn[data-open='true'] { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.lg-btn:active { transform: scale(0.88); background: rgba(255, 255, 255, 0.18); }
+.lg-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+.lg-label { font-size: 13px; font-weight: 500; letter-spacing: -0.005em; }
 .lg-ico { display: block; flex: none; }
-.lg-new { color: var(--color-text-hi); }
-.lg-tint { color: var(--lg-papaya); }
-.lg-warn { color: var(--color-state-warn); }
-
-/* The mic: the one tinted control, because talking is the fast way in. */
-.lg-mic {
-  color: #ffb27a;
-  background: linear-gradient(180deg, rgba(255, 148, 71, 0.26), rgba(255, 122, 47, 0.16));
-  box-shadow: inset 0 0 0 0.5px rgba(255, 170, 110, 0.35), inset 0 1px 0 rgba(255, 220, 190, 0.25);
+.lg-new { color: #fff; }
+/* A machine waiting to be set up: a dot on the menu button. */
+#more { position: relative; }
+#tabbar:has(#settings-dot:not(.hidden)) #more::after {
+  content: ''; position: absolute; top: 7px; right: 7px; width: 7px; height: 7px; border-radius: 99px;
+  background: var(--lg-papaya); box-shadow: 0 0 0 2px rgba(20, 20, 24, 0.9);
 }
-.lg-mic:hover { background: linear-gradient(180deg, rgba(255, 148, 71, 0.36), rgba(255, 122, 47, 0.24)); color: #ffd2ad; }
+
+/* The mic in the bar (desktop): the one tinted control. */
+.lg-mic {
+  color: #ffc49a;
+  background: linear-gradient(180deg, rgba(255, 148, 71, 0.24), rgba(255, 122, 47, 0.14));
+  box-shadow: inset 0 0 0 0.5px rgba(255, 170, 110, 0.32), inset 0 1px 0 rgba(255, 220, 190, 0.22);
+}
+.lg-mic:hover { background: linear-gradient(180deg, rgba(255, 148, 71, 0.34), rgba(255, 122, 47, 0.22)); color: #ffe0c8; }
 .lg-mic-ico { display: grid; place-items: center; }
 .lg-mic[data-state='recording'] {
   color: #fff;
-  background: linear-gradient(180deg, #ff5f57, #e5332a);
-  box-shadow: 0 0 0 0 rgba(255, 69, 58, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  background: linear-gradient(180deg, #ff5f57, #e0322a) !important;
   animation: lg-rec 1.4s ease-out infinite;
 }
-.lg-mic[data-state='transcribing'] { color: #1c1206; background: linear-gradient(180deg, var(--lg-papaya), var(--lg-papaya-2)); }
-@keyframes lg-rec { 70% { box-shadow: 0 0 0 10px rgba(255, 69, 58, 0), inset 0 1px 0 rgba(255, 255, 255, 0.3); } }
+.lg-mic[data-state='transcribing'] { color: #1c1206; background: linear-gradient(180deg, #ffb06e, var(--lg-papaya-2)) !important; }
+@keyframes lg-rec {
+  0% { box-shadow: 0 0 0 0 rgba(255, 69, 58, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+  70% { box-shadow: 0 0 0 12px rgba(255, 69, 58, 0), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+}
 
 /* ---- tabs: capsules; the active one is a lens of brighter glass ---- */
 .lg-tab {
   height: 36px;
-  border-radius: 18px;
-  font-size: 13.5px;
-  font-weight: 500;
-  transition: background-color 0.25s, color 0.25s, box-shadow 0.25s;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: rgba(235, 235, 245, 0.6);
+  transition: background-color 0.3s, color 0.3s, box-shadow 0.3s;
 }
-.lg-tab:hover { background: rgba(255, 255, 255, 0.06); color: var(--color-text-hi); }
+@media (pointer: coarse) { .lg-tab { height: 40px; } }
+.lg-tab:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
 .lg-tab[data-active='true'] {
-  color: var(--color-text-hi);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 0 0 0.5px rgba(255, 255, 255, 0.16),
-    0 4px 14px -4px rgba(0, 0, 0, 0.5);
+  color: #fff;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.09));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 0 0 0.5px rgba(255, 255, 255, 0.16),
+    0 6px 16px -6px rgba(0, 0, 0, 0.55);
 }
 .lg-tab[data-attention='true'] {
-  color: var(--color-text-hi);
-  background: linear-gradient(180deg, rgba(255, 148, 71, 0.3), rgba(255, 122, 47, 0.16));
-  box-shadow: inset 0 0 0 0.5px rgba(255, 170, 110, 0.5);
+  color: #fff;
+  background: linear-gradient(180deg, rgba(255, 148, 71, 0.32), rgba(255, 122, 47, 0.16));
+  box-shadow: inset 0 0 0 0.5px rgba(255, 170, 110, 0.5), 0 0 18px -4px rgba(255, 122, 47, 0.6);
 }
 .lg-tab .tab-name { font-family: var(--font-ui); }
+.lg-tab .tab-dot { width: 7px; height: 7px; }
 .lg-tab-close:hover { background: rgba(255, 255, 255, 0.14); color: var(--color-state-err); }
 
-/* ---- floating keys ---- */
-.lg-key {
-  border-radius: 15px;
-  font-family: var(--font-ui);
-  font-weight: 500;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform 0.25s cubic-bezier(0.3, 1.6, 0.5, 1), background-color 0.15s;
+/* ---- the dock (touch): keys in one capsule, the mic beside it ---- */
+.lg-dockrow {
+  align-items: center;
+  gap: 8px;
+  margin: 0 max(var(--lg-gutter), env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + var(--lg-gutter))
+    max(var(--lg-gutter), env(safe-area-inset-left));
+  user-select: none;
+  -webkit-user-select: none;
 }
-.lg-key:active { transform: scale(0.88); background: rgba(255, 255, 255, 0.22); }
-.lg-key-chip { border-radius: 99px; }
+html.kb-open .lg-dockrow { margin-bottom: 6px; }
+.lg-dock {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 56px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+}
+.lg-dock[data-open='false'] { flex: 0 0 auto; }
+.lg-dkey {
+  flex: 1 1 0;
+  max-width: 54px;
+  height: 44px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: rgba(245, 245, 250, 0.92);
+  font-family: var(--font-ui);
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.18s, transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.lg-dkey:not(.hidden) { display: grid; }
+.lg-dkey-word { font-size: 14px; font-weight: 600; letter-spacing: 0.01em; }
+.lg-dkey:active { transform: scale(0.86); background: rgba(255, 255, 255, 0.2); }
+.lg-dkey-toggle { order: 99; flex: 0 0 40px; color: rgba(235, 235, 245, 0.55); }
+.lg-dock[data-open='false'] .lg-dkey-toggle { flex-basis: 44px; color: rgba(245, 245, 250, 0.9); }
+.lg-dockrow .lg-mic {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  color: #fff;
+  background: linear-gradient(180deg, #ffa25a, #ff6f2a);
+  box-shadow: inset 0 1px 0 rgba(255, 230, 205, 0.55), inset 0 0 0 0.5px rgba(255, 200, 160, 0.5),
+    0 10px 26px -8px rgba(255, 110, 40, 0.7);
+}
+.lg-dockrow .lg-mic:hover { background: linear-gradient(180deg, #ffb070, #ff7d38); color: #fff; }
+.lg-dockrow .lg-mic .lg-ico { width: 24px; height: 24px; stroke-width: 2; }
+.lg-dockrow .lg-mic #mic-label { display: none; }
+.lg-dockrow .lg-mic[data-setup='true'] { opacity: 0.92; }
+
+/* ---- the menu ---- */
+.lg-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 50;
+  min-width: 236px;
+  padding: 6px;
+  border-radius: 24px;
+  background: var(--lg-fill-strong);
+  --lg-blur: 40px;
+  transform-origin: top right;
+  animation: lg-menu 0.28s cubic-bezier(0.2, 1.3, 0.4, 1);
+}
+.lg-menu-item {
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border-radius: 18px;
+  color: #fff;
+  font-family: var(--font-ui);
+  text-align: left;
+  transition: background-color 0.15s;
+}
+.lg-menu-item:not(.hidden) { display: flex; }
+.lg-menu-item .lg-label { font-size: 15.5px; font-weight: 500; flex: 1; }
+.lg-menu-item .lg-ico { color: rgba(235, 235, 245, 0.7); }
+.lg-menu-item:hover, .lg-menu-item:active { background: rgba(255, 255, 255, 0.1); }
+.lg-dot { width: 8px; height: 8px; border-radius: 99px; background: var(--lg-papaya); }
+@keyframes lg-menu { from { opacity: 0; transform: scale(0.85) translateY(-6px); } }
+
+/* ---- toasts ---- */
+.lg-toasts {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 24px);
+  pointer-events: none;
+}
+.lg-toast {
+  pointer-events: auto;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  --lg-fill: linear-gradient(180deg, rgba(60, 60, 68, 0.6), rgba(36, 36, 42, 0.55));
+  animation: lg-toast 0.35s cubic-bezier(0.2, 1.3, 0.4, 1);
+}
+#status-text:empty { display: none; }
+#status-text.text-state-err { color: #ff8a80; }
+.lg-toast-btn { color: #ffd60a; transition: transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1); }
+.lg-toast-btn:active { transform: scale(0.94); }
+.lg-toast-err { --lg-fill: linear-gradient(180deg, rgba(120, 30, 30, 0.6), rgba(80, 20, 20, 0.55)); white-space: normal; text-align: center; }
+.lg-upload { padding: 12px 16px; }
+.lg-upload-track { display: block; width: 140px; height: 4px; border-radius: 99px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+#upload-bar { background: var(--lg-papaya); border-radius: 99px; }
+@keyframes lg-toast { from { opacity: 0; transform: translateY(-10px) scale(0.96); } }
 
 /* ---- sheets and dialogs ---- */
 .lg-scrim {
@@ -265,10 +379,7 @@ html.kb-open .lg-bottom { margin-bottom: 6px; }
 .lg-row:hover { background: rgba(255, 255, 255, 0.12); }
 .lg-row:active { transform: scale(0.97); }
 
-/* ---- toasts and the recording pill ---- */
-.lg-glass { border-radius: 99px; }
-.lg-toast { border-radius: 99px; white-space: nowrap; max-width: calc(100% - 24px); }
-#recording-pill { font-family: var(--font-ui); }
+#recording-pill { font-family: var(--font-ui); bottom: 14px; }
 
 /* ---- grid panels: each terminal its own card ---- */
 .lg-panel {
@@ -287,7 +398,7 @@ html.kb-open .lg-bottom { margin-bottom: 6px; }
 html[data-backdrop='on'] .lg-surface { box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.12); }
 
 @media (prefers-reduced-transparency: reduce) {
-  .lg-glass, .lg-bar, .lg-key, .lg-sheet, .lg-row { background: #1c1d22; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .lg-glass, .lg-bar, .lg-dock, .lg-menu, .lg-sheet, .lg-row { background: #1c1d22; -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 
 /* ---- setup, the install guide and the voice sheet: same glass ---- */
@@ -324,3 +435,12 @@ html body .setup-ui {
   border-radius: 30px !important;
 }
 .vs-card input { background: rgba(0, 0, 0, 0.4); }
+
+/* The bar (and its menu) above the terminal card. */
+.lg-top { z-index: 30; }
+/* Full screen is a desktop affair; a phone's home-screen app already is. */
+@media (pointer: coarse) { #fullscreen { display: none !important; } }
+/* Put away: only the toggle stays (beats .lg-dkey's display). */
+.lg-dock[data-open='false'] .lg-dkey:not(.lg-dkey-toggle) { display: none; }
+/* Put away, what is left sits under the right thumb. */
+.lg-dockrow:has(.lg-dock[data-open='false']) { justify-content: flex-end; }

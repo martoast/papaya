@@ -95,7 +95,6 @@ test('on an iPhone, Papaya shows how to add it to the Home Screen, once', async 
   const guide = page.locator('#install-guide')
   await expect(guide).toBeVisible({ timeout: 8000 })
   await expect(guide).toContainText('Add to Home Screen')
-  await expect(page.locator('#install-app')).toBeVisible()
 
   await guide.locator('.ig-close').click()
   await expect(guide).toHaveCount(0)
@@ -103,7 +102,9 @@ test('on an iPhone, Papaya shows how to add it to the Home Screen, once', async 
   await page.waitForTimeout(5000)
   await expect(guide).toHaveCount(0) // dismissed stays dismissed
 
-  // The status-bar button brings it back on request.
+  // The menu's "Add to Home Screen" brings it back on request.
+  await page.locator('#more').click()
+  await expect(page.locator('#install-app')).toBeVisible()
   await page.locator('#install-app').click()
   await expect(guide).toBeVisible()
   await ctx.close()
@@ -117,8 +118,10 @@ test('where the browser can install apps, one click installs Papaya', async ({ p
     e.userChoice = Promise.resolve({ outcome: 'accepted' })
     window.dispatchEvent(e)
   })
+  await page.locator('#more').click()
   await expect(page.locator('#install-app')).toBeVisible()
   await page.locator('#install-app').click()
   expect(await page.evaluate(() => window.__prompted)).toBe(true)
-  await expect(page.locator('#install-app')).toBeHidden()
+  // Installed: the item is gone from the menu.
+  await expect(page.locator('#install-app')).toHaveClass(/\bhidden\b/)
 })

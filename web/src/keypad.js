@@ -13,20 +13,28 @@
 
 const PAD_STATE = 'papaya.keypad.v1'
 
+const CHEV = (d) =>
+  `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`
+
+// One row, in the order a thumb reaches for them.
 const KEYS = [
-  { label: 'esc', seq: '\x1b', cell: 'col-start-1 row-start-1' },
-  { label: '↑', seq: '\x1b[A', repeat: true, cell: 'col-start-2 row-start-1' },
-  { label: '←', seq: '\x1b[D', repeat: true, cell: 'col-start-1 row-start-2' },
-  { label: '↓', seq: '\x1b[B', repeat: true, cell: 'col-start-2 row-start-2' },
-  { label: '→', seq: '\x1b[C', repeat: true, cell: 'col-start-3 row-start-2' },
+  { label: 'esc', seq: '\x1b', text: 'esc' },
   // Tab: completion in every shell and the way through agent menus; the soft
   // keyboard has none.
-  { label: 'tab', seq: '\t', cell: 'col-start-1 row-start-3 !h-10 !w-full' },
+  { label: 'tab', seq: '\t', text: 'tab' },
+  { label: '←', seq: '\x1b[D', repeat: true, html: CHEV('M15 6l-6 6 6 6') },
+  { label: '↑', seq: '\x1b[A', repeat: true, html: CHEV('M6 15l6-6 6 6') },
+  { label: '↓', seq: '\x1b[B', repeat: true, html: CHEV('M6 9l6 6 6-6') },
+  { label: '→', seq: '\x1b[C', repeat: true, html: CHEV('M9 6l6 6-6 6') },
 ]
 
-const BTN =
-  'lg-key grid place-items-center size-11 text-sm text-text-hi ' +
-  'group-data-[open=false]:hidden'
+// Keys are plain inside the dock's glass; pressing one lights a lens under it.
+const BTN = 'lg-dkey group-data-[open=false]:hidden'
+
+const PASTE_ICON =
+  '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4.5" width="14" height="17" rx="2.5"/><path d="M9 4.5V4a1 1 0 011-1h4a1 1 0 011 1v.5M9 11h6M9 15h4"/></svg>'
+const KEYBOARD_ICON =
+  '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6 10h.01M9.5 10h.01M13 10h.01M16.5 10h.01M7.5 14h9"/></svg>'
 
 export function wireKeyPad(pad, getActiveTab) {
   let open = true
@@ -40,14 +48,13 @@ export function wireKeyPad(pad, getActiveTab) {
   // when the pad is hidden this chip is all that remains on screen.
   const toggle = document.createElement('button')
   toggle.className =
-    'lg-key lg-key-chip col-start-3 row-start-1 self-center justify-self-end grid place-items-center size-8 ' +
-    'text-xs text-text-lo'
+    'lg-dkey lg-dkey-toggle'
   toggle.dataset.key = 'toggle'
 
   const setOpen = (on) => {
     open = on
     pad.dataset.open = String(on)
-    toggle.textContent = on ? '×' : '⌨'
+    toggle.innerHTML = on ? CHEV('M7 10l5 5 5-5') : KEYBOARD_ICON
     toggle.setAttribute('aria-label', on ? 'Hide terminal keys' : 'Show terminal keys')
     try {
       localStorage.setItem(PAD_STATE, on ? 'shown' : 'hidden')
@@ -71,8 +78,10 @@ export function wireKeyPad(pad, getActiveTab) {
 
   for (const key of KEYS) {
     const b = document.createElement('button')
-    b.className = `${BTN} ${key.cell}`
-    b.textContent = key.label
+    b.className = key.text ? `${BTN} lg-dkey-word` : BTN
+    if (key.html) b.innerHTML = key.html
+    else b.textContent = key.text
+    b.setAttribute('aria-label', key.label === 'esc' ? 'Escape' : key.label === 'tab' ? 'Tab' : key.label)
     b.dataset.key = key.label
 
     // pointerdown, not click: it fires before focus can move. preventDefault
@@ -106,10 +115,10 @@ export function wireKeyPad(pad, getActiveTab) {
   // is there to send the pasted prompt.
   const paste = document.createElement('button')
   paste.className =
-    'lg-key col-start-2 col-span-2 row-start-3 h-10 w-full grid place-items-center ' +
-    'text-sm text-text-hi group-data-[open=false]:hidden'
+    'lg-dkey lg-dkey-word group-data-[open=false]:hidden'
   paste.dataset.key = 'paste'
-  paste.textContent = 'Paste'
+  paste.innerHTML = PASTE_ICON
+  paste.setAttribute('aria-label', 'Paste')
   paste.addEventListener('click', () => {
     getActiveTab()?.pasteFromClipboard()
   })

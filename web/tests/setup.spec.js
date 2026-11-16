@@ -196,9 +196,10 @@ test('root is refused with a reason', async ({ page }) => {
   await expect(setup.locator('[data-error]')).toContainText('everyday account')
 })
 
-test('the settings button reopens setup, and it can be closed', async ({ page }) => {
+test('Machines in the menu reopens setup, and it can be closed', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('[data-modal="setup"]')).toHaveCount(0)
+  await page.click('#more')
   await page.click('#settings')
   const setup = page.locator('[data-modal="setup"]')
   await expect(setup).toHaveAttribute('data-step', 'machines')

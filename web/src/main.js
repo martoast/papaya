@@ -1009,3 +1009,32 @@ if ('serviceWorker' in navigator) {
 
 // The empty state's big + does what the bar's + does.
 el('empty-new')?.addEventListener('click', () => el('new-tab').click())
+
+// --- the ••• menu ---
+// Machines and Install live here: needed rarely, so out of the way.
+{
+  const more = el('more')
+  const menu = el('more-menu')
+  const setOpen = (on) => {
+    menu.classList.toggle('hidden', !on)
+    more.setAttribute('aria-expanded', String(on))
+    more.dataset.open = String(on)
+  }
+  more.addEventListener('click', (e) => {
+    e.stopPropagation()
+    setOpen(menu.classList.contains('hidden'))
+  })
+  menu.addEventListener('click', () => setOpen(false))
+  document.addEventListener('pointerdown', (e) => {
+    if (!menu.classList.contains('hidden') && !menu.contains(e.target) && !more.contains(e.target)) setOpen(false)
+  })
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') setOpen(false)
+  })
+}
+
+// On a touch screen the mic joins the dock, as its own round button beside
+// the keys: talking is the fast way in on a phone.
+if (window.matchMedia('(pointer: coarse)').matches) {
+  el('dock').appendChild(el('mic'))
+}
