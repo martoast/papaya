@@ -161,6 +161,7 @@ func (a *setupAPI) view(ctx context.Context) SetupView {
 				v.Tailnet = status.CurrentTailnet.MagicDNSSuffix
 			}
 			if v.Tailnet == "" {
+				//lint:ignore SA1019 fallback for nodes that do not fill CurrentTailnet
 				v.Tailnet = status.MagicDNSSuffix
 			}
 			for _, p := range status.Peer {

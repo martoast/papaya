@@ -67,6 +67,8 @@ type SSHServer struct {
 	// server was asked to do this" from "the server was never asked".
 	execs      []string
 	execHang   chan struct{}
+	shellHang  chan struct{}
+	shellHeld  chan struct{}
 	workspaces []string
 }
 
@@ -84,6 +86,32 @@ func (s *SSHServer) SetExecHang(ch chan struct{}) {
 	s.mu.Lock()
 	s.execHang = ch
 	s.mu.Unlock()
+}
+
+// SetShellHang makes subsequent shell requests (a plain shell, or a command
+// asked for alongside a PTY, which is how papaya starts tmux) wait for ch to
+// close before they are answered, so a test can be sure no shell has started
+// yet when it acts. The returned channel receives once per request held, so
+// the test knows the connection is up and waiting.
+func (s *SSHServer) SetShellHang(ch chan struct{}) <-chan struct{} {
+	held := make(chan struct{}, 16)
+	s.mu.Lock()
+	s.shellHang, s.shellHeld = ch, held
+	s.mu.Unlock()
+	return held
+}
+
+func (s *SSHServer) waitShellHang() {
+	s.mu.Lock()
+	hang, held := s.shellHang, s.shellHeld
+	s.mu.Unlock()
+	if hang != nil {
+		select {
+		case held <- struct{}{}:
+		default:
+		}
+		<-hang
+	}
 }
 
 // Dims records the geometry a channel's PTY was given.
@@ -357,6 +385,7 @@ func (s *SSHServer) handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 			req.Reply(true, nil)
 
 		case "shell":
+			s.waitShellHang()
 			req.Reply(true, nil)
 			once.Do(func() {
 				close(shellStarted)
@@ -369,6 +398,9 @@ func (s *SSHServer) handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 			if err := ssh.Unmarshal(req.Payload, &e); err != nil {
 				req.Reply(false, nil)
 				continue
+			}
+			if sawPTY {
+				s.waitShellHang()
 			}
 			req.Reply(true, nil)
 

@@ -34,7 +34,9 @@ func TestSayTargetsTheExactWorkspace(t *testing.T) {
 	if strings.Contains(sshx.SayCommand("papaya-dev", false), "Enter") {
 		t.Fatal("enter was sent although not asked for")
 	}
-	if sshx.SayCommand("x", true) == sshx.SayCommand("x", true) {
+	// Each call picks a fresh buffer name, so two calls must differ.
+	a, b := sshx.SayCommand("x", true), sshx.SayCommand("x", true)
+	if a == b {
 		t.Fatal("two senders would share one paste buffer")
 	}
 }

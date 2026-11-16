@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/martoast/papaya/test/harness"
@@ -140,14 +141,28 @@ func TestClosingATabWhoseShellNeverStartedKillsNothing(t *testing.T) {
 	st, srv := newStack(t, harness.StackOptions{Tmux: true})
 	c := st.Client(alice)
 
+	// Hold every shell request so the shell provably never starts; without
+	// this the shell sometimes won the race and the tab went "detached".
+	hang := make(chan struct{})
+	held := srv.SetShellHang(hang)
+	defer close(hang)
+
 	sess := c.CreateSession("devbox-1", "precious", 80, 24)
+	select {
+	case <-held:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the shell was never asked for")
+	}
 
 	// Kill the transport before a shell can start, then close the tab.
 	srv.DropAllConns()
-	require.Eventually(t, func() bool {
-		st := sessionState(c, sess.ID)
-		return st == "closed" || st == "error"
-	}, 10*time.Second, 20*time.Millisecond)
+	var last string
+	if !assert.Eventually(t, func() bool {
+		last = sessionState(c, sess.ID)
+		return last == "closed" || last == "error"
+	}, 10*time.Second, 20*time.Millisecond) {
+		t.Fatalf("session stuck in %q", last)
+	}
 
 	resp, _ := c.DeleteSession(sess.ID)
 	require.Equal(t, http.StatusNoContent, resp.StatusCode)
