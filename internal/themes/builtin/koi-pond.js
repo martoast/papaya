@@ -8,7 +8,8 @@
 // every opaque pixel is laid as a square tile with a gap, so the pond reads as
 // mosaic. Water is a cached gradient with faint tile lines and moving caustics.
 
-const CELL = 10
+// Tile size: smaller on a phone, so koi keep their proportions on a narrow screen.
+let CELL = 10
 const GAP = 1.5
 
 // Body colours from head to tail.
@@ -140,6 +141,7 @@ papaya.scene({
 
   resize(s) {
     const st = s.state
+    CELL = s.w < 700 ? 7 : 10
     st.W = Math.ceil(s.w / CELL)
     st.H = Math.ceil(s.h / CELL)
     st.low.width = st.W

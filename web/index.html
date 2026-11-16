@@ -35,7 +35,7 @@
   <body class="h-dvh bg-surface-0 text-text-hi font-mono antialiased overflow-hidden">
     <!-- keypad.js resizes this to the visual viewport while the soft keyboard
          is up, so the terminal refits above it instead of disappearing under it. -->
-    <div id="app" class="grid h-full grid-rows-[auto_1fr_auto]">
+    <div id="app" class="grid h-full grid-rows-[auto_1fr_auto] grid-cols-[minmax(0,1fr)]">
       <!-- tab bar -->
       <div
         id="tabbar"
@@ -65,7 +65,7 @@
           aria-label="Full screen"
         >
           <span id="fullscreen-icon" aria-hidden="true">⛶</span>
-          <span id="fullscreen-label">Full</span>
+          <span id="fullscreen-label" class="max-sm:hidden">Full</span>
         </button>
         <!-- Attach a file: opens the native picker — on iOS that is Photo
              Library / Take Photo / Files — and uploads through the same path as
@@ -80,7 +80,7 @@
           title="Attach a file"
         >
           <span aria-hidden="true">📎</span>
-          <span>Attach</span>
+          <span class="max-sm:hidden">Attach</span>
         </button>
         <button
           id="mic"
@@ -95,7 +95,7 @@
         >
           <span class="size-2 rounded-full bg-current
                        data-[on=true]:animate-pulse" id="mic-dot" data-on="false"></span>
-          <span class="text-xs tabular-nums" id="mic-label">Voice</span>
+          <span class="text-xs tabular-nums max-sm:hidden" id="mic-label">Voice</span>
         </button>
         <button
           id="new-tab"
@@ -204,8 +204,8 @@
         class="flex items-center justify-between h-6 px-3 text-xs bg-surface-1
                border-t border-surface-3 text-text-lo"
       >
-        <span id="status-left"></span>
-        <span id="status-right" class="flex items-center gap-2">
+        <span id="status-left" class="min-w-0 flex-1 truncate pr-2"></span>
+        <span id="status-right" class="flex shrink-0 items-center gap-2">
           <span
             id="upload-progress"
             class="hidden h-1 w-24 rounded bg-surface-3 overflow-hidden"
@@ -253,7 +253,7 @@
             title="Install Papaya as an app"
           >
             <span aria-hidden="true">⤓</span>
-            <span>Install app</span>
+            <span>Install<span class="max-sm:hidden"> app</span></span>
           </button>
           <button
             id="settings"
