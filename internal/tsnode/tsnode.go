@@ -207,7 +207,7 @@ func announceSignIn(ctx context.Context, lc *local.Client) {
 
 func printSignIn(url string) {
 	printBox([]string{
-		"Welcome to Papaya. One step to go: connect it to your Tailscale.",
+		"Welcome to Papaya. Sign in to connect it to your Tailscale.",
 		"",
 		"Open this link and sign in (or scan the code below with your phone):",
 		"",

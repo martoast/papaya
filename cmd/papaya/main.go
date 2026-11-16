@@ -55,6 +55,9 @@ func run(addr string, verbose bool) error {
 	}
 	if len(cfg.AllowedHosts) > 0 {
 		log.Printf("hosts restricted to: %s", strings.Join(cfg.AllowedHosts, ", "))
+	} else if cfg.OwnerOnly() {
+		// A personal install: reaching any of your own machines is the point.
+		log.Printf("hosts: any machine on your tailnet (set PAPAYA_ALLOWED_HOSTS to restrict)")
 	} else {
 		log.Printf("WARNING: PAPAYA_ALLOWED_HOSTS is unset — any tailnet host the ACL permits can be reached")
 	}
