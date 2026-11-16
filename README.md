@@ -47,7 +47,10 @@ Browser ──HTTPS over WireGuard──┐
   writes the colours and an animated backdrop and switches every open window
   to it, live. Backdrops react to your agents: work, bells, messages between
   tabs. They run sandboxed, with no network and no access to your terminals.
-- **Know which session wants you.** A terminal bell becomes a badge on its tab.
+- **Know what every agent is doing.** Each tab shows *working* (a spinner while
+  output streams), *your turn* (it finished while you were elsewhere) or
+  *needs you* (it rang the bell), and the page title counts the tabs waiting on
+  you. Worked out from the output stream, so it works with any agent.
 - **Installs as an app** on your phone's home screen.
 
 ## Quick start
@@ -402,7 +405,8 @@ animated backdrop drawn behind the terminals) and pushes it with
 ```bash
 papaya-theme new koi-pond        # a starter theme.json + scene.js
 papaya-theme push ./koi-pond     # upload, switch, and report whether it runs
-papaya-theme list                # built-ins: orchard, night-sky, synthwave
+papaya-theme list                # built-ins: koi-pond, orchard, night-sky, synthwave
+papaya-theme omarchy tokyo-night # any Omarchy theme, palette + wallpaper
 papaya-theme use default         # back to the plain look
 ```
 

@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}canvas{position:fixed;inset:0;width:100%;height:100%;display:block}</style></head><body><canvas id="c"></canvas><script nonce="preview">window.__PAPAYA_THEME__={"colors":{"accent":"#9ab8ff","ansi-black":"#3a4266","ansi-blue":"#7fa4ff","ansi-bright-black":"#5f6894","ansi-bright-blue":"#a9c2ff","ansi-bright-cyan":"#9ae4f2","ansi-bright-green":"#9be8c1","ansi-bright-magenta":"#dcc0ff","ansi-bright-red":"#ffb0bb","ansi-bright-white":"#f7f8ff","ansi-bright-yellow":"#ffdd94","ansi-cyan":"#6fd2e6","ansi-green":"#6fd7a3","ansi-magenta":"#c49bff","ansi-red":"#ff8a9a","ansi-white":"#c7cdea","ansi-yellow":"#f2c86b","state-err":"#ff8a9a","state-ok":"#6fd7a3","state-warn":"#f2c86b","surface-0":"#070b1a","surface-1":"#0c1226","surface-2":"#141c38","surface-3":"#222c52","term-bg":"#070b1a","term-cursor":"#9ab8ff","term-fg":"#e3e8ff","term-sel":"#26355f","text-hi":"#e8ecff","text-lo":"#8d96bf"},"name":"night-sky","version":"0f3794fb3ed0"};
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}canvas{position:fixed;inset:0;width:100%;height:100%;display:block}</style></head><body><canvas id="c"></canvas><script nonce="preview">window.__PAPAYA_THEME__={"colors":{"accent":"#9ab8ff","ansi-black":"#3a4266","ansi-blue":"#7fa4ff","ansi-bright-black":"#5f6894","ansi-bright-blue":"#a9c2ff","ansi-bright-cyan":"#9ae4f2","ansi-bright-green":"#9be8c1","ansi-bright-magenta":"#dcc0ff","ansi-bright-red":"#ffb0bb","ansi-bright-white":"#f7f8ff","ansi-bright-yellow":"#ffdd94","ansi-cyan":"#6fd2e6","ansi-green":"#6fd7a3","ansi-magenta":"#c49bff","ansi-red":"#ff8a9a","ansi-white":"#c7cdea","ansi-yellow":"#f2c86b","state-err":"#ff8a9a","state-ok":"#6fd7a3","state-warn":"#f2c86b","surface-0":"#070b1a","surface-1":"#0c1226","surface-2":"#141c38","surface-3":"#222c52","term-bg":"#070b1a","term-cursor":"#9ab8ff","term-fg":"#e3e8ff","term-sel":"#26355f","text-hi":"#e8ecff","text-lo":"#8d96bf"},"name":"night-sky","version":"4392087e14cf"};
 (function () {
   'use strict';
   var THEME = window.__PAPAYA_THEME__ || { colors: {} };
@@ -53,7 +53,10 @@
     return v.replace(/rgba?\(([^)]+?)(,\s*[\d.]+)?\)/, 'rgba($1,' + alpha + ')');
   }
 
+  var IMG = null;
+  if (window.__PAPAYA_IMAGE__) { IMG = new Image(); IMG.src = window.__PAPAYA_IMAGE__; }
   var s = {
+    image: IMG,
     canvas: canvas, ctx: null, w: 0, h: 0, dpr: 1, t: 0, dt: 0, frame: 0,
     theme: THEME.name, colors: colors, tabs: [], state: {},
     reducedMotion: false,
@@ -125,6 +128,12 @@
 
   window.__papayaStart = function () {
     if (dead) return;
+    // A wallpaper is decoded before the scene starts, so s.image is ready in setup.
+    if (IMG && !IMG.complete) {
+      var go = function () { window.__papayaStart(); };
+      IMG.decode().then(go, function () { fail(new Error('the wallpaper image could not be decoded')); });
+      return;
+    }
     if (!def) { fail(new Error('scene.js never called papaya.scene({ ... })')); return; }
     var kind = def.context || '2d';
     try {

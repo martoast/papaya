@@ -88,7 +88,7 @@ function isAppShortcut(e) {
 export class TerminalTab {
   constructor(
     session,
-    { onStateChange, onRename, onClose, onNotice, onAttention, onClipboardPending },
+    { onStateChange, onRename, onClose, onNotice, onAttention, onActivity, onClipboardPending },
   ) {
     this.session = session
     this.onStateChange = onStateChange
@@ -100,6 +100,15 @@ export class TerminalTab {
     this.onClipboardPending = onClipboardPending
     // Raised when the session wants a human: the remote rang the terminal bell.
     this.onAttention = onAttention
+    // Raised when what the program in this tab is doing changes: working,
+    // done (finished while nobody watched: your turn) or idle.
+    this.onActivity = onActivity
+    this.activity = 'idle'
+    this.outBuckets = []
+    this.lastInputAt = 0
+    this.connectedAt = 0
+    this.workStart = 0
+    this.lastWorkAt = 0
 
     this.state = session.state || 'connecting'
     // Set by the server bell event, cleared when the user looks at the session.
@@ -505,6 +514,51 @@ export class TerminalTab {
     if (measured && (this.active || this.syncAlways)) this.sendResizeSoon()
   }
 
+  // --- what the program is doing ---
+  //
+  // Worked out from the output stream alone, so it works for any agent or
+  // program: sustained output is "working" (an agent's spinner counts), the
+  // echo of typing does not, nor does the scrollback replayed on connect. A
+  // working stretch of 3 s or more that ends while nobody is looking at this
+  // tab leaves it "done": the agent finished, or stopped to ask something,
+  // and it is your turn.
+
+  noteOutput(now) {
+    if (now - this.connectedAt < 2000) return // scrollback replay
+    if (now - this.lastInputAt < 800) return // echo of what was typed
+    const b = Math.floor(now / 400)
+    if (this.outBuckets[this.outBuckets.length - 1] !== b) this.outBuckets.push(b)
+    if (this.outBuckets.length > 12) this.outBuckets.shift()
+    sceneEvent({ type: 'activity', id: this.id, tab: this.session.name || this.session.host })
+  }
+
+  // tick is called twice a second by the tab manager.
+  tick(now, watched) {
+    const recent = this.outBuckets.filter((b) => b >= Math.floor((now - 2400) / 400))
+    this.outBuckets = recent
+    if (recent.length >= 3) {
+      if (this.activity !== 'working') {
+        this.workStart = now
+        this.setActivity('working')
+      }
+      this.lastWorkAt = now
+      return
+    }
+    if (this.activity === 'working' && now - this.lastOutputAt > 2500) {
+      const long = this.lastWorkAt - this.workStart >= 3000
+      if (long && !watched) {
+        this.setActivity('done')
+        sceneEvent({ type: 'done', id: this.id, tab: this.session.name || this.session.host })
+      } else this.setActivity('idle')
+    }
+  }
+
+  setActivity(state) {
+    if (this.activity === state) return
+    this.activity = state
+    this.onActivity?.(this, state)
+  }
+
   // isBusy reports recent output, used for the "still working" indicator.
   get busy() {
     return Date.now() - this.lastOutputAt < 1500
@@ -528,6 +582,7 @@ export class TerminalTab {
     this.active = true
     this.el.dataset.active = 'true'
     this.clearAttention()
+    if (this.activity === 'done') this.setActivity('idle')
     // Now that the element is on-screen, measurement is valid again; re-fit and
     // sync the remote to whatever the window did while this tab was hidden.
     this.fitIfMeasurable()
@@ -560,6 +615,7 @@ export class TerminalTab {
     this.ws = ws
 
     ws.onopen = () => {
+      this.connectedAt = Date.now()
       this.reconnectAttempt = 0
       this.everOpened = true
       reachability.set(true)
@@ -580,7 +636,7 @@ export class TerminalTab {
       }
       // Binary frames are raw PTY output; write them straight through.
       this.lastOutputAt = Date.now()
-      sceneEvent({ type: 'activity', id: this.id, tab: this.session.name || this.session.host })
+      this.noteOutput(this.lastOutputAt)
       this.term.write(new Uint8Array(ev.data))
     }
 
@@ -799,6 +855,10 @@ export class TerminalTab {
 
   send(data) {
     if (this.ws?.readyState !== WebSocket.OPEN) return
+    // Typing answers whatever the tab was waiting for, and its echo is not the
+    // program working.
+    this.lastInputAt = Date.now()
+    if (this.activity === 'done') this.setActivity('idle')
     // Raw keystrokes as a binary frame: no encoding, no parsing server-side.
     this.ws.send(encoder.encode(data))
   }

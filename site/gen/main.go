@@ -67,7 +67,7 @@ func main() {
 		if t.Scene == "" {
 			continue
 		}
-		doc := themes.SceneDocument(t, "preview")
+		doc := themes.SceneDocument(t, "preview", nil)
 		if err := os.WriteFile(filepath.Join(out, t.Name+".html"), doc, 0o644); err != nil {
 			log.Fatal(err)
 		}

@@ -47,6 +47,8 @@ func (s *Server) themeRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/themes/{name}", s.getTheme)
 	mux.HandleFunc("PUT /api/themes/{name}", s.putTheme)
 	mux.HandleFunc("PUT /api/themes/{name}/scene", s.putScene)
+	mux.HandleFunc("PUT /api/themes/{name}/image", s.putImage)
+	mux.HandleFunc("POST /api/themes/{name}/omarchy", s.importOmarchy)
 	mux.HandleFunc("DELETE /api/themes/{name}", s.deleteTheme)
 	mux.HandleFunc("GET /api/themes/{name}/status", s.themeStatus)
 	mux.HandleFunc("POST /api/themes/{name}/status", s.reportThemeStatus)
@@ -71,7 +73,7 @@ func viewOf(t *themes.Theme) activeView {
 	if v.Opacity == 0 {
 		v.Opacity = themes.DefaultOpacity
 	}
-	if t.Scene != "" {
+	if t.HasBackdrop() {
 		v.SceneURL = "/theme/scene/" + t.Name + "?v=" + v.Version
 	}
 	return v
@@ -162,10 +164,13 @@ func (s *Server) putTheme(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("theme.json says name %q but was pushed as %q", t.Name, name))
 		return
 	}
-	if t.Scene == "" {
-		if old, err := s.themes.Get(name); err == nil && !old.Builtin {
+	t.ImageType, t.ImageSum = "", ""
+	if old, err := s.themes.Get(name); err == nil && !old.Builtin {
+		if t.Scene == "" {
 			t.Scene = old.Scene
 		}
+		// The wallpaper is managed by its own endpoint; theme.json cannot claim one.
+		t.ImageType, t.ImageSum = old.ImageType, old.ImageSum
 	}
 	if err := s.themes.Put(&t); err != nil {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
@@ -284,9 +289,13 @@ func (s *Server) sceneDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t, err := s.themes.Get(r.PathValue("name"))
-	if err != nil || t.Scene == "" {
+	if err != nil || !t.HasBackdrop() {
 		http.NotFound(w, r)
 		return
+	}
+	var image []byte
+	if t.ImageType != "" {
+		image, _ = s.themes.Image(t.Name)
 	}
 	nonce := themes.NewNonce()
 	h := w.Header()
@@ -295,8 +304,66 @@ func (s *Server) sceneDocument(w http.ResponseWriter, r *http.Request) {
 	h.Set("Content-Security-Policy", themes.SceneCSP(nonce))
 	h.Set("X-Frame-Options", "SAMEORIGIN")
 	h.Set("Content-Type", "text/html; charset=utf-8")
-	h.Set("Cache-Control", "no-store")
-	w.Write(themes.SceneDocument(t, nonce))
+	// A versioned URL never changes content, so the browser may keep it; that
+	// matters once a wallpaper makes the document a few megabytes. The nonce
+	// is then reused from the cache, which is fine: the policy and the scripts
+	// it authorises are cached together.
+	if r.URL.Query().Get("v") == t.Version() {
+		h.Set("Cache-Control", "private, max-age=31536000, immutable")
+	} else {
+		h.Set("Cache-Control", "no-store")
+	}
+	w.Write(themes.SceneDocument(t, nonce, image))
+}
+
+// putImage saves a theme's wallpaper (raw WebP, PNG or JPEG); an empty body
+// removes it.
+func (s *Server) putImage(w http.ResponseWriter, r *http.Request) {
+	user, ok := owner(w, r)
+	if !ok {
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, themes.MaxImageBytes+1))
+	if err != nil {
+		writeError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("wallpaper is over the %d MB limit", themes.MaxImageBytes>>20))
+		return
+	}
+	t, err := s.themes.PutImage(r.PathValue("name"), body)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	s.themeChanged(user, t.Name)
+	writeJSON(w, http.StatusOK, t.Summary())
+}
+
+// importOmarchy turns an Omarchy colors.toml (the request body) into the
+// theme's colours. A wallpaper and scene already saved for it are kept.
+func (s *Server) importOmarchy(w http.ResponseWriter, r *http.Request) {
+	user, ok := owner(w, r)
+	if !ok {
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))
+	if err != nil {
+		writeError(w, http.StatusRequestEntityTooLarge, "colors.toml is too large")
+		return
+	}
+	name := r.PathValue("name")
+	t, err := themes.FromOmarchy(name, cleanLabel(r.URL.Query().Get("title"), 60), body)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	if old, err := s.themes.Get(name); err == nil && !old.Builtin {
+		t.Scene, t.ImageType, t.ImageSum, t.Opacity = old.Scene, old.ImageType, old.ImageSum, old.Opacity
+	}
+	if err := s.themes.Put(t); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	s.themeChanged(user, name)
+	writeJSON(w, http.StatusOK, t.Summary())
 }
 
 // sceneStatus is what browsers report about a scene they ran.
@@ -357,7 +424,7 @@ func (s *Server) themeStatus(w http.ResponseWriter, r *http.Request) {
 	out := map[string]any{
 		"name":     name,
 		"version":  t.Version(),
-		"hasScene": t.Scene != "",
+		"hasScene": t.HasBackdrop(),
 		"active":   false,
 		"viewers":  s.events.count(user),
 	}

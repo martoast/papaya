@@ -11,6 +11,9 @@
 #   papaya-theme pull <name> [dir]       download a theme to edit (built-ins too)
 #   papaya-theme cue <name>              fire a moment scenes react to (e.g. merged)
 #   papaya-theme rm <name>               delete a theme
+#   papaya-theme omarchy                 list Omarchy's themes (github.com/omacom/omarchy)
+#   papaya-theme omarchy <name|dir> [--wallpaper N|--no-wallpaper] [--as name]
+#                                        import an Omarchy theme: palette + wallpaper
 #
 # A theme is a folder with theme.json (colours) and an optional scene.js (an
 # animated backdrop). The format and the scene API: skills/papaya-theme/SKILL.md.
@@ -19,7 +22,7 @@ set -euo pipefail
 
 URL=${PAPAYA_URL:-}
 URL=${URL%/}
-usage() { sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
+usage() { sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
 die() { echo "papaya-theme: $*" >&2; exit 1; }
 need_url() { [ -n "$URL" ] || die "set PAPAYA_URL to your Papaya address, e.g. https://papaya.your-tailnet.ts.net"; }
 
@@ -128,9 +131,18 @@ JS
 			# A theme pushed without scene.js has no scene, even if it had one.
 			printf '' | api PUT "/api/themes/$name/scene" - text/javascript >/dev/null
 		fi
+		img=""
+		for f in "$dir"/background.webp "$dir"/background.png "$dir"/background.jpg "$dir"/background.jpeg; do
+			if [ -f "$f" ]; then img=$f; break; fi
+		done
+		if [ -n "$img" ]; then
+			api PUT "/api/themes/$name/image" "$img" application/octet-stream >/dev/null
+		else
+			printf '' | api PUT "/api/themes/$name/image" - application/octet-stream >/dev/null
+		fi
 		printf '{"name":"%s"}' "$name" | api POST /api/themes/active - >/dev/null
 		echo "pushed $name and switched to it."
-		if [ -f "$dir/scene.js" ]; then status "$name" 8; else status "$name"; fi
+		if [ -f "$dir/scene.js" ] || [ -n "$img" ]; then status "$name" 8; else status "$name"; fi
 		;;
 
 	use)
@@ -175,6 +187,61 @@ if scene: open(os.path.join(d, "scene.js"), "w").write(scene)
 		name_ok "$1"
 		api DELETE "/api/themes/$1" >/dev/null
 		echo "removed $1."
+		;;
+
+	omarchy)
+		OM=https://raw.githubusercontent.com/omacom/omarchy/quattro/themes
+		OMAPI="https://api.github.com/repos/omacom/omarchy/contents/themes"
+		if [ $# -eq 0 ]; then
+			echo "Omarchy themes (github.com/omacom/omarchy, MIT). Import one with: papaya-theme omarchy <name>"
+			curl -fsS --max-time 20 "$OMAPI?ref=quattro" | grep '"name"' | sed 's/.*"name": *"\([^"]*\)".*/  \1/' || die "cannot reach GitHub"
+			exit 0
+		fi
+		src=$1; shift
+		wall=1 as=""
+		while [ $# -gt 0 ]; do
+			case $1 in
+				--wallpaper) wall=${2:?--wallpaper needs a number}; shift 2 ;;
+				--no-wallpaper) wall=0; shift ;;
+				--as) as=${2:?--as needs a name}; shift 2 ;;
+				*) usage ;;
+			esac
+		done
+		tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+		if [ -d "$src" ]; then
+			# A local Omarchy theme folder (e.g. ~/.config/omarchy/themes/<name>).
+			[ -f "$src/colors.toml" ] || die "$src has no colors.toml"
+			cp "$src/colors.toml" "$tmp/colors.toml"
+			name=${as:-$(basename "${src%/}")}
+			if [ "$wall" != 0 ] && [ -d "$src/backgrounds" ]; then
+				pic=$(find "$src/backgrounds" -maxdepth 1 -type f | sort | sed -n "${wall}p")
+				[ -n "$pic" ] && cp "$pic" "$tmp/wall"
+			fi
+		else
+			name=${as:-$src}
+			curl -fsS --max-time 20 -o "$tmp/colors.toml" "$OM/$src/colors.toml" ||
+				die "Omarchy has no theme called '$src' (papaya-theme omarchy lists them)"
+			if [ "$wall" != 0 ]; then
+				pic=$(curl -fsS --max-time 20 "$OMAPI/$src/backgrounds?ref=quattro" 2>/dev/null |
+					grep '"name"' | sed 's/.*"name": *"\([^"]*\)".*/\1/' | sort | sed -n "${wall}p")
+				if [ -n "$pic" ]; then
+					echo "downloading wallpaper $pic from Omarchy…"
+					curl -fsS --max-time 120 -o "$tmp/wall" "$OM/$src/backgrounds/$pic" || pic=""
+				fi
+			fi
+		fi
+		name_ok "$name"
+		title=$(printf '%s' "${src%/}" | sed 's#.*/##; s/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)} 1')
+		api POST "/api/themes/$name/omarchy?title=$(printf '%s' "$title" | sed 's/ /%20/g')" "$tmp/colors.toml" text/plain >/dev/null
+		if [ -s "$tmp/wall" ]; then
+			api PUT "/api/themes/$name/image" "$tmp/wall" application/octet-stream >/dev/null ||
+				echo "papaya-theme: the wallpaper was not accepted; keeping the colours" >&2
+		elif [ "$wall" = 0 ]; then
+			printf '' | api PUT "/api/themes/$name/image" - application/octet-stream >/dev/null
+		fi
+		printf '{"name":"%s"}' "$name" | api POST /api/themes/active - >/dev/null
+		echo "imported Omarchy's $title as $name and switched to it."
+		if [ -s "$tmp/wall" ]; then status "$name" 8; else status "$name"; fi
 		;;
 
 	*) usage ;;

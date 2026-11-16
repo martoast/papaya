@@ -134,6 +134,7 @@ export class TabManager {
       onRename: (t, name) => this.updateName(t.id, name),
       onNotice: this.onNotice,
       onAttention: (t, on) => this.setAttention(t.id, on),
+      onActivity: (t, state) => this.setActivity(t.id, state),
       onClipboardPending: this.onClipboardPending,
     })
 
@@ -148,7 +149,7 @@ export class TabManager {
     el.setAttribute('aria-selected', 'false')
 
     const dot = document.createElement('span')
-    dot.className = DOT_CLASS
+    dot.className = DOT_CLASS + ' tab-dot' 
     dot.dataset.state = session.state || 'connecting'
 
     const name = document.createElement('span')
@@ -186,7 +187,9 @@ export class TabManager {
     })
 
     this.tabsEl.appendChild(el)
+    el.dataset.activity = 'idle'
     this.tabs.set(session.id, { tab, el, nameEl: name, dotEl: dot })
+    this.startTicking()
 
     this.refreshChrome()
     if (activate) this.activate(session.id)
@@ -267,6 +270,7 @@ export class TabManager {
     entry.el.remove()
     this.tabs.delete(id)
     sceneEvent({ type: 'tab-close', id })
+    this.refreshTitle()
 
     if (this.activeId === id) {
       this.activeId = null
@@ -277,6 +281,37 @@ export class TabManager {
     return true
   }
 
+  // startTicking runs the activity clock for every tab: twice a second each
+  // tab works out whether its program is working, done or idle.
+  startTicking() {
+    if (this.ticker) return
+    if (this.baseTitle === undefined) this.baseTitle = document.title
+    this.ticker = setInterval(() => {
+      const now = Date.now()
+      const visible = document.visibilityState === 'visible'
+      for (const [id, { tab }] of this.tabs) tab.tick(now, visible && (id === this.activeId || this.suspended))
+    }, 500)
+  }
+
+  setActivity(id, state) {
+    const entry = this.tabs.get(id)
+    if (!entry) return
+    entry.el.dataset.activity = state
+    entry.el.title = tabTitle(entry.tab.session.name || entry.tab.session.host, entry.tab.session.host) +
+      (state === 'working' ? ' · working' : state === 'done' ? ' · finished, your turn' : '')
+    this.onSessionUpdate?.(id, { activity: state })
+    this.refreshTitle()
+  }
+
+  // refreshTitle counts the tabs waiting on a person into the page title, so
+  // a background browser tab or an installed app's switcher shows it.
+  refreshTitle() {
+    if (this.baseTitle === undefined) this.baseTitle = document.title
+    let n = 0
+    for (const { tab } of this.tabs.values()) if (tab.attention || tab.activity === 'done') n++
+    document.title = n ? `(${n}) ${this.baseTitle}` : this.baseTitle
+  }
+
   // setAttention marks a tab as wanting a human. The dot turns solid and pulses
   // so it reads at a glance across a full tab bar.
   setAttention(id, on) {
@@ -284,6 +319,7 @@ export class TabManager {
     if (!entry) return
     entry.el.dataset.attention = String(on)
     this.onSessionUpdate?.(id, { attention: on })
+    this.refreshTitle()
   }
 
   updateState(id, state) {

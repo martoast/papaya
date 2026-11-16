@@ -52,10 +52,20 @@ type Theme struct {
 	// Zero means DefaultOpacity.
 	Opacity float64 `json:"opacity,omitempty"`
 	// Scene is the backdrop's JavaScript source. Empty means colours only.
-	Scene   string    `json:"scene,omitempty"`
-	Updated time.Time `json:"updated"`
-	Builtin bool      `json:"builtin,omitempty"`
+	Scene string `json:"scene,omitempty"`
+	// ImageType is set when the theme carries a wallpaper (kept beside the
+	// theme as <name>.image); ImageSum identifies its content.
+	ImageType string    `json:"imageType,omitempty"`
+	ImageSum  string    `json:"imageSum,omitempty"`
+	Updated   time.Time `json:"updated"`
+	Builtin   bool      `json:"builtin,omitempty"`
 }
+
+// MaxImageBytes bounds a wallpaper.
+const MaxImageBytes = 8 << 20
+
+// HasBackdrop reports whether anything is drawn behind the terminals.
+func (t *Theme) HasBackdrop() bool { return t.Scene != "" || t.ImageType != "" }
 
 // Version identifies a theme's content, so browsers can tell a changed theme
 // from the one they already show and scene URLs can be cache-busted.
@@ -65,7 +75,8 @@ func (t *Theme) Version() string {
 		C map[string]string
 		O float64
 		S string
-	}{t.Colors, t.Opacity, t.Scene})
+		I string
+	}{t.Colors, t.Opacity, t.Scene, t.ImageSum})
 	h.Write(b)
 	return hex.EncodeToString(h.Sum(nil))[:12]
 }
@@ -75,13 +86,14 @@ type Summary struct {
 	Name        string    `json:"name"`
 	Description string    `json:"description,omitempty"`
 	HasScene    bool      `json:"hasScene"`
+	HasImage    bool      `json:"hasImage,omitempty"`
 	Builtin     bool      `json:"builtin,omitempty"`
 	Updated     time.Time `json:"updated"`
 	Version     string    `json:"version"`
 }
 
 func (t *Theme) Summary() Summary {
-	return Summary{t.Name, t.Description, t.Scene != "", t.Builtin, t.Updated, t.Version()}
+	return Summary{t.Name, t.Description, t.HasBackdrop(), t.ImageType != "", t.Builtin, t.Updated, t.Version()}
 }
 
 // Tokens are the colours a theme may set. Each is a CSS custom property
@@ -208,6 +220,65 @@ func (s *Store) loadBuiltins() error {
 
 func (s *Store) path(name string) string { return filepath.Join(s.dir, name+".json") }
 
+func (s *Store) imagePath(name string) string { return filepath.Join(s.dir, name+".image") }
+
+// Image returns a theme's wallpaper, if it has one.
+func (s *Store) Image(name string) ([]byte, error) {
+	if !nameRE.MatchString(name) {
+		return nil, fs.ErrNotExist
+	}
+	return os.ReadFile(s.imagePath(name))
+}
+
+// PutImage stores a wallpaper for a theme that already exists. Empty data
+// removes it. Only WebP, PNG and JPEG are accepted, recognised by content.
+func (s *Store) PutImage(name string, data []byte) (*Theme, error) {
+	t, err := s.Get(name)
+	if err != nil {
+		return nil, fmt.Errorf("no theme named %q yet; push its theme.json first", name)
+	}
+	if t.Builtin {
+		return nil, fmt.Errorf("%q is a built-in theme; save your version under another name", name)
+	}
+	if len(data) == 0 {
+		_ = os.Remove(s.imagePath(name))
+		t.ImageType, t.ImageSum = "", ""
+		return t, s.Put(t)
+	}
+	if len(data) > MaxImageBytes {
+		return nil, fmt.Errorf("wallpaper is %d MB; the limit is %d MB", len(data)>>20, MaxImageBytes>>20)
+	}
+	kind := imageKind(data)
+	if kind == "" {
+		return nil, errors.New("wallpaper must be a WebP, PNG or JPEG image")
+	}
+	tmp := s.imagePath(name) + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return nil, err
+	}
+	if err := os.Rename(tmp, s.imagePath(name)); err != nil {
+		return nil, err
+	}
+	sum := sha256.Sum256(data)
+	t.ImageType, t.ImageSum = kind, hex.EncodeToString(sum[:])[:12]
+	if t.Opacity == 0 {
+		t.Opacity = 0.74 // a photo shows through a little more than a scene
+	}
+	return t, s.Put(t)
+}
+
+func imageKind(b []byte) string {
+	switch {
+	case len(b) > 12 && string(b[:4]) == "RIFF" && string(b[8:12]) == "WEBP":
+		return "image/webp"
+	case len(b) > 8 && string(b[:8]) == "\x89PNG\r\n\x1a\n":
+		return "image/png"
+	case len(b) > 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF:
+		return "image/jpeg"
+	}
+	return ""
+}
+
 // Get returns a theme by name.
 func (s *Store) Get(name string) (*Theme, error) {
 	if t, ok := s.builtin[name]; ok {
@@ -240,7 +311,7 @@ func (s *Store) List() ([]Summary, error) {
 	}
 	for _, e := range entries {
 		name := strings.TrimSuffix(e.Name(), ".json")
-		if name == e.Name() || name == "active" || s.builtin[name] != nil {
+		if name == e.Name() || name == "active" || strings.Contains(name, ".") || s.builtin[name] != nil {
 			continue
 		}
 		if t, err := s.Get(name); err == nil {
@@ -297,6 +368,7 @@ func (s *Store) Delete(name string) error {
 	if err := os.Remove(s.path(name)); err != nil {
 		return err
 	}
+	_ = os.Remove(s.imagePath(name))
 	act := s.readActive()
 	changed := false
 	for who, n := range act {

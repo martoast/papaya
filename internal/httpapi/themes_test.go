@@ -197,3 +197,38 @@ func TestThemeWritesAreCSRFGuarded(t *testing.T) {
 	res.Body.Close()
 	require.Equal(t, 403, res.StatusCode)
 }
+
+func TestOmarchyImportAndWallpaper(t *testing.T) {
+	url := newThemeServer(t)
+	toml := "mode = \"dark\"\naccent = \"#ff9f0a\"\nbackground = \"#1c1c1e\"\nforeground = \"#f5f5f7\"\nred = \"#ff5f4a\"\nyellow = \"#ffc27a\"\ngreen = \"#ff9f0a\"\ncyan = \"#a6dcef\"\nblue = \"#8fb8de\"\nmagenta = \"#ff8fa3\"\n"
+	code, body, _ := do(t, "POST", url+"/api/themes/starship/omarchy?title=Starship", "text/plain", toml)
+	require.Equal(t, 200, code, body)
+
+	jpeg := "\xff\xd8\xff\xe0" + strings.Repeat("x", 64)
+	code, body, _ = do(t, "PUT", url+"/api/themes/starship/image", "image/jpeg", jpeg)
+	require.Equal(t, 200, code, body)
+	require.Contains(t, body, `"hasImage":true`)
+
+	do(t, "POST", url+"/api/themes/active", "application/json", `{"name":"starship"}`)
+	_, view, _ := do(t, "GET", url+"/api/theme", "", "")
+	require.Contains(t, view, `"accent":"#ff9f0a"`)
+	sceneURL := strings.SplitN(strings.SplitN(view, `"sceneUrl":"`, 2)[1], `"`, 2)[0]
+
+	code, doc, h := do(t, "GET", url+sceneURL, "", "")
+	require.Equal(t, 200, code)
+	require.Contains(t, doc, "data:image/jpeg;base64,")
+	require.Contains(t, h.Get("Cache-Control"), "immutable", "a versioned scene URL may be cached")
+	_, _, h = do(t, "GET", url+"/theme/scene/starship", "", "")
+	require.Equal(t, "no-store", h.Get("Cache-Control"))
+
+	// Re-importing the palette keeps the wallpaper; theme.json cannot fake one.
+	do(t, "POST", url+"/api/themes/starship/omarchy", "text/plain", toml)
+	_, body, _ = do(t, "GET", url+"/api/themes/starship", "", "")
+	require.Contains(t, body, `"imageType":"image/jpeg"`)
+	do(t, "PUT", url+"/api/themes/fake", "application/json", `{"name":"fake","imageType":"image/png","imageSum":"abc"}`)
+	_, body, _ = do(t, "GET", url+"/api/themes/fake", "", "")
+	require.NotContains(t, body, "imageType")
+
+	code, body, _ = do(t, "PUT", url+"/api/themes/starship/image", "image/svg+xml", "<svg/>")
+	require.Equal(t, 422, code, body)
+}

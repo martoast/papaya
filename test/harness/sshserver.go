@@ -19,6 +19,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
@@ -552,6 +553,18 @@ func (s *SSHServer) execute(ch ssh.Channel, cmd string, dims *Dims) bool {
 
 	case strings.HasPrefix(cmd, "echo "):
 		fmt.Fprintf(ch, "%s\r\n", strings.TrimPrefix(cmd, "echo "))
+
+	case strings.HasPrefix(cmd, "work "):
+		// Behaves like a coding agent at work: a spinner line every 100 ms for
+		// N seconds, then a result. Drives the tab's working/done state.
+		var secs int
+		fmt.Sscanf(cmd, "work %d", &secs)
+		frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+		for i := 0; i < secs*10; i++ {
+			fmt.Fprintf(ch, "\r%s thinking… %ds", frames[i%len(frames)], i/10)
+			time.Sleep(100 * time.Millisecond)
+		}
+		fmt.Fprint(ch, "\r\nWORK-DONE\r\n")
 
 	case strings.HasPrefix(cmd, "storm "):
 		// Emits a known number of sequence-numbered lines with ANSI colour, for

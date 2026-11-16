@@ -11,9 +11,22 @@ const v = (name) =>
 // While a theme's scene runs behind the terminals, xterm paints no background
 // at all; the readable tint behind the text comes from CSS (.term-host in
 // style.css), at the theme's opacity, the same whichever renderer is in use.
+//
+// The colour keeps the theme's own red, green and blue at zero alpha, because
+// xterm answers programs that ask for the background colour (OSC 11) with it:
+// a light theme must say "light", or CLI tools pick dark-mode colours.
+const probe = document.createElement('canvas').getContext('2d')
 function termBackground() {
-  if (document.documentElement.dataset.backdrop === 'on') return 'rgba(0, 0, 0, 0)'
-  return v('--color-term-bg')
+  const bg = v('--color-term-bg')
+  if (document.documentElement.dataset.backdrop !== 'on') return bg
+  probe.fillStyle = '#000'
+  probe.fillStyle = bg
+  const c = probe.fillStyle
+  if (c.startsWith('#')) {
+    const n = parseInt(c.slice(1), 16)
+    return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, 0)`
+  }
+  return 'rgba(0, 0, 0, 0)'
 }
 
 export function xtermTheme() {

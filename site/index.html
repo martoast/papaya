@@ -540,8 +540,8 @@ MSG</div>
       </div>
     </div>
     <div class="th-foot">
-      <span>These are the real scenes, running in the same sandbox Papaya uses: no network, no access to your terminals. Press the buttons to see what a backdrop does when your agents work and talk.</span>
-      <code>papaya-theme push ./koi-pond</code>
+      <span>These are the real scenes, running in the same sandbox Papaya uses: no network, no access to your terminals. Press the buttons to see what a backdrop does when your agents work and talk. Love an <a href="https://github.com/omacom/omarchy" style="color:var(--papaya-2)">Omarchy</a> theme? One command brings its palette and wallpaper: Tokyo Night, Catppuccin, Gruvbox, Starship and the rest.</span>
+      <code>papaya-theme omarchy tokyo-night</code>
     </div>
   </div>
 </section>
@@ -568,7 +568,7 @@ MSG</div>
         <div class="point"><span class="n">01</span><div><h3>Sessions that outlive everything</h3><p>With tmux on the far side, work survives Papaya restarting, your laptop sleeping and your Wi-Fi dropping.</p></div></div>
         <div class="point"><span class="n">02</span><div><h3>Every device, the same sessions</h3><p>Start something on the laptop and it's on your phone, live. Two devices on one session share it politely.</p></div></div>
         <div class="point"><span class="n">03</span><div><h3>Made for thumbs</h3><p>Install it to your home screen. A floating pad gives you Esc and the arrows, the keys agents need and phone keyboards don't have.</p></div></div>
-        <div class="point"><span class="n">04</span><div><h3>See who needs you</h3><p>When an agent rings the terminal bell, its tab gets a badge, so you only open the one that's waiting.</p></div></div>
+        <div class="point"><span class="n">04</span><div><h3>See what every agent is doing</h3><p>Each tab shows a spinner while its agent works, turns green when it finishes while you're elsewhere, and pulses amber when it needs an answer. The page title counts the tabs waiting on you.</p></div></div>
       </div>
     </div>
   </div>
@@ -726,7 +726,7 @@ MSG</div>
     var label = document.getElementById('th-name');
     var themes = [], current = null, ready = false, visible = false, timers = [];
     var TABS = [{ id: 't1', name: 'api', host: 'devbox' }, { id: 't2', name: 'web', host: 'macbook' }, { id: 't3', name: 'qa', host: 'build-box' }];
-    var ORDER = ['orchard', 'koi-pond', 'synthwave', 'night-sky'];
+    var ORDER = ['koi-pond', 'orchard', 'synthwave', 'night-sky'];
     var ASK = { orchard: 'use the orchard theme', 'koi-pond': 'make Papaya a koi pond', synthwave: 'synthwave sunset with pink accents', 'night-sky': 'something calm, like a night sky' };
     var NICE = { orchard: 'Orchard', 'koi-pond': 'Koi Pond', synthwave: 'Synthwave', 'night-sky': 'Night Sky' };
     function esc(t) { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }

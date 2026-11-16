@@ -36,7 +36,23 @@ papaya-theme use default             # back to Papaya's plain look
 papaya-theme pull orchard ./mine     # copy any theme (built-ins too) to start from
 papaya-theme cue merged              # fire a moment the scene can react to
 papaya-theme rm koi-pond
+papaya-theme omarchy                 # list Omarchy's themes
+papaya-theme omarchy tokyo-night     # import one: its palette + its first wallpaper
+papaya-theme omarchy starship --wallpaper 2   # pick another wallpaper; --no-wallpaper for colours only
 ```
+
+**Omarchy** (github.com/omacom/omarchy) has a few dozen loved themes:
+Tokyo Night, Catppuccin, Gruvbox, Nord, Rose Pine, Kanagawa, Everforest,
+Starship and more. When your person names one, or wants "something like X"
+that Omarchy has, import it instead of writing a palette by hand. It downloads
+on this machine, so it needs internet here. A local Omarchy theme folder works
+too: `papaya-theme omarchy ~/.config/omarchy/themes/<name>`.
+
+**Wallpapers.** Put `background.webp` (or .png/.jpg, up to 8 MB) next to
+theme.json and `push` uploads it. With no scene.js, Papaya draws it slowly
+drifting, with a light sweep on `say`, an edge glow on `bell` and sparks on
+`cue`. A scene can draw it itself through `s.image` (an `<img>`, already
+decoded).
 
 Built-in themes cannot be overwritten: pull one and push it under a new name.
 
@@ -64,7 +80,11 @@ Built-in themes cannot be overwritten: pull one and push it under a new name.
     `ansi-bright-black` … `ansi-bright-white`
   (`red green yellow blue magenta cyan` in between.)
 
-Set `term-bg` close to `surface-0`. Check contrast: `term-fg` on `term-bg` must
+Set `term-bg` close to `surface-0`.
+
+**Light themes** work, but command-line agents choose their own colours: after
+switching to a light theme, tell your person to switch their agent to its
+light mode too (Claude Code: `/theme`), or its text may be pale. Check contrast: `term-fg` on `term-bg` must
 stay easy to read, and so must every ANSI colour, because agents print in them.
 A beautiful theme nobody can read is a failed theme.
 
@@ -99,6 +119,7 @@ papaya.scene({
 | `s.rand(seed)` | seeded random: returns a function giving 0..1 |
 | `s.noise(x, y)` | smooth 2D noise, 0..1 |
 | `s.lerp(a,b,t)`, `s.clamp(v,lo,hi)` | helpers |
+| `s.image` | the theme's wallpaper as a decoded `<img>`, or null |
 | `s.reducedMotion` | the person asked for less motion: keep it slow and still; Papaya also caps drawing at 2 fps |
 
 Events (`ev.type`):
@@ -110,6 +131,7 @@ Events (`ev.type`):
 | `activity` | `id`, `tab` | a tab is printing (at most every 1.5 s per tab) — an agent at work |
 | `bell` | `id`, `tab` | a tab rang the bell — usually an agent that finished or needs them |
 | `say` | `from`, `to` (tab names) | one agent messaged another with papaya-say |
+| `done` | `id`, `tab` | a stretch of work in a tab ended while nobody was looking: the agent finished or is waiting |
 | `cue` | `name` | someone ran `papaya-theme cue <name>` |
 
 Make events visible: a glow where a tab works, something travelling between

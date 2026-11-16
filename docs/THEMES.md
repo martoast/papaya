@@ -29,9 +29,27 @@ papaya-theme cue merged              # fire a moment scenes react to
 papaya-theme rm koi-pond
 ```
 
-Built-in: **orchard** (every tab a seed that glows while its agent works;
+Built-in: **koi-pond** (a mosaic pond; a koi per tab), **orchard** (every tab a seed that glows while its agent works;
 papaya-say messages fly between seeds), **night-sky** and **synthwave**. They
 are read-only; pull one and push it under a new name.
+
+## Omarchy themes and wallpapers
+
+`papaya-theme omarchy <name>` imports a theme from
+[Omarchy](https://github.com/omacom/omarchy) (MIT): its `colors.toml` becomes
+Papaya's palette (`themes.FromOmarchy` maps background shades to the chrome,
+foreground shades to text, and the eight colours and their bright variants to
+the ANSI slots), and its first wallpaper becomes the backdrop. Nothing from
+Omarchy is bundled with Papaya: the command downloads from Omarchy's
+repository on the machine it runs on, the way Omarchy itself does, so new
+Omarchy themes work the day they ship. Omarchy's code is MIT; its wallpapers
+come from many sources, which is one more reason Papaya does not redistribute
+them.
+
+A theme's wallpaper (`PUT /api/themes/{name}/image`, WebP/PNG/JPEG recognised
+by content, up to 8 MB) is inlined into the sandboxed frame as a `data:` URL,
+so the frame still needs no network. Scene URLs carry the theme's version and
+are cached by the browser, so a large wallpaper is fetched once.
 
 ## The feedback loop
 

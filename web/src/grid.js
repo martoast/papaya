@@ -195,6 +195,7 @@ export class GridView {
       'data-[attention=true]:shadow-[0_0_0_2px_var(--color-state-warn)]'
     panel.dataset.focused = 'false'
     panel.dataset.attention = String(Boolean(tab?.attention))
+    panel.dataset.activity = tab?.activity || 'idle'
 
     // Header doubles as the drag handle for rearranging.
     const header = document.createElement('div')
@@ -306,12 +307,13 @@ export class GridView {
   }
 
   // updateSession refreshes a panel's header without rebuilding the tree.
-  updateSession(id, { name, state, attention } = {}) {
+  updateSession(id, { name, state, attention, activity } = {}) {
     const panel = this.panels.get(id)
     if (!panel) return
     if (name) panel.name.textContent = name
     if (state) panel.dot.dataset.state = state
     if (attention !== undefined) panel.el.dataset.attention = String(attention)
+    if (activity !== undefined) panel.el.dataset.activity = activity
   }
 
   // --- sizing ---

@@ -40,17 +40,21 @@ func NewNonce() string {
 // the call that starts it. The scene has already been checked by Validate for
 // sequences that would end the <script> element. Theme data goes in as JSON,
 // which encoding/json escapes for HTML (<, > and & become < and so on).
-func SceneDocument(t *Theme, nonce string) []byte {
-	head := sceneHead(t, nonce)
+func SceneDocument(t *Theme, nonce string, image []byte) []byte {
+	head := sceneHead(t, nonce, image)
+	scene := t.Scene
+	if scene == "" && len(image) > 0 {
+		scene = WallpaperScene
+	}
 	var b strings.Builder
 	b.WriteString(head)
-	b.WriteString(t.Scene)
+	b.WriteString(scene)
 	b.WriteString("\n</script>\n<script nonce=\"" + nonce + "\">window.__papayaStart()</script></body></html>")
 	return []byte(b.String())
 }
 
 // sceneHead is everything in the document before the scene's first line.
-func sceneHead(t *Theme, nonce string) string {
+func sceneHead(t *Theme, nonce string, image []byte) string {
 	meta, _ := json.Marshal(map[string]any{
 		"name":    t.Name,
 		"version": t.Version(),
@@ -63,7 +67,12 @@ func sceneHead(t *Theme, nonce string) string {
 		`<body><canvas id="c"></canvas>`)
 	b.WriteString(`<script nonce="` + nonce + `">window.__PAPAYA_THEME__=`)
 	b.Write(meta)
-	b.WriteString(";\n")
+	b.WriteString(";")
+	if len(image) > 0 && t.ImageType != "" {
+		// On the same line as the theme data, so scene line numbers do not move.
+		b.WriteString(`window.__PAPAYA_IMAGE__="data:` + t.ImageType + `;base64,` + base64.StdEncoding.EncodeToString(image) + `";`)
+	}
+	b.WriteString("\n")
 	b.WriteString(runtimeJS)
 	b.WriteString("</script>\n<script nonce=\"" + nonce + "\">\n")
 	return b.String()
@@ -74,7 +83,7 @@ var stackLineRE = regexp.MustCompile(`/theme/scene/[^\s:)]+:(\d+):(\d+)`)
 // SceneError rewrites a browser's error message so line numbers point into
 // scene.js rather than into the frame document, which the agent never sees.
 func SceneError(t *Theme, msg string) string {
-	offset := strings.Count(sceneHead(t, "x"), "\n")
+	offset := strings.Count(sceneHead(t, "x", nil), "\n")
 	lines := strings.Count(t.Scene, "\n") + 1
 	return stackLineRE.ReplaceAllStringFunc(msg, func(m string) string {
 		sub := stackLineRE.FindStringSubmatch(m)
@@ -85,6 +94,58 @@ func SceneError(t *Theme, msg string) string {
 		return "papaya-runtime:" + sub[1] + ":" + sub[2]
 	})
 }
+
+// WallpaperScene draws a theme's wallpaper when it has no scene of its own:
+// cover-fit, drifting very slowly, with moments for events.
+const WallpaperScene = `// Papaya's wallpaper scene.
+papaya.scene({
+  setup(s) { s.state.flash = 0; s.state.sweep = -1; s.state.glow = 0; s.state.sparks = [] },
+  on(s, ev) {
+    if (ev.type === 'cue') {
+      s.state.flash = 1
+      for (let i = 0; i < 90; i++) s.state.sparks.push({ x: Math.random() * s.w, y: s.h + Math.random() * 40, v: 40 + Math.random() * 120, life: 1.5 + Math.random() * 1.5 })
+    }
+    if (ev.type === 'say') s.state.sweep = 0
+    if (ev.type === 'bell') s.state.glow = 1
+  },
+  draw(s) {
+    const { ctx, w, h, t, dt } = s
+    const img = s.image
+    if (!img) return
+    const z = s.reducedMotion ? 1.04 : 1.05 + 0.03 * Math.sin(t / 40)
+    const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight) * z
+    const iw = img.naturalWidth * scale, ih = img.naturalHeight * scale
+    const px = s.reducedMotion ? 0 : Math.sin(t / 55) * (iw - w) * 0.3
+    const py = s.reducedMotion ? 0 : Math.cos(t / 70) * (ih - h) * 0.3
+    ctx.drawImage(img, (w - iw) / 2 + px, (h - ih) / 2 + py, iw, ih)
+    const st = s.state
+    if (st.sweep >= 0) {
+      const x = st.sweep * (w + 600) - 300
+      const g = ctx.createLinearGradient(x - 200, 0, x + 200, h)
+      g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.5, 'rgba(255,255,255,0.10)'); g.addColorStop(1, 'rgba(255,255,255,0)')
+      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h)
+      st.sweep += dt * 0.7
+      if (st.sweep > 1) st.sweep = -1
+    }
+    if (st.glow > 0) {
+      ctx.strokeStyle = s.color('accent', 0.5 * st.glow); ctx.lineWidth = 6 * st.glow
+      ctx.strokeRect(3, 3, w - 6, h - 6)
+      st.glow = Math.max(0, st.glow - dt * 0.8)
+    }
+    if (st.flash > 0) {
+      ctx.fillStyle = s.color('accent', 0.18 * st.flash); ctx.fillRect(0, 0, w, h)
+      st.flash = Math.max(0, st.flash - dt * 0.6)
+    }
+    ctx.fillStyle = s.color('accent')
+    st.sparks = st.sparks.filter((p) => {
+      p.y -= p.v * dt; p.life -= dt
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.life)); ctx.fillRect(p.x, p.y, 2, 2)
+      return p.life > 0
+    })
+    ctx.globalAlpha = 1
+  },
+})
+`
 
 // runtimeJS is the small library a scene is written against. It is documented
 // for agents in skills/papaya-theme/SKILL.md; keep the two in step.
@@ -142,7 +203,10 @@ const runtimeJS = `(function () {
     return v.replace(/rgba?\(([^)]+?)(,\s*[\d.]+)?\)/, 'rgba($1,' + alpha + ')');
   }
 
+  var IMG = null;
+  if (window.__PAPAYA_IMAGE__) { IMG = new Image(); IMG.src = window.__PAPAYA_IMAGE__; }
   var s = {
+    image: IMG,
     canvas: canvas, ctx: null, w: 0, h: 0, dpr: 1, t: 0, dt: 0, frame: 0,
     theme: THEME.name, colors: colors, tabs: [], state: {},
     reducedMotion: false,
@@ -214,6 +278,12 @@ const runtimeJS = `(function () {
 
   window.__papayaStart = function () {
     if (dead) return;
+    // A wallpaper is decoded before the scene starts, so s.image is ready in setup.
+    if (IMG && !IMG.complete) {
+      var go = function () { window.__papayaStart(); };
+      IMG.decode().then(go, function () { fail(new Error('the wallpaper image could not be decoded')); });
+      return;
+    }
     if (!def) { fail(new Error('scene.js never called papaya.scene({ ... })')); return; }
     var kind = def.context || '2d';
     try {
