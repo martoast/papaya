@@ -3,11 +3,15 @@ package httpapi
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/martoast/papaya/internal/setup"
+	"github.com/martoast/papaya/internal/sshx"
 	"github.com/martoast/papaya/internal/tsnode"
 )
 
@@ -82,8 +86,13 @@ func (s *Server) join(w http.ResponseWriter, r *http.Request) {
 		User string `json:"user"`
 		SSHD bool   `json:"sshd"`
 		OS   string `json:"os"`
+		// HostKeys are the machine's own SSH host public keys, read from
+		// /etc/ssh by the script. Pinning them means the first connection
+		// needs no "is this the right machine?" prompt: the report came from
+		// that machine, authenticated by Tailscale, moments ago.
+		HostKeys []string `json:"hostkeys"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
@@ -95,6 +104,28 @@ func (s *Server) join(w http.ResponseWriter, r *http.Request) {
 	if s.setup.d.SSHUserAllowed != nil && !s.setup.d.SSHUserAllowed(req.User) {
 		writeError(w, http.StatusBadRequest, "run it as your everyday account, not root or an admin account")
 		return
+	}
+
+	pinned := 0
+	for i, line := range req.HostKeys {
+		if i >= 6 {
+			break
+		}
+		key, _, _, _, err := ssh.ParseAuthorizedKey([]byte(strings.TrimSpace(line)))
+		if err != nil {
+			continue
+		}
+		for _, h := range []string{name, caller.Name} {
+			if h == "" {
+				continue
+			}
+			if err := sshx.TrustHostKey(s.setup.d.SSH.TrustedHostsPath, h, key); err == nil {
+				pinned++
+			}
+		}
+	}
+	if pinned > 0 {
+		log.Printf("setup: %s joined as %s; pinned its host keys", name, req.User)
 	}
 
 	err := s.setup.d.Store.Update(func(st *setup.Settings) {
@@ -163,8 +194,17 @@ elif grep -qs ':0016 [0-9A-F:]* 0A ' /proc/net/tcp /proc/net/tcp6; then sshd=tru
 fi
 os=$(uname -s)
 
+# This machine's SSH host keys (public), so Papaya knows it is talking to the
+# right machine without asking you to compare fingerprints.
+keys=""
+for f in /etc/ssh/ssh_host_*_key.pub; do
+	[ -r "$f" ] || continue
+	k=$(cut -d' ' -f1,2 "$f")
+	keys="$keys${keys:+,}\"$k\""
+done
+
 if ! curl -fsS -m 10 -X POST "$PAPAYA/api/setup/join" -H 'Content-Type: application/json' \
-	-d "{\"user\":\"$me\",\"sshd\":$sshd,\"os\":\"$os\"}" >/dev/null; then
+	-d "{\"user\":\"$me\",\"sshd\":$sshd,\"os\":\"$os\",\"hostkeys\":[$keys]}" >/dev/null; then
 	say "Couldn't reach Papaya at $PAPAYA. Is Tailscale on and signed in on this machine?"
 	exit 1
 fi

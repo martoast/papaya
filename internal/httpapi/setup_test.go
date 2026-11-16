@@ -329,4 +329,13 @@ func TestOneLineJoinConnectsTheCallingMachine(t *testing.T) {
 	require.Equal(t, "alex", m.User)
 	require.Equal(t, "key", m.Method)
 	require.False(t, machine(v, "server").Joined, "only the calling machine is affected")
+
+	// Host keys sent with the join are pinned for that machine, so its first
+	// connection needs no fingerprint prompt.
+	pub := f.keyHost.AuthorizedHostKey()
+	require.Equal(t, 200, f.call(t, "POST", "/api/setup/join", map[string]any{"user": "alex", "sshd": true, "hostkeys": []string{pub, "garbage"}}, nil))
+	known, err := os.ReadFile(f.trusted)
+	require.NoError(t, err)
+	require.Contains(t, string(known), "laptop ")
+	require.Contains(t, string(known), strings.Fields(pub)[1])
 }
