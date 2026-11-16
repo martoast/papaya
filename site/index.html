@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Papaya — every machine, one browser tab</title>
+<meta name="description" content="Open-source web terminal for your shells and coding agents on all your machines, reachable from any browser on your Tailscale network, with nothing exposed to the internet.">
+<meta property="og:title" content="Papaya — every machine, one browser tab">
+<meta property="og:description" content="Your shells and coding agents on all your machines, from any browser on your tailnet. Nothing exposed to the internet. Free and open source.">
+<meta name="theme-color" content="#0d0b0a">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cellipse cx='32' cy='32' rx='22' ry='29' fill='%2343a047'/%3E%3Cellipse cx='32' cy='32' rx='18' ry='25' fill='%23ff8a3d'/%3E%3Cellipse cx='32' cy='33' rx='7' ry='13' fill='%23ffb27a'/%3E%3Ccircle cx='30' cy='25' r='2.4' fill='%23201510'/%3E%3Ccircle cx='34' cy='30' r='2.4' fill='%23201510'/%3E%3Ccircle cx='30' cy='35' r='2.4' fill='%23201510'/%3E%3Ccircle cx='34' cy='40' r='2.4' fill='%23201510'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0d0b0a;
+    --bg-2: #15110f;
+    --panel: #1b1613;
+    --line: #2d2520;
+    --text: #f6efe9;
+    --muted: #b3a69c;
+    --faint: #7d7068;
+    --papaya: #ff8a3d;
+    --papaya-2: #ffb27a;
+    --rind: #5cb85f;
+    --seed: #201510;
+    --ok: #6fd27a;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, -apple-system, "Segoe UI", Inter, Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.6 var(--sans); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  a { color: var(--papaya-2); }
+  code, pre { font-family: var(--mono); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+  /* nav */
+  nav { position: sticky; top: 0; z-index: 10; background: rgba(13,11,10,.82); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 19px; color: var(--text); text-decoration: none; letter-spacing: -.01em; }
+  .brand svg { width: 26px; height: 26px; }
+  nav .links { display: flex; gap: 26px; align-items: center; font-size: 15px; }
+  nav .links a { color: var(--muted); text-decoration: none; }
+  nav .links a:hover { color: var(--text); }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 10px; font-weight: 600; font-size: 15px; text-decoration: none; border: 1px solid transparent; cursor: pointer; transition: transform .15s, background .15s; }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary { background: var(--papaya); color: #1a0f08; }
+  .btn-primary:hover { background: var(--papaya-2); }
+  .btn-ghost { border-color: var(--line); color: var(--text); background: var(--panel); }
+  nav .btn { padding: 7px 14px; font-size: 14px; }
+
+  /* hero */
+  .hero { position: relative; padding: 88px 0 40px; text-align: center; }
+  .hero::before { content: ""; position: absolute; inset: -200px 0 auto; height: 700px; background: radial-gradient(ellipse 50% 50% at 50% 40%, rgba(255,138,61,.20), transparent 70%); pointer-events: none; }
+  .pill { display: inline-flex; gap: 8px; align-items: center; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; color: var(--muted); background: var(--bg-2); }
+  .pill b { color: var(--rind); font-weight: 600; }
+  h1 { position: relative; font-size: clamp(40px, 7vw, 76px); line-height: 1.02; letter-spacing: -.035em; margin: 22px auto 20px; max-width: 900px; }
+  h1 em { font-style: normal; background: linear-gradient(100deg, var(--papaya-2), var(--papaya)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lede { position: relative; font-size: clamp(18px, 2.2vw, 21px); color: var(--muted); max-width: 680px; margin: 0 auto 34px; }
+  .cta { position: relative; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .install { position: relative; margin: 30px auto 0; max-width: 640px; text-align: left; background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start; }
+  .install pre { margin: 0; flex: 1; overflow-x: auto; font-size: 13.5px; line-height: 1.6; color: var(--text); }
+  .install pre .p { color: var(--papaya); user-select: none; }
+  .copy { flex: none; background: var(--panel); border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 6px 10px; font: 12px var(--sans); cursor: pointer; }
+  .copy:hover { color: var(--text); }
+
+  /* product shot */
+  .shot { position: relative; margin: 56px auto 0; max-width: 1040px; border-radius: 14px; border: 1px solid var(--line); background: #0b0d10; box-shadow: 0 40px 120px -30px rgba(255,138,61,.25), 0 30px 60px -20px rgba(0,0,0,.7); overflow: hidden; text-align: left; }
+  .chrome { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #12151a; border-bottom: 1px solid #22262d; }
+  .chrome i { width: 11px; height: 11px; border-radius: 50%; background: #3a3f47; display: block; }
+  .url { margin-left: 14px; flex: 1; max-width: 360px; font: 12px var(--mono); color: #8b949e; background: #0b0d10; border: 1px solid #22262d; border-radius: 6px; padding: 4px 10px; display: flex; gap: 6px; align-items: center; }
+  .url .lock { color: var(--ok); }
+  .tabs { display: flex; gap: 2px; padding: 0 10px; background: #12151a; border-bottom: 1px solid #22262d; font: 12px var(--mono); overflow: hidden; }
+  .tab { padding: 8px 14px; color: #8b949e; display: flex; gap: 8px; align-items: center; white-space: nowrap; }
+  .tab.on { color: #e6edf3; background: #0b0d10; border-radius: 6px 6px 0 0; }
+  .tab .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+  .tab .bell { background: var(--papaya); color: #1a0f08; border-radius: 99px; font-size: 10px; padding: 0 6px; font-weight: 700; }
+  .grid { display: grid; grid-template-columns: 1.3fr 1fr; grid-template-rows: 1fr 1fr; gap: 1px; background: #22262d; height: 380px; }
+  .pane { white-space: pre; background: #0b0d10; padding: 12px 14px; font: 12.5px/1.65 var(--mono); color: #c9d1d9; overflow: hidden; position: relative; }
+  .pane:first-child { grid-row: span 2; }
+  .pane .host { position: absolute; top: 8px; right: 10px; font-size: 10.5px; color: #6e7681; border: 1px solid #22262d; border-radius: 99px; padding: 1px 8px; background: #0f1216; }
+  .g { color: #56d364; } .b { color: #79c0ff; } .y { color: #e3b341; } .o { color: var(--papaya); } .d { color: #6e7681; } .w { color: #e6edf3; }
+  .cursor { display: inline-block; width: 7px; height: 14px; background: #c9d1d9; vertical-align: -2px; animation: blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .status { display: flex; justify-content: space-between; padding: 6px 14px; font: 11px var(--mono); color: #6e7681; background: #12151a; border-top: 1px solid #22262d; }
+
+  /* sections */
+  section { padding: 96px 0; }
+  .eyebrow { font: 600 13px var(--mono); color: var(--papaya); text-transform: uppercase; letter-spacing: .12em; margin-bottom: 12px; }
+  h2 { font-size: clamp(30px, 4.2vw, 46px); line-height: 1.08; letter-spacing: -.025em; margin: 0 0 16px; max-width: 760px; }
+  .sub { color: var(--muted); font-size: 19px; max-width: 640px; margin: 0; }
+
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 48px; counter-reset: s; }
+  .step { background: var(--bg-2); border: 1px solid var(--line); border-radius: 16px; padding: 26px; position: relative; }
+  .step::before { counter-increment: s; content: counter(s); display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--papaya); color: #1a0f08; font-weight: 800; margin-bottom: 16px; }
+  .step h3 { margin: 0 0 8px; font-size: 20px; letter-spacing: -.01em; }
+  .step p { margin: 0; color: var(--muted); font-size: 15.5px; }
+  .step code { font-size: 13px; color: var(--papaya-2); }
+  .wizard { margin-top: 28px; display: grid; grid-template-columns: 1fr 1.25fr; gap: 40px; align-items: center; background: linear-gradient(135deg, var(--bg-2), var(--panel)); border: 1px solid var(--line); border-radius: 20px; padding: 36px; }
+  .wizard h3 { font-size: 26px; letter-spacing: -.02em; margin: 0 0 12px; }
+  .wizard p { color: var(--muted); margin: 0 0 14px; }
+  .wizard ul { margin: 0; padding: 0; list-style: none; }
+  .wizard li { padding: 6px 0 6px 26px; position: relative; color: var(--text); font-size: 15.5px; }
+  .wizard li::before { content: "✓"; position: absolute; left: 0; color: var(--rind); font-weight: 700; }
+  .wizard img { width: 100%; border-radius: 12px; border: 1px solid var(--line); display: block; }
+
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; margin-top: 48px; }
+  .feat { background: var(--bg); padding: 28px; }
+  .feat .ic { font-size: 22px; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; background: rgba(255,138,61,.12); margin-bottom: 14px; }
+  .feat h3 { margin: 0 0 6px; font-size: 17.5px; }
+  .feat p { margin: 0; color: var(--muted); font-size: 15px; }
+
+  .secure { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+  .checks { display: grid; gap: 12px; }
+  .check { display: flex; gap: 14px; align-items: flex-start; background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .check b { display: block; margin-bottom: 2px; }
+  .check span { color: var(--muted); font-size: 15px; }
+  .check .x { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: rgba(92,184,95,.15); color: var(--rind); font-weight: 800; font-size: 14px; }
+  .diagram { background: var(--bg-2); border: 1px solid var(--line); border-radius: 18px; padding: 28px; }
+  .diagram svg { width: 100%; height: auto; display: block; }
+
+  .seeds { text-align: center; background: radial-gradient(ellipse 60% 70% at 50% 50%, rgba(255,138,61,.10), transparent 70%); }
+  .seeds svg { width: 120px; height: 120px; margin-bottom: 18px; }
+  .seeds h2, .seeds .sub { margin-left: auto; margin-right: auto; }
+
+  .faq { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 40px; margin-top: 40px; }
+  details { border-bottom: 1px solid var(--line); padding: 16px 0; }
+  summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
+  summary::after { content: "+"; color: var(--papaya); font-weight: 400; font-size: 22px; line-height: 1; }
+  details[open] summary::after { content: "–"; }
+  summary::-webkit-details-marker { display: none; }
+  details p { color: var(--muted); margin: 10px 0 0; font-size: 15.5px; }
+
+  .final { text-align: center; padding: 100px 0 110px; }
+  .final h2 { margin: 0 auto 14px; }
+  .final .sub { margin: 0 auto 32px; }
+  footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--faint); font-size: 14px; }
+  footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  footer a { color: var(--muted); text-decoration: none; }
+
+  @media (max-width: 860px) {
+    .steps, .features, .faq, .secure, .wizard { grid-template-columns: 1fr; }
+    .wizard { padding: 24px; gap: 24px; }
+    .grid { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; }
+    .pane:first-child { grid-row: auto; }
+    .pane:nth-child(3) { display: none; }
+    nav .links a:not(.btn) { display: none; }
+    section { padding: 72px 0; }
+  }
+  @media (max-width: 520px) {
+    .wrap { padding: 0 16px; }
+    .hero { padding-top: 56px; }
+    .tab:nth-child(n+3) { display: none; }
+    .url { max-width: none; }
+    .status span:last-child, h1 br { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="papaya" viewBox="0 0 64 64">
+    <ellipse cx="32" cy="32" rx="22" ry="29" fill="#43a047"/>
+    <ellipse cx="32" cy="32" rx="18.5" ry="25.5" fill="#ff8a3d"/>
+    <ellipse cx="32" cy="33" rx="7.5" ry="14" fill="#ffb27a"/>
+    <circle cx="29.5" cy="24" r="2.5" fill="#201510"/><circle cx="34.5" cy="27.5" r="2.5" fill="#201510"/>
+    <circle cx="29.5" cy="31.5" r="2.5" fill="#201510"/><circle cx="34.5" cy="35.5" r="2.5" fill="#201510"/>
+    <circle cx="29.5" cy="39.5" r="2.5" fill="#201510"/><circle cx="34" cy="43.5" r="2.3" fill="#201510"/>
+  </symbol>
+</svg>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#"><svg><use href="#papaya"/></svg>Papaya</a>
+    <div class="links">
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#security">Security</a>
+      <a href="#faq">FAQ</a>
+      <a class="btn btn-ghost" href="https://github.com/martoast/papaya">★ GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="pill"><b>●</b> Free &amp; open source · MIT</span>
+    <h1>Every machine you own,<br><em>in one browser tab.</em></h1>
+    <p class="lede">Papaya puts your shells and coding agents on all your machines in a web terminal you can open from any device on your Tailscale network. Start an agent on your desktop and check on it from your phone. Nothing is exposed to the internet.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="#how">Get started in 2 minutes →</a>
+      <a class="btn btn-ghost" href="https://github.com/martoast/papaya">View on GitHub</a>
+    </div>
+    <div class="install">
+      <pre id="cmd"><span class="p">$ </span>docker run -d --name papaya --restart unless-stopped \
+    -v papaya-data:/var/lib/papaya ghcr.io/martoast/papaya
+<span class="p">$ </span>docker logs -f papaya   <span class="d"># click the sign-in link it prints</span></pre>
+      <button class="copy" data-copy="cmd">Copy</button>
+    </div>
+
+    <div class="shot" aria-label="Papaya showing three terminal sessions on three machines">
+      <div class="chrome"><i></i><i></i><i></i><div class="url"><span class="lock">🔒</span>papaya.your-tailnet.ts.net</div></div>
+      <div class="tabs">
+        <div class="tab on"><span class="dot"></span>devbox · claude</div>
+        <div class="tab"><span class="dot"></span>macbook · zsh</div>
+        <div class="tab"><span class="dot"></span>web-server · logs <span class="bell">1</span></div>
+        <div class="tab"><span class="dot"></span>nas · backups</div>
+      </div>
+      <div class="grid">
+        <div class="pane"><span class="host">devbox</span>
+<span class="g">alice@devbox</span>:<span class="b">~/app</span>$ claude
+<span class="o">✻</span> <span class="w">Welcome back.</span>
+<span class="d">───────────────────────────────────</span>
+<span class="w">&gt; add rate limiting to the upload endpoint</span>
+
+<span class="o">●</span> Reading src/routes/upload.ts
+<span class="o">●</span> Reading src/middleware/
+<span class="o">●</span> Editing src/routes/upload.ts
+  <span class="g">+ import { rateLimit } from "../middleware/rate";</span>
+  <span class="g">+ router.use(rateLimit({ perMinute: 30 }));</span>
+<span class="o">●</span> Running npm test
+  <span class="g">✓ 48 passed</span> <span class="d">(2.1s)</span>
+
+<span class="w">Done. Uploads are now limited to 30 a minute
+per user; tests pass.</span>
+
+<span class="w">&gt;</span> <span class="cursor"></span></div>
+        <div class="pane"><span class="host">macbook</span>
+<span class="g">alice@macbook</span> <span class="b">~/site</span> % npm run dev
+<span class="d">&gt; site@1.4.0 dev</span>
+  <span class="g">VITE v6.2</span>  ready in 212 ms
+  <span class="d">➜</span>  Local:   <span class="b">http://localhost:5173/</span>
+<span class="d">12:04:31</span> <span class="y">[hmr]</span> updated /src/Hero.vue
+<span class="d">12:04:58</span> <span class="y">[hmr]</span> updated /src/Pricing.vue</div>
+        <div class="pane"><span class="host">web-server</span>
+<span class="g">alice@web-server</span>:<span class="b">~</span>$ tail -f /var/log/app.log
+<span class="d">12:05:02</span> <span class="g">200</span> GET  /api/orders   <span class="d">18ms</span>
+<span class="d">12:05:03</span> <span class="g">200</span> POST /api/cart     <span class="d">31ms</span>
+<span class="d">12:05:07</span> <span class="y">429</span> POST /api/upload   <span class="d">2ms</span>
+<span class="d">12:05:09</span> <span class="g">200</span> GET  /api/me       <span class="d">9ms</span></div>
+      </div>
+      <div class="status"><span>● 4 sessions · 3 machines</span><span>signed in as alice@ via Tailscale</span></div>
+    </div>
+  </div>
+</header>
+
+<section id="how">
+  <div class="wrap">
+    <div class="eyebrow">How it works</div>
+    <h2>Three steps. No keys to make, no ports to open.</h2>
+    <p class="sub">If your machines are already on Tailscale, you are most of the way there. Papaya runs on any always-on machine and walks you through the rest.</p>
+    <div class="steps">
+      <div class="step"><h3>Start it and sign in</h3><p>Run the container. It prints a <b>Sign in with Tailscale</b> link and a QR code. Approve it and Papaya joins your network as <i>your</i> device.</p></div>
+      <div class="step"><h3>Open the address</h3><p>The log shows something like <code>papaya.your-tailnet.ts.net</code>. Open it from your laptop, your phone, anything on your tailnet.</p></div>
+      <div class="step"><h3>Pick your machines</h3><p>Tick the machines you want, run the one command shown for each, press Test. Anything that fails tells you why in plain words.</p></div>
+    </div>
+
+    <div class="wizard">
+      <div>
+        <h3>A setup screen that does the hard part.</h3>
+        <p>Papaya already sees every device on your tailnet. You choose which ones to reach and it handles the rest.</p>
+        <ul>
+          <li>Finds your machines and spots Tailscale SSH on its own</li>
+          <li>Generates its own key for Macs and anything else</li>
+          <li>Turns on HTTPS by itself when your tailnet offers it</li>
+          <li>Tests each machine and explains failures, with the fix</li>
+        </ul>
+      </div>
+      <img src="setup.png" alt="Papaya setup screen listing macbook, web-server and nas to choose from" loading="lazy">
+    </div>
+  </div>
+</section>
+
+<section id="features" style="background:var(--bg-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <div class="eyebrow">Features</div>
+    <h2>Built for running coding agents on a fleet of machines.</h2>
+    <p class="sub">Made by people who keep agents busy on four machines at once and wanted to check on them from the couch.</p>
+    <div class="features">
+      <div class="feat"><div class="ic">♾️</div><h3>Sessions that never die</h3><p>With tmux on the far side, your work survives Papaya restarts, a sleeping laptop and dropped Wi-Fi. Reopen the page and everything is where you left it.</p></div>
+      <div class="feat"><div class="ic">📱</div><h3>Same sessions, every device</h3><p>Open a session on your laptop and it shows up on your phone, live. Install it to your home screen like an app.</p></div>
+      <div class="feat"><div class="ic">▦</div><h3>Grid view</h3><p>Every session on screen at once in resizable panels. A control room for all your agents.</p></div>
+      <div class="feat"><div class="ic">🖼️</div><h3>Drop in an image</h3><p>Drag a screenshot onto a session. It is uploaded to that machine and its path typed at the cursor, ready for the agent to read.</p></div>
+      <div class="feat"><div class="ic">🎙️</div><h3>Talk instead of type</h3><p>Hold ⌃Space and speak. The transcript lands at the cursor, tuned for shell words. Optional, bring your own OpenAI key.</p></div>
+      <div class="feat"><div class="ic">🔔</div><h3>Know who needs you</h3><p>When an agent rings the bell, its tab gets a badge. Agents can even message each other across machines with <code>papaya-say</code>.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="security">
+  <div class="wrap secure">
+    <div>
+      <div class="eyebrow">Security</div>
+      <h2>Your tailnet is the login.</h2>
+      <p class="sub" style="margin-bottom:28px">Papaya never listens on the public internet. Only devices on your Tailscale network can reach it, and only you can use it unless you add people.</p>
+      <div class="checks">
+        <div class="check"><span class="x">✓</span><div><b>No open port</b><span>It listens on your tailnet only, never on 0.0.0.0. There is nothing to scan.</span></div></div>
+        <div class="check"><span class="x">✓</span><div><b>No passwords</b><span>Tailscale already knows who you are. Owner-only access by default.</span></div></div>
+        <div class="check"><span class="x">✓</span><div><b>No privileged container</b><span>No tailscaled, no TUN device, no NET_ADMIN. One Go binary.</span></div></div>
+        <div class="check"><span class="x">✓</span><div><b>Read every line</b><span>MIT-licensed, on GitHub. Run it on your own hardware.</span></div></div>
+      </div>
+    </div>
+    <div class="diagram" aria-label="Diagram: your devices reach Papaya over encrypted Tailscale links; Papaya reaches your machines over SSH; the public internet cannot reach it">
+      <svg viewBox="0 0 420 380" font-family="ui-monospace, Menlo, monospace" font-size="12">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#ff8a3d"/></marker>
+        </defs>
+        <rect x="8" y="8" width="404" height="300" rx="16" fill="none" stroke="#5cb85f" stroke-dasharray="5 5"/>
+        <text x="24" y="30" fill="#5cb85f">your tailnet · WireGuard-encrypted</text>
+        <g fill="#1b1613" stroke="#2d2520">
+          <rect x="30" y="50" width="100" height="40" rx="9"/><rect x="160" y="50" width="100" height="40" rx="9"/><rect x="290" y="50" width="100" height="40" rx="9"/>
+        </g>
+        <g fill="#b3a69c" text-anchor="middle"><text x="80" y="75">laptop</text><text x="210" y="75">phone</text><text x="340" y="75">tablet</text></g>
+        <g stroke="#ff8a3d" stroke-width="1.5" fill="none" marker-end="url(#ar)">
+          <path d="M80 92 L180 140"/><path d="M210 92 L210 136"/><path d="M340 92 L240 140"/>
+        </g>
+        <rect x="140" y="140" width="140" height="50" rx="12" fill="#ff8a3d"/>
+        <text x="210" y="170" text-anchor="middle" fill="#1a0f08" font-weight="700" font-size="14">papaya</text>
+        <g stroke="#ff8a3d" stroke-width="1.5" fill="none" marker-end="url(#ar)" stroke-dasharray="1 0">
+          <path d="M180 192 L82 240"/><path d="M210 192 L210 236"/><path d="M240 192 L338 240"/>
+        </g>
+        <text x="252" y="222" fill="#7d7068" font-size="11">ssh</text>
+        <g fill="#1b1613" stroke="#2d2520">
+          <rect x="30" y="242" width="100" height="40" rx="9"/><rect x="160" y="242" width="100" height="40" rx="9"/><rect x="290" y="242" width="100" height="40" rx="9"/>
+        </g>
+        <g fill="#b3a69c" text-anchor="middle"><text x="80" y="267">devbox</text><text x="210" y="267">macbook</text><text x="340" y="267">server</text></g>
+        <text x="210" y="344" text-anchor="middle" fill="#7d7068">the internet</text>
+        <path d="M210 330 L210 314" stroke="#7d7068" stroke-width="1.5"/>
+        <g stroke="#e5534b" stroke-width="2.5"><path d="M200 304 L220 324"/><path d="M220 304 L200 324"/></g>
+        <text x="210" y="366" text-anchor="middle" fill="#e5534b" font-size="11">can't reach it</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section class="seeds">
+  <div class="wrap">
+    <svg><use href="#papaya"/></svg>
+    <h2>One papaya, many seeds.</h2>
+    <p class="sub">Every machine you own and every agent running on it, gathered in one place. That's the whole idea, and the name.</p>
+  </div>
+</section>
+
+<section id="faq" style="padding-top:40px">
+  <div class="wrap">
+    <div class="eyebrow">FAQ</div>
+    <h2>Questions</h2>
+    <div class="faq">
+      <details><summary>Do I need to pay for Tailscale?</summary><p>No. Tailscale is free for personal use, up to 100 devices. Papaya is free and open source.</p></details>
+      <details><summary>What do I run it on?</summary><p>Any machine that stays on: a home server, a spare mini PC, a Raspberry Pi, a cheap VPS. Docker is easiest; there are also plain binaries for Linux and macOS.</p></details>
+      <details><summary>Which machines can it reach?</summary><p>Anything on your tailnet that runs SSH: Linux boxes, Macs, servers. Linux machines can use Tailscale SSH with no keys at all; others get one line added to <code>authorized_keys</code>.</p></details>
+      <details><summary>Does it work on my phone?</summary><p>Yes, that's half the point. It is a web app you can install to your home screen, with a floating pad for Esc and the arrow keys a phone keyboard lacks.</p></details>
+      <details><summary>Is it only for coding agents?</summary><p>No, any shell works. It just happens to be great for keeping an eye on Claude Code, Codex and friends while they work.</p></details>
+      <details><summary>Can my team use one Papaya?</summary><p>Yes. By default only you can sign in; list teammates' Tailscale logins or tags to let them in. Each person sees their own sessions.</p></details>
+    </div>
+  </div>
+</section>
+
+<section class="final">
+  <div class="wrap">
+    <h2>Gather your machines.</h2>
+    <p class="sub">Two minutes from <code>docker run</code> to every terminal you own in one tab.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/martoast/papaya#quick-start">Read the quick start →</a>
+      <a class="btn btn-ghost" href="https://github.com/martoast/papaya">★ Star on GitHub</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Papaya · MIT License · made by <a href="https://fullstacklabs.org">Fullstack Labs</a></span>
+    <span><a href="https://github.com/martoast/papaya">GitHub</a> · <a href="https://github.com/martoast/papaya/blob/main/SECURITY.md">Security</a> · <a href="https://github.com/martoast/papaya/blob/main/AGENTS.md">Set up with your agent</a></span>
+  </div>
+</footer>
+
+<script>
+  document.querySelectorAll('[data-copy]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var t = document.getElementById(b.dataset.copy).innerText.replace(/^\$ /gm, '').replace(/\s+#.*$/gm, '');
+      try { navigator.clipboard.writeText(t); b.textContent = 'Copied'; } catch (e) { b.textContent = 'Select & copy'; }
+      setTimeout(function () { b.textContent = 'Copy'; }, 1600);
+    });
+  });
+</script>
+</body>
+</html>
