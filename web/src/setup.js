@@ -109,7 +109,11 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
     timer = setInterval(async () => {
       if (step === 'test' || step === 'done') return
       try {
-        state = await api.setup()
+        const next = await api.setup()
+        // Re-render only when something changed: rebuilding an unchanged step
+        // every few seconds made it flicker.
+        if (JSON.stringify(next) === JSON.stringify(state)) return
+        state = next
         render({ keepFocus: true })
       } catch {
         // A missed refresh is harmless; the next one will do.
@@ -266,12 +270,13 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
                 ${m.online ? '' : '<span class="su-chip su-chip-warn">offline</span>'}
               </div>
 
-              <div class="su-field">
-                <label for="user-${esc(m.name)}">Account</label>
-                <input id="user-${esc(m.name)}" data-user="${esc(m.name)}" value="${esc(user)}" aria-label="Your account on ${esc(m.name)}"
-                  placeholder="your username" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
-                  class="su-input">
-              </div>
+              <label class="su-label" for="user-${esc(m.name)}">Your username on ${esc(m.name)}</label>
+              <input id="user-${esc(m.name)}" data-user="${esc(m.name)}" value="${esc(user)}"
+                placeholder="e.g. alex" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+                enterkeyhint="done" class="su-input ${user ? '' : 'is-empty'}">
+              <p class="su-help">The account you log in to ${esc(m.name)} with${
+                isMac(m) ? ' (on a Mac: your short user name, shown in Terminal as you@mac)' : ''
+              }.</p>
 
               <p class="su-label">Connect with</p>
               <div class="su-seg" role="tablist">
@@ -298,7 +303,7 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
           ${policy}
           <div class="su-list">${cards}</div>
           <p data-error class="su-err hidden"></p>`,
-        foot: `<p data-hint class="su-hint ${missing.length ? '' : 'hidden'}">${missing.length ? `Type your account on ${esc(missing[0].name)}` : ''}</p>
+        foot: `<p data-hint class="su-hint ${missing.length ? '' : 'hidden'}">${missing.length ? `Enter your username on ${esc(missing[0].name)}` : ''}</p>
           <button data-act="back" class="su-btn su-btn-ghost">Back</button>
           <button data-act="next" ${missing.length ? 'disabled' : ''} class="su-btn su-btn-primary su-grow">Next: test</button>`,
       }
@@ -385,12 +390,19 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
       const views = { machines: viewMachines, access: viewAccess, test: viewTest, done: viewDone }
       const v = views[step]()
       const ready = (state.https || {}).on && location.protocol === 'http:' && step !== 'done' ? httpsNote() : ''
+      const entering = root.dataset.step !== step
       root.dataset.step = step
+      root.classList.toggle('su-enter', entering)
       root.innerHTML = `${header()}
         <main class="su-main">${ready}${v.body}</main>
         <footer class="su-foot"><div class="su-foot-in">${v.foot}</div></footer>`
       if (keepFocus) root.scrollTop = scroll
 
+      // Arriving at the accounts step, put the cursor where it is needed.
+      if (entering && step === 'access') {
+        const empty = [...root.querySelectorAll('[data-user]')].find((i) => !i.value)
+        if (empty) setTimeout(() => empty.focus({ preventScroll: false }), 350)
+      }
       if (focusKey) {
         const again = root.querySelector(`[data-user="${CSS.escape(focusKey)}"]`)
         if (again) {
@@ -508,6 +520,7 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
       if (name === undefined) return
       const p = picks.get(name)
       if (p) p.user = e.target.value.trim()
+      e.target.classList.toggle('is-empty', !e.target.value.trim())
       // Only the footer depends on the typed account; re-rendering the whole
       // step on each keystroke would be wasteful and jumpy.
       const next = root.querySelector('[data-act="next"]')
@@ -515,7 +528,7 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
       const missing = chosen().filter((m) => !picks.get(m.name).user)
       if (next) next.disabled = missing.length > 0
       if (hint) {
-        hint.textContent = missing.length ? `Type your account on ${missing[0].name}` : ''
+        hint.textContent = missing.length ? `Enter your username on ${missing[0].name}` : ''
         hint.classList.toggle('hidden', !missing.length)
       }
     })
