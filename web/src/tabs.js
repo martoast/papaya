@@ -1,5 +1,6 @@
 import { api } from './api.js'
 import { TerminalTab } from './terminal.js'
+import { sceneEvent } from './themes.js'
 
 import { onLongPress } from './longpress.js'
 
@@ -137,6 +138,7 @@ export class TabManager {
     })
 
     if (!this.suspended) this.stackEl.appendChild(tab.el)
+    sceneEvent({ type: 'tab-open', id: session.id, tab: session.name || session.host, host: session.host })
 
     const el = document.createElement('div')
     el.className = TAB_CLASS
@@ -197,6 +199,7 @@ export class TabManager {
   activate(id) {
     const entry = this.tabs.get(id)
     if (!entry) return
+    sceneEvent({ type: 'focus', id, tab: entry.tab.session.name || entry.tab.session.host })
 
     // While the grid owns the terminals, only the bookkeeping applies; showing
     // and hiding is the grid's job.
@@ -263,6 +266,7 @@ export class TabManager {
     entry.tab.dispose()
     entry.el.remove()
     this.tabs.delete(id)
+    sceneEvent({ type: 'tab-close', id })
 
     if (this.activeId === id) {
       this.activeId = null
@@ -293,6 +297,7 @@ export class TabManager {
   updateName(id, name) {
     const entry = this.tabs.get(id)
     if (!entry) return
+    sceneEvent({ type: 'tab-rename', id, tab: name })
     entry.nameEl.textContent = name
     entry.el.title = tabTitle(name, entry.tab.session.host)
     this.onSessionUpdate?.(id, { name })

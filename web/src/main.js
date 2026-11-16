@@ -13,6 +13,7 @@ import { saveLayout, loadLayout, rehydrate } from './layout.js'
 import { reachability } from './connectivity.js'
 import { rememberTabs, recallTabs } from './remember.js'
 import { runSetup, watchNewMachines } from './setup.js'
+import { initThemes } from './themes.js'
 
 const el = (id) => document.getElementById(id)
 
@@ -32,6 +33,8 @@ function notice(msg, kind = 'info') {
 // The banner outlives any single notice: losing the tailnet is a condition, not
 // an event, and it stays true until the user does something about it.
 const offlineBanner = el('offline-banner')
+initThemes()
+
 reachability.subscribe((up) => {
   offlineBanner.classList.toggle('hidden', up)
   offlineBanner.classList.toggle('flex', !up)

@@ -267,6 +267,13 @@ machine whose agents should be able to message each other. Steps, the API and
 the rules are in [docs/AGENT-MESSAGING.md](docs/AGENT-MESSAGING.md). Check it
 with `papaya-say --list` from each machine.
 
+## Themes (`papaya-theme`)
+
+Install `bin/papaya-theme` and `skills/papaya-theme/` the same way as
+papaya-say, on the machines where your person's agents run. Then "make Papaya
+look like X" is something any of those agents can do end to end: see
+[docs/THEMES.md](docs/THEMES.md). Check it with `papaya-theme list`.
+
 ## Operating it
 
 ```bash

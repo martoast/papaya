@@ -43,6 +43,10 @@ Browser ──HTTPS over WireGuard──┐
 - **Voice input** (optional, bring your own OpenAI key). Hold ⌃Space, talk, and
   the transcript lands at the cursor, tuned for shell vocabulary.
 - **Agents can message each other** across machines with `papaya-say`.
+- **Themes your agent builds.** Say "make Papaya a koi pond" and your agent
+  writes the colours and an animated backdrop and switches every open window
+  to it, live. Backdrops react to your agents: work, bells, messages between
+  tabs. They run sandboxed, with no network and no access to your terminals.
 - **Know which session wants you.** A terminal bell becomes a badge on its tab.
 - **Installs as an app** on your phone's home screen.
 
@@ -388,6 +392,37 @@ papaya finds the tab by the name in the tab bar, types the message into its
 tmux workspace as a bracketed paste, and presses Enter. It refuses when a
 person has unsent text in that tab's input box. Full reference, including the
 API and how to install it on a machine: [docs/AGENT-MESSAGING.md](docs/AGENT-MESSAGING.md).
+
+## Themes
+
+Tell your agent the look you want. It writes a theme (colours, plus an optional
+animated backdrop drawn behind the terminals) and pushes it with
+`papaya-theme`; every Papaya window you have open switches at once:
+
+```bash
+papaya-theme new koi-pond        # a starter theme.json + scene.js
+papaya-theme push ./koi-pond     # upload, switch, and report whether it runs
+papaya-theme list                # built-ins: orchard, night-sky, synthwave
+papaya-theme use default         # back to the plain look
+```
+
+`push` waits for your browser's verdict and prints it: running at N fps, or
+the scene's error with line numbers in the agent's own `scene.js`, so the agent
+can fix its work without you looking. Backdrops react to what is happening:
+a tab printing, a bell, one agent messaging another, or a moment an agent
+marks with `papaya-theme cue merged`.
+
+A backdrop is code someone else wrote, so it never runs in Papaya's page. It
+runs in a sandboxed frame with an opaque origin and a policy that forbids all
+network access; the frame cannot take focus or see keystrokes, and only event
+and tab names ever cross into it. Colours are checked value by value before
+they touch the page. While a backdrop runs, terminals draw with xterm's DOM
+renderer (WebGL paints an opaque background) and go back to WebGL when it is
+off.
+
+The format, the scene API and the rules agents follow:
+[docs/THEMES.md](docs/THEMES.md) and the skill
+[skills/papaya-theme/SKILL.md](skills/papaya-theme/SKILL.md).
 
 ## Picking work back up after a restart
 

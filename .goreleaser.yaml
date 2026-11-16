@@ -30,6 +30,7 @@ archives:
       - AGENTS.md
       - .env.example
       - bin/papaya-say
+      - bin/papaya-theme
       - skills/**/*
       - deploy/papaya.service
       - deploy/io.papaya.plist

@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+# papaya-theme: make and switch Papaya themes. Changes show up live in every
+# Papaya tab your person has open; nobody has to reload anything.
+#
+#   papaya-theme list                    themes, and which one is on
+#   papaya-theme new <name> [dir]        start a theme: writes <dir>/theme.json + scene.js
+#   papaya-theme push <dir>              upload theme.json (+ scene.js), switch to it,
+#                                        and report whether the scene runs in the browser
+#   papaya-theme use <name>|default      switch themes
+#   papaya-theme status [name]           is the scene running, at what fps, or its error
+#   papaya-theme pull <name> [dir]       download a theme to edit (built-ins too)
+#   papaya-theme cue <name>              fire a moment scenes react to (e.g. merged)
+#   papaya-theme rm <name>               delete a theme
+#
+# A theme is a folder with theme.json (colours) and an optional scene.js (an
+# animated backdrop). The format and the scene API: skills/papaya-theme/SKILL.md.
+# Needs only bash and curl. Server: $PAPAYA_URL, e.g. https://papaya.your-tailnet.ts.net
+set -euo pipefail
+
+URL=${PAPAYA_URL:-}
+URL=${URL%/}
+usage() { sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
+die() { echo "papaya-theme: $*" >&2; exit 1; }
+need_url() { [ -n "$URL" ] || die "set PAPAYA_URL to your Papaya address, e.g. https://papaya.your-tailnet.ts.net"; }
+
+api() { # method path [file|-] [content-type]
+	local out code
+	need_url
+	if [ $# -ge 3 ]; then
+		out=$(curl -sS --max-time 30 -X "$1" -H "Content-Type: ${4:-application/json}" --data-binary "@$3" -w '\n%{http_code}' "$URL$2") || die "cannot reach $URL (is Tailscale on?)"
+	else
+		out=$(curl -sS --max-time 30 -X "$1" -w '\n%{http_code}' "$URL$2") || die "cannot reach $URL (is Tailscale on?)"
+	fi
+	code=${out##*$'\n'}; out=${out%$'\n'*}
+	if [ "${code:0:1}" != 2 ]; then
+		err=$(printf '%s' "$out" | sed -n 's/.*"error":"\(.*\)".*/\1/p' | sed 's/\\"/"/g')
+		die "${err:-HTTP $code}"
+	fi
+	printf '%s' "$out"
+}
+
+name_ok() { [[ $1 =~ ^[a-z0-9][a-z0-9-]{0,39}$ ]] || die "theme name '$1': lowercase letters, digits and dashes (e.g. koi-pond)"; }
+
+# status NAME [WAIT]: print what the browsers saw. Waits up to WAIT seconds for
+# a running/error report. Exits 1 if the scene failed.
+status() {
+	local out i
+	for ((i = 0; i <= ${2:-0}; i++)); do
+		out=$(api GET "/api/themes/$1/status?format=text")
+		grep -q '^scene:   waiting' <<<"$out" || break
+		[ "$i" -lt "${2:-0}" ] && sleep 1
+	done
+	printf '%s\n' "$out"
+	! grep -q '^scene:   ERROR' <<<"$out"
+}
+
+active() { api GET '/api/themes?format=text' | sed -n '1s/^on: //p'; }
+
+cmd=${1:-}; [ $# -gt 0 ] && shift
+case $cmd in
+	-h|--help|help|"") usage 0 ;;
+
+	list|ls)
+		api GET '/api/themes?format=text'
+		;;
+
+	new)
+		[ $# -ge 1 ] || usage
+		name=$1; name_ok "$name"; dir=${2:-./$name}
+		[ -e "$dir/theme.json" ] && die "$dir/theme.json already exists"
+		mkdir -p "$dir"
+		cat >"$dir/theme.json" <<JSON
+{
+  "name": "$name",
+  "description": "",
+  "opacity": 0.8,
+  "colors": {
+    "surface-0": "#0d1117",
+    "surface-1": "#161b22",
+    "surface-2": "#21262d",
+    "surface-3": "#30363d",
+    "text-hi": "#e6edf3",
+    "text-lo": "#8b949e",
+    "accent": "#58a6ff",
+    "term-bg": "#0d1117",
+    "term-fg": "#e6edf3",
+    "term-cursor": "#58a6ff",
+    "term-sel": "#264f78"
+  }
+}
+JSON
+		cat >"$dir/scene.js" <<'JS'
+// A Papaya scene: drawn behind the terminals, in a sandboxed frame.
+// API: skills/papaya-theme/SKILL.md. Delete this file for a colours-only theme.
+papaya.scene({
+  setup(s) {
+    s.state.dots = Array.from({ length: 120 }, () => ({ x: Math.random(), y: Math.random(), r: 1 + Math.random() * 2 }))
+  },
+  draw(s) {
+    const { ctx, w, h, t } = s
+    ctx.fillStyle = s.color('surface-0')
+    ctx.fillRect(0, 0, w, h)
+    ctx.fillStyle = s.color('accent', 0.5)
+    for (const d of s.state.dots) {
+      const y = (d.y + t * 0.02 * d.r) % 1
+      ctx.fillRect(d.x * w, y * h, d.r, d.r)
+    }
+  },
+  on(s, ev) {
+    // ev.type: tab-open, tab-close, tab-rename, focus, activity, bell, say, cue
+  },
+})
+JS
+		echo "wrote $dir/theme.json and $dir/scene.js — edit them, then: papaya-theme push $dir"
+		;;
+
+	push)
+		[ $# -ge 1 ] || usage
+		dir=${1%/}
+		[ -f "$dir/theme.json" ] || die "$dir/theme.json not found"
+		name=$(sed -n 's/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$dir/theme.json" | head -1)
+		[ -n "$name" ] || name=$(basename "$dir")
+		name_ok "$name"
+		api PUT "/api/themes/$name" "$dir/theme.json" >/dev/null
+		if [ -f "$dir/scene.js" ]; then
+			api PUT "/api/themes/$name/scene" "$dir/scene.js" text/javascript >/dev/null
+		else
+			# A theme pushed without scene.js has no scene, even if it had one.
+			printf '' | api PUT "/api/themes/$name/scene" - text/javascript >/dev/null
+		fi
+		printf '{"name":"%s"}' "$name" | api POST /api/themes/active - >/dev/null
+		echo "pushed $name and switched to it."
+		if [ -f "$dir/scene.js" ]; then status "$name" 8; else status "$name"; fi
+		;;
+
+	use)
+		[ $# -ge 1 ] || usage
+		[ "$1" = default ] || name_ok "$1"
+		printf '{"name":"%s"}' "$1" | api POST /api/themes/active - >/dev/null
+		echo "switched to $1."
+		;;
+
+	status)
+		name=${1:-$(active)}
+		[ "$name" = default ] && { echo "theme: default (Papaya's plain look, no scene)"; exit 0; }
+		name_ok "$name"
+		status "$name"
+		;;
+
+	pull)
+		[ $# -ge 1 ] || usage
+		name=$1; name_ok "$name"; dir=${2:-./$name}
+		mkdir -p "$dir"
+		out=$(api GET "/api/themes/$name")
+		command -v python3 >/dev/null || die "pull needs python3 to unpack the theme"
+		printf '%s' "$out" | python3 -c '
+import json, sys, os
+t = json.load(sys.stdin); d = sys.argv[1]
+scene = t.pop("scene", "")
+for k in ("updated", "builtin"): t.pop(k, None)
+open(os.path.join(d, "theme.json"), "w").write(json.dumps(t, indent=2) + "\n")
+if scene: open(os.path.join(d, "scene.js"), "w").write(scene)
+' "$dir"
+		echo "wrote $dir/theme.json$([ -f "$dir/scene.js" ] && echo " and $dir/scene.js")"
+		;;
+
+	cue)
+		[ $# -ge 1 ] || usage
+		printf '{"name":"%s"}' "${1//\"/}" | api POST /api/themes/cue - >/dev/null
+		echo "cued $1."
+		;;
+
+	rm)
+		[ $# -ge 1 ] || usage
+		name_ok "$1"
+		api DELETE "/api/themes/$1" >/dev/null
+		echo "removed $1."
+		;;
+
+	*) usage ;;
+esac

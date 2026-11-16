@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -24,6 +25,7 @@ import (
 	"github.com/martoast/papaya/internal/hub"
 	"github.com/martoast/papaya/internal/setup"
 	"github.com/martoast/papaya/internal/sshx"
+	"github.com/martoast/papaya/internal/themes"
 	"github.com/martoast/papaya/internal/tlsx"
 	"github.com/martoast/papaya/internal/transcribe"
 	"github.com/martoast/papaya/internal/tsnode"
@@ -199,6 +201,14 @@ func run(addr string, verbose bool) error {
 		SSHUserAllowed: cfg.SSHUserAllowed,
 		Self:           selfName,
 	})
+
+	// Themes: colours and animated backdrops, written by agents with
+	// papaya-theme and kept in the state directory.
+	themeStore, err := themes.Open(filepath.Join(cfg.StateDir, "themes"))
+	if err != nil {
+		return fmt.Errorf("themes: %w", err)
+	}
+	api.EnableThemes(themeStore)
 
 	// The listener is the tsnet one, never net.Listen. This is what keeps the
 	// terminal off the host's LAN.

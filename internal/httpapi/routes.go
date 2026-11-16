@@ -11,12 +11,14 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"tailscale.com/ipn/ipnstate"
 
 	"github.com/martoast/papaya/internal/hub"
+	"github.com/martoast/papaya/internal/themes"
 	"github.com/martoast/papaya/internal/transcribe"
 	"github.com/martoast/papaya/internal/tsnode"
 )
@@ -59,6 +61,13 @@ type Server struct {
 	opts            Options
 	// setup is the first-run setup screen's API; nil where it is not wired.
 	setup *setupAPI
+	// themes is the theme library; nil where it is not wired.
+	themes *themes.Store
+	// events fans theme changes, cues and papaya-say messages out to browsers.
+	events *broker
+	// sceneStatus is what browsers last reported about each scene they ran.
+	statusMu    sync.Mutex
+	sceneStatus map[string]sceneStatus
 }
 
 func New(h *hub.Hub, auth *tsnode.Auth, status Statuser, static fs.FS, opts Options) *Server {
@@ -81,6 +90,7 @@ func NewWithTranscriber(h *hub.Hub, auth *tsnode.Auth, status Statuser, static f
 		transcriber:     tr,
 		transcribeLimit: newRateLimiter(30, time.Minute),
 		opts:            opts,
+		events:          newBroker(),
 	}
 }
 
@@ -106,6 +116,7 @@ func (s *Server) Handler() http.Handler {
 	protected.HandleFunc("POST /api/transcribe", s.transcribeAudio)
 	protected.HandleFunc("GET /api/capabilities", s.capabilities)
 	s.setupRoutes(protected)
+	s.themeRoutes(protected)
 	protected.Handle("/", s.staticHandler())
 
 	root := http.NewServeMux()
@@ -187,6 +198,16 @@ func (w *statusWriter) WriteHeader(code int) {
 	w.status = code
 	w.ResponseWriter.WriteHeader(code)
 }
+
+// Flush lets server-sent events through the logging wrapper.
+func (w *statusWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// Unwrap lets http.ResponseController reach the underlying writer.
+func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 // Hijack lets the WebSocket upgrade succeed through the logging wrapper.
 // Without it, gorilla cannot take over the connection.

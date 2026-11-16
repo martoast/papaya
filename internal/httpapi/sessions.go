@@ -498,7 +498,18 @@ func (s *Server) say(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, "could not reach that tab's host")
 		return
 	}
+	// Scenes draw messages passing between tabs. Names only, never the text.
+	s.events.publish(user, map[string]any{"type": "say", "from": sayFrom(req.Text), "to": sess.Name()})
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// sayFrom reads the sender from a message signed "<name> here: ...".
+func sayFrom(text string) string {
+	head, _, found := strings.Cut(text, " here:")
+	if !found || len(head) > 40 || strings.ContainsAny(head, "\n\r") {
+		return ""
+	}
+	return cleanLabel(head, 40)
 }
 
 // screen returns the last lines of a tab's workspace as plain text.

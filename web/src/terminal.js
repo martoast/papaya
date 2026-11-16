@@ -6,6 +6,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebglAddon } from '@xterm/addon-webgl'
 
 import { xtermTheme, monoFont } from './theme.js'
+import { sceneEvent, themeState } from './themes.js'
 import { api } from './api.js'
 import { reachability } from './connectivity.js'
 
@@ -137,6 +138,8 @@ export class TerminalTab {
       lineHeight: 1.2,
       scrollback: 10000,
       theme: xtermTheme(),
+      // Lets a theme's scene show through the terminal background.
+      allowTransparency: true,
       screenReaderMode: false,
       macOptionIsMeta: true,
       // Full-screen programs — Claude Code, vim, htop — turn on mouse
@@ -165,19 +168,11 @@ export class TerminalTab {
     // nothing new.
     this.el._terminal = this.term
 
-    // WebGL is a large win on heavy output. The context-loss handler is
-    // required: some browsers throw on loss, and without disposing we would
-    // render nothing instead of falling back to the canvas renderer.
-    try {
-      const webgl = new WebglAddon()
-      webgl.onContextLoss(() => {
-        webgl.dispose()
-        this.onNotice?.('WebGL context lost; using the canvas renderer')
-      })
-      this.term.loadAddon(webgl)
-    } catch {
-      // No WebGL available. The canvas renderer is fine.
-    }
+    // WebGL is a large win on heavy output, but it paints an opaque
+    // background, so while a theme's scene runs behind the terminals they use
+    // xterm's DOM renderer instead, which lets the scene through.
+    this.webgl = null
+    this.useWebgl(!themeState().backdrop)
 
     this.installClipboardBridge()
     this.installTouchGestures()
@@ -197,6 +192,14 @@ export class TerminalTab {
     })
 
     this.term.onData((data) => this.send(data))
+
+    // A theme was applied: recolour this terminal in place, and pick the
+    // renderer that suits it.
+    this.onTheme = () => {
+      this.useWebgl(!themeState().backdrop)
+      this.term.options.theme = xtermTheme()
+    }
+    window.addEventListener('papaya:theme', this.onTheme)
 
     // Shells emit OSC 0/2 title sequences; use them to auto-title the tab.
     this.term.onTitleChange((title) => this.handleTitle(title))
@@ -577,6 +580,7 @@ export class TerminalTab {
       }
       // Binary frames are raw PTY output; write them straight through.
       this.lastOutputAt = Date.now()
+      sceneEvent({ type: 'activity', id: this.id, tab: this.session.name || this.session.host })
       this.term.write(new Uint8Array(ev.data))
     }
 
@@ -759,6 +763,7 @@ export class TerminalTab {
         break
 
       case 'bell':
+        sceneEvent({ type: 'bell', id: this.id, tab: this.session.name || this.session.host })
         // With several panels streaming, this is what tells you which one
         // finished or is waiting on an answer.
         if (!this.focused) {
@@ -821,6 +826,29 @@ export class TerminalTab {
     })
   }
 
+  // useWebgl loads or drops the WebGL renderer. The context-loss handler is
+  // required: some browsers throw on loss, and without disposing we would
+  // render nothing instead of falling back to the DOM renderer.
+  useWebgl(on) {
+    if (on && !this.webgl) {
+      try {
+        const webgl = new WebglAddon()
+        webgl.onContextLoss(() => {
+          webgl.dispose()
+          if (this.webgl === webgl) this.webgl = null
+          this.onNotice?.('WebGL context lost; using the DOM renderer')
+        })
+        this.term.loadAddon(webgl)
+        this.webgl = webgl
+      } catch {
+        // No WebGL available. The DOM renderer is fine.
+      }
+    } else if (!on && this.webgl) {
+      this.webgl.dispose()
+      this.webgl = null
+    }
+  }
+
   markUserNamed(name) {
     this.userNamed = true
     this.session.name = name
@@ -846,6 +874,7 @@ export class TerminalTab {
 
   dispose() {
     this.disposed = true
+    window.removeEventListener('papaya:theme', this.onTheme)
     clearTimeout(this.reconnectTimer)
     clearTimeout(this.resizeTimer)
     clearTimeout(this.probeTimer)

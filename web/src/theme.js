@@ -8,9 +8,17 @@
 const v = (name) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 
+// While a theme's scene runs behind the terminals, xterm paints no background
+// at all; the readable tint behind the text comes from CSS (.term-host in
+// style.css), at the theme's opacity, the same whichever renderer is in use.
+function termBackground() {
+  if (document.documentElement.dataset.backdrop === 'on') return 'rgba(0, 0, 0, 0)'
+  return v('--color-term-bg')
+}
+
 export function xtermTheme() {
   return {
-    background: v('--color-term-bg'),
+    background: termBackground(),
     foreground: v('--color-term-fg'),
     cursor: v('--color-term-cursor'),
     cursorAccent: v('--color-term-bg'),

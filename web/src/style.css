@@ -122,3 +122,38 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---- themes ----
+   A theme's scene draws in a sandboxed frame behind everything (themes.js).
+   While it runs, the page's own backgrounds step aside so it shows through:
+   the terminals by the theme's opacity (theme.js), the chrome a little. */
+#scene {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: transparent;
+  color-scheme: normal;
+}
+html[data-backdrop='on'] body,
+html[data-backdrop='on'] #surface,
+html[data-backdrop='on'] #grid,
+html[data-backdrop='on'] #stack,
+html[data-backdrop='on'] .bg-term-bg,
+html[data-backdrop='on'] .xterm-viewport {
+  background-color: transparent !important;
+}
+html[data-backdrop='on'] .term-host {
+  background-color: color-mix(in srgb, var(--color-term-bg) var(--papaya-term-pct, 82%), transparent);
+}
+html[data-backdrop='on'] #app {
+  position: relative;
+  z-index: 1;
+}
+html[data-backdrop='on'] .bg-surface-1 {
+  background-color: color-mix(in srgb, var(--color-surface-1) 84%, transparent);
+  backdrop-filter: blur(6px);
+}

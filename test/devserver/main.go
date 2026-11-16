@@ -29,6 +29,7 @@ import (
 	"github.com/martoast/papaya/internal/hub"
 	"github.com/martoast/papaya/internal/setup"
 	"github.com/martoast/papaya/internal/sshx"
+	"github.com/martoast/papaya/internal/themes"
 	"github.com/martoast/papaya/internal/transcribe"
 	"github.com/martoast/papaya/internal/tsnode"
 	"github.com/martoast/papaya/test/harness"
@@ -235,6 +236,12 @@ func run(addr, user string) error {
 		SSHUserAllowed: func(u string) bool { return u != "" && u != "root" },
 		Self:           func() string { return "papaya" },
 	})
+
+	themeStore, err := themes.Open(filepath.Join(work, "themes"))
+	if err != nil {
+		return err
+	}
+	api.EnableThemes(themeStore)
 
 	log.Printf("devserver listening on http://%s (identity %s)", addr, user)
 	srv := &http.Server{
