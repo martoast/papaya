@@ -39,24 +39,63 @@ func TestLoadDefaults(t *testing.T) {
 	require.Equal(t, 30*time.Minute, cfg.DetachedTTL)
 }
 
-// S3: an empty access list is a configuration error, never an invitation to let
-// everyone in.
-func TestS3EmptyAllowListIsFatal(t *testing.T) {
+// S3: an empty access list is never an invitation to let everyone in. It means
+// "only the person who signed papaya in", which is decided once the node is up.
+func TestS3EmptyAllowListMeansOwnerOnly(t *testing.T) {
 	e := base()
 	delete(e, "PAPAYA_ALLOWED_USERS")
 
-	_, err := loadFrom(env(e))
-	require.Error(t, err, "must refuse to start with no allowed users and no allowed tags")
-	require.Contains(t, err.Error(), "refusing to start")
+	cfg, err := loadFrom(env(e))
+	require.NoError(t, err)
+	require.True(t, cfg.OwnerOnly(), "no list must mean owner only, never everyone")
+	require.Empty(t, cfg.AllowedUsers)
+	require.Empty(t, cfg.AllowedTags)
 }
 
-func TestEmptyStringAllowListIsFatal(t *testing.T) {
+func TestEmptyStringAllowListMeansOwnerOnly(t *testing.T) {
 	e := base()
 	e["PAPAYA_ALLOWED_USERS"] = "  ,  ,"
 	e["PAPAYA_ALLOWED_TAGS"] = ""
 
-	_, err := loadFrom(env(e))
-	require.Error(t, err, "whitespace-only lists must not count as configured")
+	cfg, err := loadFrom(env(e))
+	require.NoError(t, err)
+	require.True(t, cfg.OwnerOnly(), "whitespace-only lists must not count as configured")
+}
+
+func TestAnExplicitListIsNotOwnerOnly(t *testing.T) {
+	cfg, err := loadFrom(env(base()))
+	require.NoError(t, err)
+	require.False(t, cfg.OwnerOnly())
+}
+
+// The zero-configuration start: nothing set at all must load, so papaya can
+// print its sign-in link instead of a list of errors.
+func TestNothingSetStartsInSetupMode(t *testing.T) {
+	cfg, err := loadFrom(env(map[string]string{}))
+	require.NoError(t, err)
+	require.Equal(t, "", cfg.AuthKey, "no key means a browser sign-in")
+	require.True(t, cfg.OwnerOnly())
+	require.False(t, cfg.Ephemeral, "a browser-signed-in node must survive restarts")
+	require.True(t, cfg.TLSAuto, "HTTPS is decided from what the tailnet offers")
+	require.False(t, cfg.TLS)
+	require.Equal(t, "/var/lib/papaya/settings.json", cfg.SettingsPath())
+	require.Equal(t, "/var/lib/papaya/known_hosts", cfg.TrustedHostsPath())
+	require.Equal(t, "/var/lib/papaya/papaya_ed25519", cfg.GeneratedKeyPath())
+}
+
+func TestExplicitTLSWinsOverAuto(t *testing.T) {
+	e := base()
+	e["PAPAYA_TLS"] = "false"
+	cfg, err := loadFrom(env(e))
+	require.NoError(t, err)
+	require.False(t, cfg.TLSAuto)
+	require.False(t, cfg.TLS)
+
+	e["PAPAYA_TLS"] = "true"
+	cfg, err = loadFrom(env(e))
+	require.NoError(t, err)
+	require.False(t, cfg.TLSAuto)
+	require.True(t, cfg.TLS)
 }
 
 func TestTagsAloneAreSufficient(t *testing.T) {
@@ -78,22 +117,31 @@ func TestTagsMustBePrefixed(t *testing.T) {
 	require.Contains(t, err.Error(), "tag:")
 }
 
-func TestMissingAuthKeyIsFatal(t *testing.T) {
+func TestMissingAuthKeyMeansBrowserSignIn(t *testing.T) {
 	e := base()
 	delete(e, "TS_AUTHKEY")
 
-	_, err := loadFrom(env(e))
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "TS_AUTHKEY")
+	cfg, err := loadFrom(env(e))
+	require.NoError(t, err)
+	require.Equal(t, "", cfg.AuthKey)
+}
+
+func TestAnAuthKeyKeepsEphemeralByDefault(t *testing.T) {
+	cfg, err := loadFrom(env(base()))
+	require.NoError(t, err)
+	require.True(t, cfg.Ephemeral)
 }
 
 func TestErrorsAreReportedTogether(t *testing.T) {
-	_, err := loadFrom(env(map[string]string{}))
+	_, err := loadFrom(env(map[string]string{
+		"PAPAYA_MAX_SESSIONS": "lots",
+		"PAPAYA_ALLOWED_TAGS": "ci",
+	}))
 	require.Error(t, err)
 
 	msg := err.Error()
-	require.Contains(t, msg, "TS_AUTHKEY", "all problems should be reported at once")
-	require.Contains(t, msg, "refusing to start")
+	require.Contains(t, msg, "PAPAYA_MAX_SESSIONS", "all problems should be reported at once")
+	require.Contains(t, msg, "tag:")
 }
 
 func TestInvalidValuesAreRejected(t *testing.T) {
@@ -358,15 +406,16 @@ func TestHostEntryWithNoHostIsDropped(t *testing.T) {
 }
 
 // There is no built-in remote account. A default name would log in as the wrong
-// person on somebody else's machine, so a missing one is a startup error that
-// says exactly what to set.
+// person on somebody else's machine, so with none set the account is chosen per
+// machine in the setup screen.
 func TestNoDefaultSSHUser(t *testing.T) {
 	e := base()
 	delete(e, "PAPAYA_SSH_USER")
 
-	_, err := loadFrom(env(e))
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "PAPAYA_SSH_USER is required")
+	cfg, err := loadFrom(env(e))
+	require.NoError(t, err)
+	require.Equal(t, "", cfg.SSHUser)
+	require.Equal(t, "", cfg.UserForHost("anything"))
 }
 
 func TestEveryListedHostCanCarryItsOwnAccount(t *testing.T) {

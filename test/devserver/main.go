@@ -10,26 +10,44 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"tailscale.com/client/tailscale/apitype"
+	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/tailcfg"
+	"tailscale.com/types/key"
 
 	"github.com/martoast/papaya/internal/httpapi"
 	"github.com/martoast/papaya/internal/hub"
+	"github.com/martoast/papaya/internal/setup"
 	"github.com/martoast/papaya/internal/sshx"
 	"github.com/martoast/papaya/internal/transcribe"
 	"github.com/martoast/papaya/internal/tsnode"
 	"github.com/martoast/papaya/test/harness"
 	"github.com/martoast/papaya/web"
 )
+
+var setupMode, httpsAvailable *bool
+
+// fakeTailnet stands in for tailnet status in the setup screen.
+type fakeTailnet struct {
+	mu sync.Mutex
+	st *ipnstate.Status
+}
+
+func (f *fakeTailnet) Status(context.Context) (*ipnstate.Status, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.st, nil
+}
 
 // fakeWhoIs reports a fixed identity for every request.
 type fakeWhoIs struct{ login string }
@@ -44,6 +62,8 @@ func (f fakeWhoIs) WhoIs(context.Context, string) (*apitype.WhoIsResponse, error
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8099", "listen address")
 	user := flag.String("user", "alice@example.com", "fake tailnet identity")
+	setupMode = flag.Bool("setup", false, "start with setup unfinished, as a fresh install")
+	httpsAvailable = flag.Bool("https-available", false, "pretend the tailnet offers HTTPS certificates")
 	flag.Parse()
 
 	if err := run(*addr, *user); err != nil {
@@ -87,16 +107,72 @@ func run(addr, user string) error {
 		return err
 	}
 
+	// Machines for the setup screen, on a fake tailnet: one running Tailscale
+	// SSH (it advertises its host key, so it needs no confirmation), one Mac
+	// with its own sshd (its key must be confirmed), and one offline.
+	tailnet := &fakeTailnet{st: &ipnstate.Status{
+		Peer:           map[key.NodePublic]*ipnstate.PeerStatus{},
+		CurrentTailnet: &ipnstate.TailnetStatus{MagicDNSSuffix: "tail1234.ts.net"},
+	}}
+	for _, m := range []struct {
+		name, os string
+		online   bool
+		tsSSH    bool
+	}{
+		{"web-server", "linux", true, true},
+		{"macbook", "macOS", true, false},
+		{"nas", "linux", false, false},
+	} {
+		peer := &ipnstate.PeerStatus{
+			HostName: m.name, DNSName: m.name + ".tail1234.ts.net.", OS: m.os, Online: m.online,
+		}
+		if m.online {
+			srv, err := harness.StartSSHServer(harness.AuthNone, filepath.Join(work, m.name))
+			if err != nil {
+				return err
+			}
+			defer srv.Close()
+			rewrite[m.name] = srv.Addr
+			if m.tsSSH {
+				peer.SSH_HostKeys = []string{srv.AuthorizedHostKey()}
+			}
+		}
+		tailnet.st.Peer[key.NewNode().Public()] = peer
+	}
+	trustedPath := filepath.Join(work, "trusted_known_hosts")
+	tailnetKeys := func(host string) []string {
+		st, _ := tailnet.Status(context.Background())
+		return tsnode.PeerSSHHostKeysFrom(st, host)
+	}
+
+	// Setup starts finished, so every other browser test sees the normal app;
+	// the setup tests reopen it through the API.
+	store, err := setup.Open(filepath.Join(work, "settings.json"))
+	if err != nil {
+		return err
+	}
+	if err := store.Update(func(s *setup.Settings) {
+		s.Complete = !*setupMode
+		if s.Complete {
+			s.Seen = []string{"macbook", "nas", "web-server"}
+		}
+	}); err != nil {
+		return err
+	}
+
 	uploadDir := filepath.Join(work, "uploads")
 	if err := os.MkdirAll(uploadDir, 0o700); err != nil {
 		return err
 	}
 
 	dialer := harness.NewCountingDialer(rewrite)
-	pool := sshx.NewPool(dialer, sshx.Config{
-		UseTailscaleSSH: true,
-		KnownHostsPath:  khPath,
-	})
+	sshCfg := sshx.Config{
+		UseTailscaleSSH:  true,
+		KnownHostsPath:   khPath,
+		TrustedHostsPath: trustedPath,
+		TailnetHostKeys:  tailnetKeys,
+	}
+	pool := sshx.NewPool(dialer, sshCfg)
 	defer pool.CloseAll()
 
 	h := hub.New(pool, hub.Options{
@@ -144,7 +220,21 @@ func run(addr, user string) error {
 			MaxAudioBytes:  25 << 20,
 			MaxSessions:    10,
 			Hostname:       "localhost",
+			SSHUserForHost: setup.AccountResolver(nil, store.UserFor, ""),
 		})
+	api.EnableSetup(httpapi.SetupDeps{
+		Store:     store,
+		Peers:     tailnet,
+		Dialer:    dialer,
+		SSH:       sshCfg,
+		PublicKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDevServerExampleKeyNotARealOne0000000000 papaya",
+		Owner:     func() string { return user },
+		HTTPS: func() httpapi.HTTPSState {
+			return httpapi.HTTPSState{Available: *httpsAvailable, URL: "http://" + addr}
+		},
+		SSHUserAllowed: func(u string) bool { return u != "" && u != "root" },
+		Self:           func() string { return "papaya" },
+	})
 
 	log.Printf("devserver listening on http://%s (identity %s)", addr, user)
 	srv := &http.Server{

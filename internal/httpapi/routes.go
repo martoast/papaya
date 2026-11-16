@@ -57,6 +57,8 @@ type Server struct {
 	// Transcription bills per request, so it gets its own budget per identity.
 	transcribeLimit *rateLimiter
 	opts            Options
+	// setup is the first-run setup screen's API; nil where it is not wired.
+	setup *setupAPI
 }
 
 func New(h *hub.Hub, auth *tsnode.Auth, status Statuser, static fs.FS, opts Options) *Server {
@@ -103,6 +105,7 @@ func (s *Server) Handler() http.Handler {
 	protected.HandleFunc("POST /upload", s.upload)
 	protected.HandleFunc("POST /api/transcribe", s.transcribeAudio)
 	protected.HandleFunc("GET /api/capabilities", s.capabilities)
+	s.setupRoutes(protected)
 	protected.Handle("/", s.staticHandler())
 
 	root := http.NewServeMux()

@@ -13,8 +13,10 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/mdp/qrterminal/v3"
 	"tailscale.com/client/local"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/tsnet"
@@ -51,17 +53,36 @@ func Start(ctx context.Context, cfg *config.Config, verbose bool) (*Node, error)
 		srv.Logf = log.Printf
 	}
 
+	// tsnet repeats its own one-line version of the sign-in link every few
+	// seconds. papaya prints a clearer one with a QR code, so drop the
+	// duplicate rather than bury ours under it.
+	srv.UserLogf = func(format string, a ...any) {
+		if strings.HasPrefix(format, "To start this tsnet server") || strings.HasPrefix(format, "AuthLoop:") {
+			return
+		}
+		log.Printf(format, a...)
+	}
+
+	lc, err := srv.LocalClient() // starts the node
+	if err != nil {
+		srv.Close()
+		return nil, fmt.Errorf("local client: %w", err)
+	}
+
+	// With no auth key, the node waits for its owner to sign in through the
+	// browser. Show them where, for as long as it waits.
+	signInCtx, stopSignIn := context.WithCancel(ctx)
+	defer stopSignIn()
+	if cfg.AuthKey == "" {
+		go announceSignIn(signInCtx, lc)
+	}
+
 	status, err := srv.Up(ctx)
 	if err != nil {
 		srv.Close()
 		return nil, fmt.Errorf("tailnet up: %w", err)
 	}
-
-	lc, err := srv.LocalClient()
-	if err != nil {
-		srv.Close()
-		return nil, fmt.Errorf("local client: %w", err)
-	}
+	stopSignIn()
 
 	if status != nil && status.Self != nil {
 		log.Printf("tailnet: node %q up, addrs=%v", status.Self.DNSName, status.TailscaleIPs)
@@ -153,3 +174,152 @@ func (n *Node) Status(ctx context.Context) (*ipnstate.Status, error) {
 
 // Close shuts the node down. For an ephemeral node this deregisters it.
 func (n *Node) Close() error { return n.srv.Close() }
+
+// announceSignIn prints the "Sign in with Tailscale" link, and a QR code for a
+// phone, whenever the node is waiting for one. The link changes if it expires,
+// so it is printed again then.
+func announceSignIn(ctx context.Context, lc *local.Client) {
+	var lastURL, lastState string
+	for {
+		st, err := lc.StatusWithoutPeers(ctx)
+		if err == nil && st != nil {
+			switch {
+			case st.BackendState == "NeedsLogin" && st.AuthURL != "" && st.AuthURL != lastURL:
+				lastURL = st.AuthURL
+				printSignIn(st.AuthURL)
+			case st.BackendState == "NeedsMachineAuth" && lastState != st.BackendState:
+				printBox([]string{
+					"Signed in. Your tailnet asks an admin to approve new devices.",
+					"",
+					"Approve \"papaya\" here, and it will carry on by itself:",
+					"https://login.tailscale.com/admin/machines",
+				})
+			}
+			lastState = st.BackendState
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(2 * time.Second):
+		}
+	}
+}
+
+func printSignIn(url string) {
+	printBox([]string{
+		"Welcome to Papaya. One step to go: connect it to your Tailscale.",
+		"",
+		"Open this link and sign in (or scan the code below with your phone):",
+		"",
+		url,
+		"",
+		"Papaya joins your tailnet as your device, so only you can use it.",
+	})
+	var qr strings.Builder
+	qrterminal.GenerateWithConfig(url, qrterminal.Config{
+		Level:          qrterminal.L,
+		Writer:         &qr,
+		HalfBlocks:     true,
+		BlackChar:      qrterminal.BLACK_BLACK,
+		WhiteBlackChar: qrterminal.WHITE_BLACK,
+		WhiteChar:      qrterminal.WHITE_WHITE,
+		BlackWhiteChar: qrterminal.BLACK_WHITE,
+		QuietZone:      1,
+	})
+	fmt.Fprint(os.Stderr, qr.String())
+}
+
+// printBox writes lines to stderr inside a frame that stands out from the log
+// lines around it. Plain stderr rather than log: the frame is for a person
+// reading a terminal, and timestamps would break it apart.
+func printBox(lines []string) {
+	width := 0
+	for _, l := range lines {
+		if n := len([]rune(l)); n > width {
+			width = n
+		}
+	}
+	var b strings.Builder
+	b.WriteString("\n  ┌" + strings.Repeat("─", width+2) + "┐\n")
+	for _, l := range lines {
+		b.WriteString("  │ " + l + strings.Repeat(" ", width-len([]rune(l))) + " │\n")
+	}
+	b.WriteString("  └" + strings.Repeat("─", width+2) + "┘\n\n")
+	fmt.Fprint(os.Stderr, b.String())
+}
+
+// PrintBox is printBox for the rest of papaya: the address it can be opened at,
+// once it is running, is announced the same way.
+func PrintBox(lines []string) { printBox(lines) }
+
+// Owner returns the login of the tailnet user this node belongs to, or "" for
+// a tagged node, which belongs to no person.
+func (n *Node) Owner(ctx context.Context) (string, error) {
+	st, err := n.lc.Status(ctx)
+	if err != nil {
+		return "", err
+	}
+	return OwnerOf(st), nil
+}
+
+// OwnerOf extracts the owning user's login from a status.
+func OwnerOf(st *ipnstate.Status) string {
+	if st == nil || st.Self == nil {
+		return ""
+	}
+	if st.Self.Tags != nil && st.Self.Tags.Len() > 0 {
+		return ""
+	}
+	if u, ok := st.User[st.Self.UserID]; ok {
+		return u.LoginName
+	}
+	return ""
+}
+
+// DNSName is this node's MagicDNS name without the trailing dot, or "" when
+// MagicDNS is off.
+func (n *Node) DNSName(ctx context.Context) string {
+	st, err := n.lc.StatusWithoutPeers(ctx)
+	if err != nil || st == nil || st.Self == nil {
+		return ""
+	}
+	return strings.TrimSuffix(st.Self.DNSName, ".")
+}
+
+// PeerSSHHostKeys returns the SSH host keys the tailnet advertises for host —
+// set for machines running Tailscale SSH — matched by short name, MagicDNS
+// name, or address.
+func (n *Node) PeerSSHHostKeys(host string) []string {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	st, err := n.lc.Status(ctx)
+	if err != nil {
+		return nil
+	}
+	return PeerSSHHostKeysFrom(st, host)
+}
+
+// PeerSSHHostKeysFrom is the lookup behind PeerSSHHostKeys, for tests.
+func PeerSSHHostKeysFrom(st *ipnstate.Status, host string) []string {
+	if st == nil {
+		return nil
+	}
+	h := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
+	for _, p := range st.Peer {
+		if p == nil {
+			continue
+		}
+		fqdn := strings.ToLower(strings.TrimSuffix(p.DNSName, "."))
+		short, _, _ := strings.Cut(fqdn, ".")
+		match := h == fqdn || (short != "" && h == short) || strings.EqualFold(h, p.HostName)
+		for _, ip := range p.TailscaleIPs {
+			if ip.String() == h {
+				match = true
+			}
+		}
+		if match {
+			return p.SSH_HostKeys
+		}
+	}
+	return nil
+}

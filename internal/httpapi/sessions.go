@@ -531,6 +531,6 @@ func (s *Server) screen(w http.ResponseWriter, r *http.Request) {
 // noAccountMessage explains a request that names no remote account for a host
 // that has none configured. There is deliberately no built-in default.
 func noAccountMessage(host string) string {
-	return "no remote account for " + host + ": choose one, or set PAPAYA_SSH_USER " +
-		"(or list the host as user@host in PAPAYA_HOSTS)"
+	return "no account chosen for " + host + " yet: open Settings (the gear) and add it, " +
+		"or set PAPAYA_SSH_USER"
 }

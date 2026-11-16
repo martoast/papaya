@@ -33,6 +33,23 @@ type Config struct {
 	// The check-mode approval URL comes through here, and is useless unless it
 	// reaches the person who has to click it.
 	OnPrompt func(instruction string, questions []string)
+
+	// TrustedHostsPath is the known_hosts file papaya writes itself, holding
+	// host keys confirmed in the setup screen. Read alongside KnownHostsPath;
+	// either may be missing as long as one source of trust exists.
+	TrustedHostsPath string
+
+	// TailnetHostKeys returns the SSH host keys the tailnet coordination server
+	// advertises for a host, in authorized_keys format. A machine running
+	// Tailscale SSH publishes its keys this way — it is how `tailscale ssh`
+	// verifies hosts — so such a machine needs no known_hosts entry at all.
+	TailnetHostKeys func(host string) []string
+
+	// TrustOnFirstUse, if set, is offered a host key that no source vouches for.
+	// Returning true accepts it for this connection; persisting it is the
+	// caller's business. The setup screen uses this after the person has seen
+	// and confirmed the fingerprint.
+	TrustOnFirstUse func(hostname string, key ssh.PublicKey) bool
 }
 
 // Dialer opens raw connections to hosts.

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -85,6 +86,12 @@ type Config struct {
 	// needs this.
 	TLS bool
 
+	// TLSAuto is set when PAPAYA_TLS was left unset. papaya then serves HTTPS
+	// on its own as soon as the tailnet offers it a certificate, and plain HTTP
+	// until then, so a first run needs no decision about it. An explicit
+	// PAPAYA_TLS=true or false always wins.
+	TLSAuto bool
+
 	UseTailscaleSSH     bool
 	KeyPath             string
 	KnownHostsPath      string
@@ -119,16 +126,16 @@ func withLegacyNames(get func(string) string) func(string) string {
 func loadFrom(get func(string) string) (*Config, error) {
 	get = withLegacyNames(get)
 	c := &Config{
-		AuthKey:         strings.TrimSpace(get("TS_AUTHKEY")),
-		Hostname:        def(get("PAPAYA_HOSTNAME"), "papaya"),
-		StateDir:        def(get("PAPAYA_STATE_DIR"), "/var/lib/papaya"),
-		SSHUser:         strings.TrimSpace(get("PAPAYA_SSH_USER")),
-		UploadDir:       def(get("PAPAYA_UPLOAD_DIR"), ".papaya-uploads"),
-		KeyPath:         strings.TrimSpace(get("PAPAYA_KEY_PATH")),
-		KnownHostsPath:  def(get("PAPAYA_KNOWN_HOSTS"), "/etc/papaya/known_hosts"),
-		AllowedUsers:    csvSet(get("PAPAYA_ALLOWED_USERS")),
-		AllowedTags:     csvSet(get("PAPAYA_ALLOWED_TAGS")),
-		Hosts:           nil, // set below: entries may carry a "user@" prefix
+		AuthKey:        strings.TrimSpace(get("TS_AUTHKEY")),
+		Hostname:       def(get("PAPAYA_HOSTNAME"), "papaya"),
+		StateDir:       def(get("PAPAYA_STATE_DIR"), "/var/lib/papaya"),
+		SSHUser:        strings.TrimSpace(get("PAPAYA_SSH_USER")),
+		UploadDir:      def(get("PAPAYA_UPLOAD_DIR"), ".papaya-uploads"),
+		KeyPath:        strings.TrimSpace(get("PAPAYA_KEY_PATH")),
+		KnownHostsPath: def(get("PAPAYA_KNOWN_HOSTS"), "/etc/papaya/known_hosts"),
+		AllowedUsers:   csvSet(get("PAPAYA_ALLOWED_USERS")),
+		AllowedTags:    csvSet(get("PAPAYA_ALLOWED_TAGS")),
+		Hosts:          nil, // set below: entries may carry a "user@" prefix
 
 		AllowedSSHUsers: csvSet(get("PAPAYA_ALLOWED_SSH_USERS")),
 		AllowedHosts:    csvList(get("PAPAYA_ALLOWED_HOSTS")),
@@ -151,8 +158,12 @@ func loadFrom(get func(string) string) (*Config, error) {
 		}
 	}
 
+	// An ephemeral node deregisters whenever it stops. That suits a pre-made
+	// auth key, which can simply enrol again; a node signed in through the
+	// browser would make its owner sign in again on every restart, so it is
+	// kept unless asked otherwise.
 	var err error
-	if c.Ephemeral, err = envBool(get, "PAPAYA_EPHEMERAL", true); err != nil {
+	if c.Ephemeral, err = envBool(get, "PAPAYA_EPHEMERAL", c.AuthKey != ""); err != nil {
 		bind(err)
 	}
 	if c.UseTailscaleSSH, err = envBool(get, "PAPAYA_USE_TAILSCALE_SSH", true); err != nil {
@@ -171,7 +182,12 @@ func loadFrom(get func(string) string) (*Config, error) {
 		c.MaxUploadBytes = int64(mb) << 20
 	}
 
-	if c.TLS, err = envBool(get, "PAPAYA_TLS", false); err != nil {
+	if strings.TrimSpace(get("PAPAYA_TLS")) == "" {
+		// Unset: decided at runtime from what the tailnet offers. A certificate
+		// of your own is an explicit choice of HTTPS, though.
+		c.TLSAuto = c.TLSCert == ""
+		c.TLS = c.TLSCert != ""
+	} else if c.TLS, err = envBool(get, "PAPAYA_TLS", false); err != nil {
 		bind(err)
 	}
 	if c.Tmux, err = envBool(get, "PAPAYA_TMUX", false); err != nil {
@@ -201,19 +217,16 @@ func loadFrom(get func(string) string) (*Config, error) {
 		bind(errors.New("PAPAYA_DETACHED_TTL must be positive"))
 	}
 
-	if c.AuthKey == "" {
-		bind(errors.New("TS_AUTHKEY is required (generate an ephemeral, pre-authorized, tagged key)"))
-	}
+	// No TS_AUTHKEY is not an error any more: papaya prints a "Sign in with
+	// Tailscale" link instead, which is the zero-configuration path.
 	if c.Hostname == "" {
 		bind(errors.New("PAPAYA_HOSTNAME must not be empty"))
 	}
 
-	// Never default to permissive. An access list that authorizes nobody is a
-	// configuration error, not an invitation to let everyone in.
-	if len(c.AllowedUsers) == 0 && len(c.AllowedTags) == 0 {
-		bind(errors.New("at least one of PAPAYA_ALLOWED_USERS or PAPAYA_ALLOWED_TAGS must be set; " +
-			"refusing to start with an empty access list"))
-	}
+	// Never default to permissive. An empty access list does not mean
+	// everyone: it means only the person who signed papaya in to the tailnet
+	// (see OwnerOnly). A tagged node has no such person, and main refuses to
+	// start one with no list rather than guess.
 
 	for tag := range c.AllowedTags {
 		if !strings.HasPrefix(tag, "tag:") {
@@ -231,10 +244,9 @@ func loadFrom(get func(string) string) (*Config, error) {
 				missing = append(missing, h)
 			}
 		}
+		// With no hosts listed, accounts are chosen per machine in the setup
+		// screen. A host listed here without one is a half-finished config.
 		switch {
-		case len(c.Hosts) == 0:
-			bind(errors.New("PAPAYA_SSH_USER is required: set it to the remote account to log in as " +
-				"(or list hosts as user@host in PAPAYA_HOSTS)"))
 		case len(missing) > 0:
 			bind(fmt.Errorf("no remote account for %s: set PAPAYA_SSH_USER, or write each host as "+
 				"user@host in PAPAYA_HOSTS", strings.Join(missing, ", ")))
@@ -269,6 +281,9 @@ func loadFrom(get func(string) string) (*Config, error) {
 	}
 	if c.TLSCert != "" && !c.TLS {
 		bind(errors.New("PAPAYA_TLS_CERT is set but PAPAYA_TLS is false; nothing would serve it"))
+	}
+	if c.TLSAuto && c.TLSCert != "" {
+		c.TLSAuto = false
 	}
 
 	if c.KeyPath != "" {
@@ -399,6 +414,24 @@ func firstNonEmpty(vals ...string) string {
 	return ""
 }
 
+// OwnerOnly reports whether no access list was configured, in which case only
+// the tailnet user who owns the papaya node may use it.
+func (c *Config) OwnerOnly() bool {
+	return len(c.AllowedUsers) == 0 && len(c.AllowedTags) == 0
+}
+
+// SettingsPath is where choices made in the setup screen are kept.
+func (c *Config) SettingsPath() string { return filepath.Join(c.StateDir, "settings.json") }
+
+// TrustedHostsPath is the known_hosts file papaya maintains itself: host keys
+// confirmed in the setup screen land here. PAPAYA_KNOWN_HOSTS, if present, is
+// read as well and is never written.
+func (c *Config) TrustedHostsPath() string { return filepath.Join(c.StateDir, "known_hosts") }
+
+// GeneratedKeyPath is the SSH key papaya makes for itself, used for machines
+// that do not run Tailscale SSH. PAPAYA_KEY_PATH replaces it when set.
+func (c *Config) GeneratedKeyPath() string { return filepath.Join(c.StateDir, "papaya_ed25519") }
+
 // TranscriptionEnabled reports whether voice input is configured.
 func (c *Config) TranscriptionEnabled() bool { return c.OpenAIAPIKey != "" }
 
@@ -430,6 +463,11 @@ func (c *Config) UserForHost(host string) string {
 	}
 	return c.SSHUser
 }
+
+// ExplicitUserForHost is the account given for host as "user@host" in
+// PAPAYA_HOSTS, or "" — without falling back to PAPAYA_SSH_USER, so an account
+// chosen in the setup screen can sit between the two.
+func (c *Config) ExplicitUserForHost(host string) string { return c.hostUser(host) }
 
 func (c *Config) hostUser(host string) string {
 	if len(c.HostSSHUsers) == 0 {
