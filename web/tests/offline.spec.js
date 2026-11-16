@@ -125,6 +125,11 @@ test('a page load that hangs falls back instead of spinning', async ({ page, con
   // spins for as long as the browser is willing to wait.
   await context.route('**/index.html', () => {})
   await context.route(`${new URL(page.url()).origin}/`, () => {})
+  // The fallback page probes /healthz and reloads the moment it answers. With
+  // only the page hung, that probe succeeds, so the fallback showed for ~20 ms
+  // every 4 s and whether this test saw it was luck. An unreachable tailnet
+  // address hangs everything, the probe included.
+  await context.route('**/healthz', () => {})
 
   // The navigation cannot resolve until the worker gives up on the network, so
   // both waits have to clear that deadline with room to spare on a loaded
