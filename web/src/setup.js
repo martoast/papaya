@@ -34,17 +34,14 @@ function osLabel(os) {
   return os || 'Device'
 }
 
-// papaya draws the logo: half a papaya, the seeds standing for every machine
-// it brings together. There is no papaya emoji, and a mango is not one.
-const papaya = (size = 20) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">
-  <ellipse cx="12" cy="12" rx="8.5" ry="11" fill="#7cb342"/>
-  <ellipse cx="12" cy="12" rx="7.3" ry="9.8" fill="#ffb74d"/>
-  <ellipse cx="12" cy="13" rx="3.6" ry="5.6" fill="#ff7043"/>
-  <g fill="#212121">
-    <circle cx="11" cy="9.6" r="0.95"/><circle cx="13.1" cy="10.8" r="0.95"/>
-    <circle cx="11.1" cy="12.6" r="0.95"/><circle cx="13" cy="14.4" r="0.95"/>
-    <circle cx="11.2" cy="15.9" r="0.95"/><circle cx="12.6" cy="17.4" r="0.8"/>
-  </g>
+// papaya draws the logo: a papaya cut in half, its seeds forming a >_ prompt.
+// Same mark as site/logo.svg, without ids so it can appear twice on a page.
+// There is no papaya emoji, and a mango is not one.
+const papaya = (size = 20) => `<svg width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true">
+  <path d="M32 3 C42.5 3 50.5 12 54.5 25 C58 37 56.5 50 46.5 57 C41.5 60.5 37 61.5 32 61.5 C27 61.5 22.5 60.5 17.5 57 C7.5 50 6 37 9.5 25 C13.5 12 21.5 3 32 3Z" fill="#3d9c50"/>
+  <path d="M32 3 C42.5 3 50.5 12 54.5 25 C58 37 56.5 50 46.5 57 C41.5 60.5 37 61.5 32 61.5 C27 61.5 22.5 60.5 17.5 57 C7.5 50 6 37 9.5 25 C13.5 12 21.5 3 32 3Z" fill="#ff9447" transform="translate(32 34) scale(.855) translate(-32 -34)"/>
+  <path d="M32 3 C42.5 3 50.5 12 54.5 25 C58 37 56.5 50 46.5 57 C41.5 60.5 37 61.5 32 61.5 C27 61.5 22.5 60.5 17.5 57 C7.5 50 6 37 9.5 25 C13.5 12 21.5 3 32 3Z" fill="#e5541d" transform="translate(32 34.5) scale(.53 .55) translate(-32 -34)"/>
+  <g stroke="#1d120c" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M24.5 25.5 L31.5 32 L24.5 38.5"/><path d="M33.5 41.5 L38.5 41.5"/></g>
 </svg>`
 
 const isMac = (m) => (m.os || '').toLowerCase().startsWith('mac')
