@@ -5,15 +5,19 @@ services:
   papaya:
     build: .
     environment:
-      TS_AUTHKEY: ${TS_AUTHKEY:?set TS_AUTHKEY to an ephemeral, pre-authorized, tagged key}
+      # Optional. Without it, papaya prints a "Sign in with Tailscale" link in
+      # its log (docker compose logs papaya) and you join it from the browser.
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
       PAPAYA_HOSTNAME: ${PAPAYA_HOSTNAME:-papaya}
-      PAPAYA_ALLOWED_USERS: ${PAPAYA_ALLOWED_USERS:?set to a comma-separated list of tailnet logins}
+      # Empty means only the tailnet account papaya is signed in with.
+      PAPAYA_ALLOWED_USERS: ${PAPAYA_ALLOWED_USERS:-}
       PAPAYA_ALLOWED_TAGS: ${PAPAYA_ALLOWED_TAGS:-}
       PAPAYA_HOSTS: ${PAPAYA_HOSTS:-}
       PAPAYA_ALLOWED_HOSTS: ${PAPAYA_ALLOWED_HOSTS:-}
       PAPAYA_ALLOWED_SSH_USERS: ${PAPAYA_ALLOWED_SSH_USERS:-}
       PAPAYA_TMUX: ${PAPAYA_TMUX:-true}
-      PAPAYA_TLS: ${PAPAYA_TLS:-true}
+      # Empty: HTTPS as soon as the tailnet offers a certificate.
+      PAPAYA_TLS: ${PAPAYA_TLS:-}
       PAPAYA_OPENAI_API_KEY: ${PAPAYA_OPENAI_API_KEY:-}
       PAPAYA_SSH_USER: ${PAPAYA_SSH_USER:-}
       # A container that restarts should keep its address rather than re-enrol.

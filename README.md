@@ -48,73 +48,100 @@ Browser ──HTTPS over WireGuard──┐
 
 ## Quick start
 
-You need: a Tailscale network, an always-on machine to run Papaya, and Tailscale
-SSH (`tailscale up --ssh`) on the machines you want to reach.
-
-**Easiest:** point your coding agent at [AGENTS.md](AGENTS.md). It is a
-step-by-step setup guide written for an agent, including every trap we hit.
-
-**By hand, with Docker:**
+You need a [Tailscale](https://tailscale.com/download) network (free for
+personal use) and an always-on machine to run Papaya on. That's it: no keys to
+create, no settings file.
 
 ```bash
-git clone https://github.com/martoast/papaya && cd papaya
-cp .env.example .env && chmod 600 .env
-# Fill in: TS_AUTHKEY, PAPAYA_ALLOWED_USERS (your tailnet login),
-#          PAPAYA_SSH_USER (the account to log in as), PAPAYA_HOSTS.
-ssh-keyscan devbox-1 laptop > deploy/known_hosts     # pin the hosts you will reach
-docker compose up -d
+docker run -d --name papaya --restart unless-stopped \
+  -v papaya-data:/var/lib/papaya ghcr.io/martoast/papaya
+docker logs -f papaya
 ```
 
-Then open `https://papaya.<your-tailnet>.ts.net` from any device on your
-tailnet. The first start takes up to a minute while Tailscale issues the HTTPS
-certificate.
+1. **Sign in.** The log shows a *Sign in with Tailscale* link and a QR code.
+   Open it (on your phone, scan the code) and approve the new device. Papaya
+   joins your tailnet as *your* device, so only you can use it.
+2. **Open it.** The log then prints Papaya's address, like
+   `https://papaya.your-tailnet.ts.net`. Open it from any device on your
+   tailnet.
+3. **Follow the setup screen.** Tick the machines you want, type your account
+   on each, run the one command it shows you there, and press Test. Most
+   machines pass on the first try; anything that doesn't is explained in plain
+   words, with what to do next.
 
-**Or the binary:** download a release for Linux or macOS from the
-[releases page](https://github.com/martoast/papaya/releases), put the same
-settings in your environment, and run `papaya`. `make service-install` sets it
-up as a launchd service on macOS; `deploy/papaya.service` is a systemd unit.
+On a machine without Docker, download the binary for Linux or macOS from the
+[releases page](https://github.com/martoast/papaya/releases) and run `papaya`
+with `PAPAYA_STATE_DIR` pointing at a folder it can keep (`deploy/papaya.service`
+is a systemd unit; `make service-install` sets up launchd on macOS).
 
-Use a **reusable, non-ephemeral** auth key and `PAPAYA_EPHEMERAL=false`, so the
-node keeps one stable address across restarts (see `.env.example` for why).
+**How Papaya gets into your machines.** The setup screen offers two ways, per
+machine:
 
-## Configuration
+- **Tailscale SSH (Linux, recommended).** Run `sudo tailscale set --ssh` on the
+  machine, and change your tailnet's `ssh` rule from `"check"` to `"accept"`
+  once (the screen gives you the snippet to paste). No keys anywhere: the
+  tailnet identity is the credential, and the machine's host key comes from the
+  tailnet too.
+- **Papaya key (Macs, and anything running its own SSH server).** Papaya makes
+  its own SSH key and shows you the one line to add to `~/.ssh/authorized_keys`
+  there. The first connection shows the machine's fingerprint for you to
+  confirm.
 
-All configuration is environment-driven and validated before the node starts.
+**HTTPS** turns on by itself when your tailnet has *HTTPS Certificates* enabled
+(Tailscale admin → DNS). Until then Papaya serves plain HTTP over the tailnet's
+encrypted connection and the setup screen tells you where to switch it on.
+Voice input needs HTTPS.
+
+**Easiest of all:** point your coding agent at [AGENTS.md](AGENTS.md); it walks
+through the same steps and knows every trap.
+
+## Advanced configuration
+
+Everything above works with no settings at all; choices made in the setup
+screen are kept in `$PAPAYA_STATE_DIR/settings.json`. Environment variables
+are for automated or multi-user installs, and they win wherever they overlap
+with the setup screen. They are validated before the node starts.
 
 | Var | Required | Default | Notes |
 |---|---|---|---|
-| `TS_AUTHKEY` | yes | — | Ephemeral + tagged + pre-authorized |
-| `PAPAYA_ALLOWED_USERS` | yes¹ | — | Comma list of tailnet login names |
-| `PAPAYA_ALLOWED_TAGS` | yes¹ | — | Comma list, e.g. `tag:ci` |
+| `TS_AUTHKEY` | no | — | Join without the browser sign-in (e.g. a tagged key for automation) |
+| `PAPAYA_ALLOWED_USERS` | no¹ | owner only | Comma list of tailnet login names |
+| `PAPAYA_ALLOWED_TAGS` | no¹ | — | Comma list, e.g. `tag:ci` |
 | `PAPAYA_HOSTNAME` | no | `papaya` | Tailnet node name |
 | `PAPAYA_STATE_DIR` | no | `/var/lib/papaya` | Created if absent |
-| `PAPAYA_EPHEMERAL` | no | `true` | Node self-deletes on clean exit |
-| `PAPAYA_SSH_USER` | yes² | — | Remote account to log in as. No built-in default |
+| `PAPAYA_EPHEMERAL` | no | `true` with `TS_AUTHKEY`, else `false` | Node self-deletes on clean exit |
+| `PAPAYA_SSH_USER` | no² | — | Default remote account. No built-in default; the setup screen sets one per machine |
 | `PAPAYA_HOSTS` | no | — | Comma list for the picker (suggestion only) |
 | `PAPAYA_ALLOWED_HOSTS` | no | — | **Enforced** allow list of hosts. Empty = any host the ACL permits |
 | `PAPAYA_ALLOWED_SSH_USERS` | no | — | **Enforced** allow list of remote accounts. Empty = any except root |
 | `PAPAYA_TMUX` | no | `false` | Run remote shells in tmux so work survives restarts |
-| `PAPAYA_TLS` | no | `false` | Serve HTTPS via a Tailscale cert. Required for voice |
+| `PAPAYA_TLS` | no | automatic | Unset: HTTPS as soon as the tailnet offers a cert, HTTP until then. `true`/`false` forces it |
 | `PAPAYA_TLS_CERT` | no | — | Your own certificate, for a custom domain |
 | `PAPAYA_TLS_KEY` | no | — | Its key. Both or neither |
 | `PAPAYA_UPLOAD_DIR` | no | `.papaya-uploads` | Relative to the SSH login dir |
 | `PAPAYA_MAX_UPLOAD_MB` | no | `25` | |
 | `PAPAYA_MAX_SESSIONS` | no | `10` | Per owner |
 | `PAPAYA_USE_TAILSCALE_SSH` | no | `true` | Try tailnet-identity auth first |
-| `PAPAYA_KEY_PATH` | no | — | Fallback private key |
-| `PAPAYA_KNOWN_HOSTS` | no | `/etc/papaya/known_hosts` | |
+| `PAPAYA_KEY_PATH` | no | generated | Private key for non-Tailscale-SSH hosts. Default: `$PAPAYA_STATE_DIR/papaya_ed25519`, made on first start |
+| `PAPAYA_KNOWN_HOSTS` | no | `/etc/papaya/known_hosts` | Your own pinned host keys, read-only. Keys confirmed in the setup screen go to `$PAPAYA_STATE_DIR/known_hosts` |
 | `PAPAYA_INSECURE_SKIP_HOST_KEY` | no | `false` | Dev only; warns per connection |
 | `PAPAYA_DETACHED_TTL` | no | `30m` | Reaper for client-less sessions |
 
-¹ At least one of `PAPAYA_ALLOWED_USERS` or `PAPAYA_ALLOWED_TAGS` must be set.
-With neither, the process exits 1 rather than defaulting to permissive.
+¹ With neither set, only the tailnet user Papaya is signed in as can use it —
+never everyone. A *tagged* node belongs to no user, so it must set one of them
+or it refuses to start.
 
-² Required unless every host in `PAPAYA_HOSTS` is written as `user@host`.
+² If you list `PAPAYA_HOSTS`, each needs an account: this default, or the host
+written as `user@host`.
 
 Settings from before the rename (`TSTERM_*`) are still read when the matching
 `PAPAYA_*` one is unset.
 
-## Tailnet setup
+## Tailnet setup with an auth key (advanced)
+
+The setup screen covers a personal tailnet. This section is for running Papaya
+with a pre-made `TS_AUTHKEY` instead of the browser sign-in, for example as a
+tagged node shared by a team.
 
 On each target host: `tailscale up --ssh`.
 

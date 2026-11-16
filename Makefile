@@ -30,7 +30,7 @@ build-go: ## Build the binary only (uses whatever is already in web/dist)
 	$(GO) build -o $(BIN) ./cmd/papaya
 
 .PHONY: run
-run: build ## Build and run locally (requires TS_AUTHKEY and PAPAYA_ALLOWED_USERS)
+run: build ## Build and run locally (prints a Tailscale sign-in link on first start)
 	./$(BIN)
 
 .PHONY: run-env

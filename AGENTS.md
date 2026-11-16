@@ -31,22 +31,55 @@ is no longer a tailnet peer. This is not configurable. Do not do it.
 
 ---
 
-## Before you start, ask the operator for
+## The short version
+
+papaya needs no settings. Start it with a persistent data volume, hand the
+operator the sign-in link it prints, and let them finish in the setup screen:
+
+```bash
+docker run -d --name papaya --restart unless-stopped \
+  -v papaya-data:/var/lib/papaya ghcr.io/martoast/papaya
+docker logs -f papaya
+```
+
+1. The log shows **"Sign in with Tailscale"**, a `https://login.tailscale.com/a/…`
+   link, and a QR code. Give the link to the operator; they open it and approve
+   the device. Do not try to complete it yourself — it is their Tailscale
+   account. If the tailnet requires device approval, the log says so and links
+   to the admin page.
+2. Once they have signed in, the log prints a box with the address
+   (`https://papaya.<tailnet>.ts.net`, or `http://…` while the tailnet's HTTPS
+   certificates are off). Only the account that signed in can open it.
+3. The operator follows the setup screen: tick machines, type their account on
+   each, run the one command shown for each machine (`sudo tailscale set --ssh`,
+   or a line that adds papaya's key to `~/.ssh/authorized_keys`), paste the
+   policy snippet once, press Test.
+
+Everything chosen is saved in the volume (`settings.json`, papaya's own key
+`papaya_ed25519`, and confirmed host keys in `known_hosts`). Losing the volume
+means signing in and setting up again.
+
+If the operator is not watching the terminal, run `docker logs papaya | grep -A3
+"login.tailscale.com"` to fetch the link again; it is reprinted if it expires.
+
+---
+
+## Automated install (optional): settings instead of the setup screen
+
+For a shared or scripted install — a tagged node, an auth key, fixed hosts —
+ask the operator for:
 
 1. **A Tailscale auth key** — reusable, non-ephemeral, pre-approved if device
    approval is on. See the trap below about reusable.
 2. **An OpenAI API key** — optional, enables voice input. Omit to disable.
-3. **Which hosts and which remote accounts** papaya may reach. There is no
-   default account: set `PAPAYA_SSH_USER`, or write hosts as `user@host` in
-   `PAPAYA_HOSTS`. papaya refuses to start without one.
-4. **A Cloudflare (or other DNS) API token** — only if serving a custom domain.
+3. **Which hosts and which remote accounts** papaya may reach (`PAPAYA_HOSTS`
+   as `user@host`, or `PAPAYA_SSH_USER`).
+4. **Who may use it** (`PAPAYA_ALLOWED_USERS` / `PAPAYA_ALLOWED_TAGS`). A
+   tagged node belongs to no user, so it refuses to start without one of these.
+5. **A Cloudflare (or other DNS) API token** — only if serving a custom domain.
 
 Never accept these on a command line. Put them in `.env`, mode `600`. The process
 list is readable by every other user on the machine.
-
----
-
-## Steps
 
 ### 1. Prerequisites
 
@@ -56,25 +89,28 @@ git clone https://github.com/martoast/papaya.git && cd papaya
 command -v docker || sudo apt install -y docker.io docker-compose-plugin
 ```
 
-On every **target** machine, enable Tailscale SSH (`sudo tailscale up --ssh`)
+On every **target** machine, enable Tailscale SSH (`sudo tailscale set --ssh`)
 and install `tmux`. A macOS target cannot run Tailscale SSH's server; it needs
-Remote Login on and a key (`PAPAYA_KEY_PATH`) authorised for the account.
+Remote Login on and papaya's key authorised for the account (the setup screen
+shows the line, or use your own key with `PAPAYA_KEY_PATH`).
 
 `tmux` matters: it is what makes sessions survive papaya restarting. Without it
 papaya silently falls back to a plain login shell and that feature just does not
 work.
 
-### 2. Pin the host keys you will connect to
+### 2. Host keys
+
+Machines running Tailscale SSH need nothing: their host keys come from the
+tailnet. For anything else, either confirm the fingerprint once in the setup
+screen, or pin keys yourself:
 
 ```bash
 mkdir -p deploy
 ssh-keyscan <target-host-1> <target-host-2> > deploy/known_hosts
 ```
 
-Host key verification is on by default and there is **no** fallback to trusting
-whatever answers. If this file is missing or incomplete, connections fail with
-`unknown host` and a fingerprint. That is working as intended; add the
-fingerprint after verifying it out of band.
+There is **no** fallback to trusting whatever answers. An unknown host fails
+with `unknown host` and its fingerprint. That is working as intended.
 
 ### 3. Configuration
 
@@ -83,13 +119,14 @@ cp .env.example .env && chmod 600 .env
 $EDITOR .env
 ```
 
-Fill in every value. `PAPAYA_ALLOWED_HOSTS` and `PAPAYA_ALLOWED_SSH_USERS` are
-enforced server-side, not merely used to populate the UI picker — a scripted
-request can name any host and any account, and these are what stop it.
+`PAPAYA_ALLOWED_HOSTS` and `PAPAYA_ALLOWED_SSH_USERS` are enforced server-side,
+not merely used to populate the UI picker — a scripted request can name any
+host and any account, and these are what stop it.
 
-Set `PAPAYA_EPHEMERAL=false`. An ephemeral node deregisters when the process
-stops, which invalidates its stored identity and gives it a **new address on
-every restart** — which then breaks any DNS record pointing at it.
+With an auth key, set `PAPAYA_EPHEMERAL=false`. An ephemeral node deregisters
+when the process stops, which invalidates its stored identity and gives it a
+**new address on every restart** — which then breaks any DNS record pointing at
+it.
 
 ### 4. Start it
 
@@ -98,19 +135,15 @@ docker compose up -d --build
 docker compose logs -f
 ```
 
+After changing `.env`, use `docker compose up -d --force-recreate`; a plain
+restart does not re-read it.
+
 **Expect the first start to take 40–60 seconds.** Control-plane registration is
-slow, and if TLS is on, the certificate is issued during startup. It is not
-hung. Killing it early leaves a half-registered node holding the hostname, and
-the next start becomes `papaya-1`, then `papaya-2`.
+slow, and the HTTPS certificate is issued during startup. It is not hung.
+Killing it early leaves a half-registered node holding the hostname, and the
+next start becomes `papaya-1`, then `papaya-2`.
 
-Healthy output:
-
-```
-hosts restricted to: ...
-remote users restricted to: ...
-tmux enabled: sessions persist on the remote host across restarts
-serving on tailnet at https://papaya:443
-```
+Healthy output ends with a box naming the address to open.
 
 ### 5. Verify — do not skip this
 
@@ -170,8 +203,8 @@ tailnet boundary is doing real work.
 **`action: "check"` in the tailnet SSH policy cannot be satisfied.** Check mode
 grants access per node after a browser approval. A headless service cannot
 complete one, and the server neither accepts nor rejects — it goes silent until
-the dial times out. Use `accept`, scoped to a tag. papaya reports this specific
-cause when a handshake stalls.
+the dial times out. Use `accept` (the setup screen's snippet does; for a tagged
+node, scope it to the tag). The setup screen's Test button names this cause.
 
 **DNS-01 fails on a tailnet-joined machine unless you pin public resolvers.** The
 system resolver is MagicDNS (`100.100.100.100`), which answers NXDOMAIN for
