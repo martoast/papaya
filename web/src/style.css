@@ -1,18 +1,19 @@
 @import "tailwindcss";
 @import "@xterm/xterm/css/xterm.css";
+@import "./glass.css";
 
 /* Design tokens live here once. Tailwind styles the chrome from them, and
    theme.js reads the terminal ones at runtime to build the xterm theme object,
    so there is never a second, divergent colour definition. */
 @theme {
   /* chrome */
-  --color-surface-0: #0d1117;
-  --color-surface-1: #161b22;
-  --color-surface-2: #21262d;
-  --color-surface-3: #30363d;
-  --color-text-hi: #e6edf3;
-  --color-text-lo: #8b949e;
-  --color-accent: #58a6ff;
+  --color-surface-0: #08090d;
+  --color-surface-1: #111318;
+  --color-surface-2: #1a1d24;
+  --color-surface-3: #2a2e37;
+  --color-text-hi: #f2f2f7;
+  --color-text-lo: #9a9aa6;
+  --color-accent: #ff9447;
 
   /* state */
   --color-state-ok: #3fb950;
@@ -20,9 +21,9 @@
   --color-state-err: #f85149;
 
   /* terminal - consumed by theme.js */
-  --color-term-bg: #0d1117;
-  --color-term-fg: #e6edf3;
-  --color-term-cursor: #58a6ff;
+  --color-term-bg: #0b0c10;
+  --color-term-fg: #ebebf0;
+  --color-term-cursor: #ff9447;
   --color-term-sel: #264f78;
 
   --color-ansi-black: #484f58;
@@ -47,12 +48,14 @@
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas,
     "Liberation Mono", monospace;
   --radius-tab: 0.375rem;
+  /* The chrome speaks the system's own UI font; the terminal stays mono. */
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif;
 }
 
 /* xterm manages its own sizing; it must not fight the flex/grid layout. */
 .xterm {
   height: 100%;
-  padding: 0.5rem;
+  padding: 10px 12px;
 }
 
 .xterm-viewport {

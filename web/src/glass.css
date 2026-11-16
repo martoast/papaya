@@ -1,0 +1,326 @@
+/* ==========================================================================
+   Liquid Glass
+   --------------------------------------------------------------------------
+   Following Apple's Liquid Glass: content (the terminal) stays solid and
+   readable at the bottom layer; the controls float above it on glass that
+   blurs and saturates what is behind it, carries a rim of light on its edges,
+   and casts a soft shadow. Shapes are capsules with concentric corners. A
+   warm glow (#ambient) sits behind everything so the glass has light to bend.
+
+   Unlayered on purpose: these rules win over Tailwind's utilities.
+   ========================================================================== */
+
+:root {
+  --lg-blur: 26px;
+  --lg-sat: 185%;
+  --lg-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.045));
+  --lg-fill-strong: linear-gradient(180deg, rgba(48, 48, 56, 0.72), rgba(28, 28, 34, 0.66));
+  --lg-rim:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 0 -0.5px 0 rgba(255, 255, 255, 0.07),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.11);
+  --lg-drop: 0 12px 32px -10px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.28);
+  --lg-gutter: 10px;
+  --lg-radius: 24px;
+  --lg-papaya: #ff9447;
+  --lg-papaya-2: #ff7a2f;
+}
+@media (max-width: 640px) {
+  :root { --lg-gutter: 8px; --lg-radius: 22px; }
+}
+
+html, body { background: #06070a; }
+body { font-family: var(--font-ui); }
+#app { position: relative; z-index: 1; }
+
+/* The light behind the glass. Static: an animated layer under backdrop-filter
+   would re-blur every frame and cost an iPhone its battery. */
+#ambient {
+  position: fixed;
+  inset: -12%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(38% 32% at 10% 6%, rgba(255, 132, 64, 0.5), transparent 70%),
+    radial-gradient(34% 30% at 94% 12%, rgba(176, 92, 255, 0.32), transparent 70%),
+    radial-gradient(46% 40% at 88% 96%, rgba(24, 190, 170, 0.26), transparent 70%),
+    radial-gradient(40% 34% at 4% 92%, rgba(255, 70, 120, 0.24), transparent 70%),
+    #06070a;
+}
+html[data-backdrop='on'] #ambient { display: none; }
+
+/* ---- the material ---- */
+.lg-glass,
+.lg-bar,
+.lg-key,
+.lg-sheet,
+.lg-row,
+.lg-empty-new {
+  position: relative;
+  background: var(--lg-fill);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+  box-shadow: var(--lg-rim), var(--lg-drop);
+  isolation: isolate;
+}
+/* The specular sheen: light caught along the top-left of the curve. */
+.lg-glass::before,
+.lg-bar::before,
+.lg-sheet::before,
+.lg-key::before,
+.lg-empty-new::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(120% 70% at 18% -10%, rgba(255, 255, 255, 0.16), transparent 55%),
+    radial-gradient(80% 60% at 100% 120%, rgba(255, 255, 255, 0.06), transparent 60%);
+}
+
+/* ---- bars: floating capsules ---- */
+.lg-bar { border-radius: var(--lg-radius); }
+.lg-top {
+  height: 48px;
+  margin: calc(env(safe-area-inset-top) + var(--lg-gutter)) max(var(--lg-gutter), env(safe-area-inset-right)) 8px
+    max(var(--lg-gutter), env(safe-area-inset-left));
+  padding: 0 6px;
+}
+.lg-bottom {
+  height: 40px;
+  margin: 8px max(var(--lg-gutter), env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + var(--lg-gutter))
+    max(var(--lg-gutter), env(safe-area-inset-left));
+  padding: 0 6px 0 16px;
+  border-radius: 20px;
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
+}
+html.kb-open .lg-bottom { margin-bottom: 6px; }
+@media (pointer: coarse) {
+  .lg-bottom { height: 44px; border-radius: 22px; font-size: 13px; }
+}
+
+/* ---- the content layer: the terminal, solid, on a rounded card ---- */
+.lg-surface {
+  margin: 0 max(var(--lg-gutter), env(safe-area-inset-right)) 0 max(var(--lg-gutter), env(safe-area-inset-left));
+  border-radius: calc(var(--lg-radius) - 2px);
+  background: transparent;
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.09), 0 24px 60px -20px rgba(0, 0, 0, 0.7);
+}
+.lg-surface #stack { border-radius: inherit; }
+.lg-surface #grid { background: transparent; padding: 0; gap: 8px; }
+.xterm { padding: 10px 12px; }
+
+/* ---- buttons in the bars ---- */
+.lg-btn {
+  height: 36px;
+  min-width: 36px;
+  padding: 0 10px;
+  border-radius: 18px;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-lo);
+  transition: background-color 0.2s, color 0.2s, transform 0.25s cubic-bezier(0.3, 1.6, 0.5, 1);
+  -webkit-tap-highlight-color: transparent;
+}
+.lg-btn:not(.hidden) { display: inline-flex; }
+.lg-btn:hover { background: rgba(255, 255, 255, 0.08); color: var(--color-text-hi); }
+.lg-btn:active { transform: scale(0.9); background: rgba(255, 255, 255, 0.16); }
+.lg-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+.lg-bottom .lg-btn { height: 32px; min-width: 32px; padding: 0 9px; border-radius: 16px; }
+.lg-label { font-size: 13px; font-weight: 500; }
+.lg-ico { display: block; flex: none; }
+.lg-new { color: var(--color-text-hi); }
+.lg-tint { color: var(--lg-papaya); }
+.lg-warn { color: var(--color-state-warn); }
+
+/* The mic: the one tinted control, because talking is the fast way in. */
+.lg-mic {
+  color: #ffb27a;
+  background: linear-gradient(180deg, rgba(255, 148, 71, 0.26), rgba(255, 122, 47, 0.16));
+  box-shadow: inset 0 0 0 0.5px rgba(255, 170, 110, 0.35), inset 0 1px 0 rgba(255, 220, 190, 0.25);
+}
+.lg-mic:hover { background: linear-gradient(180deg, rgba(255, 148, 71, 0.36), rgba(255, 122, 47, 0.24)); color: #ffd2ad; }
+.lg-mic-ico { display: grid; place-items: center; }
+.lg-mic[data-state='recording'] {
+  color: #fff;
+  background: linear-gradient(180deg, #ff5f57, #e5332a);
+  box-shadow: 0 0 0 0 rgba(255, 69, 58, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  animation: lg-rec 1.4s ease-out infinite;
+}
+.lg-mic[data-state='transcribing'] { color: #1c1206; background: linear-gradient(180deg, var(--lg-papaya), var(--lg-papaya-2)); }
+@keyframes lg-rec { 70% { box-shadow: 0 0 0 10px rgba(255, 69, 58, 0), inset 0 1px 0 rgba(255, 255, 255, 0.3); } }
+
+/* ---- tabs: capsules; the active one is a lens of brighter glass ---- */
+.lg-tab {
+  height: 36px;
+  border-radius: 18px;
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: background-color 0.25s, color 0.25s, box-shadow 0.25s;
+}
+.lg-tab:hover { background: rgba(255, 255, 255, 0.06); color: var(--color-text-hi); }
+.lg-tab[data-active='true'] {
+  color: var(--color-text-hi);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 0 0 0.5px rgba(255, 255, 255, 0.16),
+    0 4px 14px -4px rgba(0, 0, 0, 0.5);
+}
+.lg-tab[data-attention='true'] {
+  color: var(--color-text-hi);
+  background: linear-gradient(180deg, rgba(255, 148, 71, 0.3), rgba(255, 122, 47, 0.16));
+  box-shadow: inset 0 0 0 0.5px rgba(255, 170, 110, 0.5);
+}
+.lg-tab .tab-name { font-family: var(--font-ui); }
+.lg-tab-close:hover { background: rgba(255, 255, 255, 0.14); color: var(--color-state-err); }
+
+/* ---- floating keys ---- */
+.lg-key {
+  border-radius: 15px;
+  font-family: var(--font-ui);
+  font-weight: 500;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.25s cubic-bezier(0.3, 1.6, 0.5, 1), background-color 0.15s;
+}
+.lg-key:active { transform: scale(0.88); background: rgba(255, 255, 255, 0.22); }
+.lg-key-chip { border-radius: 99px; }
+
+/* ---- sheets and dialogs ---- */
+.lg-scrim {
+  background: rgba(0, 0, 0, 0.32);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  animation: lg-fade 0.2s ease-out;
+}
+.lg-sheet {
+  border-radius: 30px;
+  background: var(--lg-fill-strong);
+  --lg-blur: 40px;
+  color: var(--color-text-hi);
+  font-family: var(--font-ui);
+  animation: lg-pop 0.32s cubic-bezier(0.2, 1.2, 0.4, 1);
+}
+.lg-sheet-title { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+.lg-sheet label { font-size: 13px; font-weight: 500; color: var(--color-text-lo); }
+.lg-field {
+  padding: 11px 14px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 0.5px solid rgba(255, 255, 255, 0.16);
+  color: var(--color-text-hi);
+  font-size: 16px; /* 16px: iOS zooms into anything smaller */
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.lg-field:focus { border-color: var(--lg-papaya); box-shadow: 0 0 0 3px rgba(255, 148, 71, 0.25); }
+.lg-pill-btn {
+  padding: 9px 18px;
+  border-radius: 99px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-hi);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  transition: background-color 0.2s, transform 0.25s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.lg-pill-btn:hover { background: rgba(255, 255, 255, 0.16); }
+.lg-pill-btn:active { transform: scale(0.94); }
+.lg-pill-primary {
+  color: #1c1206;
+  background: linear-gradient(180deg, #ffa25a, var(--lg-papaya-2));
+  box-shadow: inset 0 1px 0 rgba(255, 230, 200, 0.5), 0 6px 18px -6px rgba(255, 122, 47, 0.6);
+}
+.lg-pill-primary:hover { background: linear-gradient(180deg, #ffb070, #ff8a40); }
+@keyframes lg-fade { from { opacity: 0; } }
+@keyframes lg-pop { from { opacity: 0; transform: scale(0.94) translateY(8px); } }
+
+/* ---- empty state ---- */
+.lg-empty { display: grid; justify-items: center; font-family: var(--font-ui); padding: 24px; }
+.lg-empty-new {
+  width: 76px;
+  height: 76px;
+  border-radius: 99px;
+  display: grid;
+  place-items: center;
+  color: #ffd2ad;
+  background: linear-gradient(180deg, rgba(255, 148, 71, 0.34), rgba(255, 122, 47, 0.16));
+  box-shadow: inset 0 0 0 0.5px rgba(255, 180, 120, 0.45), inset 0 1px 0 rgba(255, 230, 200, 0.35),
+    0 16px 40px -12px rgba(255, 122, 47, 0.55);
+  transition: transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.lg-empty-new:hover { transform: scale(1.05); }
+.lg-empty-new:active { transform: scale(0.92); }
+.lg-empty-title { margin-top: 18px; font-size: 21px; font-weight: 700; letter-spacing: -0.02em; color: var(--color-text-hi); }
+.lg-empty-sub { margin-top: 6px; font-size: 14.5px; color: var(--color-text-lo); }
+#resumable { width: min(360px, 86vw); }
+#resumable .uppercase { font-size: 12px; letter-spacing: 0.06em; }
+.lg-row {
+  padding: 12px 16px;
+  border-radius: 16px;
+  box-shadow: var(--lg-rim);
+  transition: background-color 0.2s, transform 0.25s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.lg-row:hover { background: rgba(255, 255, 255, 0.12); }
+.lg-row:active { transform: scale(0.97); }
+
+/* ---- toasts and the recording pill ---- */
+.lg-glass { border-radius: 99px; }
+.lg-toast { border-radius: 99px; white-space: nowrap; max-width: calc(100% - 24px); }
+#recording-pill { font-family: var(--font-ui); }
+
+/* ---- grid panels: each terminal its own card ---- */
+.lg-panel {
+  border: 0;
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 14px 36px -16px rgba(0, 0, 0, 0.7);
+}
+.lg-panel[data-focused='true'] { box-shadow: 0 0 0 1.5px var(--lg-papaya), 0 14px 36px -16px rgba(0, 0, 0, 0.7); }
+.lg-panel[data-attention='true'] { box-shadow: 0 0 0 2px var(--color-state-warn), 0 14px 36px -16px rgba(0, 0, 0, 0.7); }
+.lg-panel-head {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03));
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.07);
+  font-family: var(--font-ui);
+}
+
+/* ---- themes: a scene behind everything; bars stay glass over it ---- */
+html[data-backdrop='on'] .lg-surface { box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.12); }
+
+@media (prefers-reduced-transparency: reduce) {
+  .lg-glass, .lg-bar, .lg-key, .lg-sheet, .lg-row { background: #1c1d22; -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+/* ---- setup, the install guide and the voice sheet: same glass ---- */
+html body .setup-ui {
+  background:
+    radial-gradient(60% 40% at 10% 0%, rgba(255, 132, 64, 0.42), transparent 70%),
+    radial-gradient(50% 36% at 100% 18%, rgba(176, 92, 255, 0.26), transparent 70%),
+    radial-gradient(60% 40% at 90% 100%, rgba(24, 190, 170, 0.2), transparent 70%),
+    #06070a !important;
+  background-attachment: fixed !important;
+}
+.setup-ui .su-card {
+  background: var(--lg-fill);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+  box-shadow: var(--lg-rim), var(--lg-drop);
+  border-radius: 22px;
+}
+.setup-ui .su-head::before { background: rgba(6, 7, 10, 0.35); }
+.setup-ui .su-foot::before {
+  background: linear-gradient(rgba(6, 7, 10, 0), rgba(6, 7, 10, 0.75) 22px);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  -webkit-mask: linear-gradient(transparent, #000 22px);
+  mask: linear-gradient(transparent, #000 22px);
+}
+.setup-ui .su-oneline code { background: rgba(0, 0, 0, 0.45); border-color: rgba(255, 255, 255, 0.12); }
+#install-guide .ig-card,
+.vs-card {
+  background: var(--lg-fill-strong) !important;
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  backdrop-filter: blur(40px) saturate(180%);
+  box-shadow: var(--lg-rim), 0 24px 60px rgba(0, 0, 0, 0.5) !important;
+  border-radius: 30px !important;
+}
+.vs-card input { background: rgba(0, 0, 0, 0.4); }

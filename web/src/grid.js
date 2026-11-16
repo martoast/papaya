@@ -187,7 +187,7 @@ export class GridView {
     const panel = document.createElement('div')
     panel.dataset.panelId = id
     panel.className =
-      'group/panel relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded ' +
+      'lg-panel group/panel relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl ' +
       'border border-surface-3 bg-term-bg transition-[border-color,box-shadow] ' +
       'data-[focused=true]:border-accent data-[focused=true]:shadow-[0_0_0_1px_var(--color-accent)] ' +
       // A panel asking for attention is unmissable across a full grid.
@@ -200,7 +200,7 @@ export class GridView {
     // Header doubles as the drag handle for rearranging.
     const header = document.createElement('div')
     header.className =
-      'flex h-7 shrink-0 items-center gap-2 border-b border-surface-3 bg-surface-1 px-2 ' +
+      'lg-panel-head flex h-8 shrink-0 items-center gap-2 px-3 ' +
       'cursor-grab active:cursor-grabbing select-none'
     header.draggable = true
 

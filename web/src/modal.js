@@ -4,16 +4,16 @@ import { api } from './api.js'
 export function newSessionModal(overlaysEl) {
   return new Promise((resolve) => {
     const root = document.createElement('div')
-    root.className = 'fixed inset-0 z-30 grid place-items-center bg-black/60'
+    root.className = 'lg-scrim fixed inset-0 z-30 grid place-items-center'
     root.dataset.modal = 'new-session'
 
     root.innerHTML = `
-      <div class="w-80 rounded-lg border border-surface-3 bg-surface-1 p-4 shadow-2xl">
-        <h2 class="text-sm font-semibold mb-3">New session</h2>
+      <div class="lg-sheet w-[min(22rem,calc(100vw-2rem))] p-5">
+        <h2 class="lg-sheet-title mb-4">New session</h2>
 
         <label class="block text-xs text-text-lo mb-1" for="modal-host">Host</label>
         <select id="modal-host"
-                class="w-full mb-3 rounded bg-surface-2 border border-surface-3 px-2 py-1.5
+                class="lg-field w-full mb-3
                        text-sm outline-none focus:ring-1 focus:ring-accent">
           <option value="">Loading hosts…</option>
         </select>
@@ -27,17 +27,16 @@ export function newSessionModal(overlaysEl) {
           Name <span class="opacity-60">(optional)</span>
         </label>
         <input id="modal-name" placeholder="billing-api" maxlength="40"
-               class="w-full mb-4 rounded bg-surface-2 border border-surface-3 px-2 py-1.5
+               class="lg-field w-full mb-4
                       text-sm outline-none focus:ring-1 focus:ring-accent">
 
         <p id="modal-error" class="hidden text-xs text-state-err mb-3"></p>
 
         <div class="flex justify-end gap-2">
           <button data-act="cancel"
-                  class="px-3 py-1.5 text-sm rounded text-text-lo hover:bg-surface-2">Cancel</button>
+                  class="lg-pill-btn">Cancel</button>
           <button data-act="connect"
-                  class="px-3 py-1.5 text-sm rounded bg-accent text-surface-0 font-medium
-                         hover:opacity-90">Connect</button>
+                  class="lg-pill-btn lg-pill-primary">Connect</button>
         </div>
       </div>
     `
@@ -130,13 +129,13 @@ export function newSessionModal(overlaysEl) {
 export function confirmModal(overlaysEl, message) {
   return new Promise((resolve) => {
     const root = document.createElement('div')
-    root.className = 'fixed inset-0 z-30 grid place-items-center bg-black/60'
+    root.className = 'lg-scrim fixed inset-0 z-30 grid place-items-center'
     root.innerHTML = `
-      <div class="w-80 rounded-lg border border-surface-3 bg-surface-1 p-4 shadow-2xl">
+      <div class="lg-sheet w-[min(22rem,calc(100vw-2rem))] p-5">
         <p class="text-sm mb-4"></p>
         <div class="flex justify-end gap-2">
-          <button data-act="no" class="px-3 py-1.5 text-sm rounded text-text-lo hover:bg-surface-2">Cancel</button>
-          <button data-act="yes" class="px-3 py-1.5 text-sm rounded bg-accent text-surface-0 font-medium hover:opacity-90">Close</button>
+          <button data-act="no" class="lg-pill-btn">Cancel</button>
+          <button data-act="yes" class="lg-pill-btn lg-pill-primary">Close</button>
         </div>
       </div>
     `
@@ -171,12 +170,10 @@ export function searchOverlay(overlaysEl, tab) {
   const root = document.createElement('div')
   root.dataset.overlay = 'search'
   root.className =
-    'fixed top-11 right-4 z-30 flex items-center gap-1 rounded-md border border-surface-3 ' +
-    'bg-surface-1 px-2 py-1.5 shadow-xl'
+    'lg-glass fixed top-16 right-4 z-30 flex items-center gap-1 rounded-full px-2 py-1.5'
   root.innerHTML = `
     <input placeholder="Find" spellcheck="false"
-           class="w-48 bg-surface-2 rounded px-2 py-1 text-sm outline-none
-                  focus:ring-1 focus:ring-accent">
+           class="lg-field w-48 text-sm">
     <button data-act="prev" class="px-1.5 text-text-lo hover:text-text-hi text-sm" aria-label="Previous">↑</button>
     <button data-act="next" class="px-1.5 text-text-lo hover:text-text-hi text-sm" aria-label="Next">↓</button>
     <button data-act="close" class="px-1.5 text-text-lo hover:text-state-err text-sm" aria-label="Close">×</button>

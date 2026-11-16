@@ -23,7 +23,7 @@
          on the next load. -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="theme-color" content="#0d1117" />
+    <meta name="theme-color" content="#08090d" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Papaya" />
     <!-- Not black-translucent: the tab bar sits at the very top and would end
@@ -32,24 +32,25 @@
   </head>
 
   <!-- h-dvh, not h-screen: dynamic viewport height accounts for mobile browser chrome. -->
-  <body class="h-dvh bg-surface-0 text-text-hi font-mono antialiased overflow-hidden">
+  <body class="h-dvh bg-surface-0 text-text-hi font-ui antialiased overflow-hidden">
+    <!-- The light the glass bends: a warm glow behind everything (glass.css). -->
+    <div id="ambient" aria-hidden="true"></div>
     <!-- keypad.js resizes this to the visual viewport while the soft keyboard
          is up, so the terminal refits above it instead of disappearing under it. -->
     <div id="app" class="grid h-full grid-rows-[auto_1fr_auto] grid-cols-[minmax(0,1fr)]">
       <!-- tab bar -->
       <div
         id="tabbar"
-        class="flex items-stretch gap-px bg-surface-1 border-b border-surface-3 px-2 h-9 select-none safe-top"
+        class="lg-bar lg-top flex items-center gap-1 select-none"
       >
-        <div id="tabs" role="tablist" aria-label="Sessions" class="flex flex-1 min-w-0 items-stretch gap-px"></div>
+        <div id="tabs" role="tablist" aria-label="Sessions" class="flex flex-1 min-w-0 items-center gap-1"></div>
         <button
           id="balance"
-          class="hidden shrink-0 px-2 text-text-lo hover:text-text-hi hover:bg-surface-2
-                 transition-colors text-xs"
+          class="lg-btn hidden shrink-0"
           title="Even out the panels"
           aria-label="Balance panels"
         >
-          ⤢
+          <svg class="lg-ico" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M12 4.5v15M3.5 12h17"/></svg>
         </button>
         <!-- Full screen. Worth a button rather than leaving it to the browser's
              own menu: this is what makes a tab stop looking like a tab, and
@@ -58,14 +59,13 @@
              and a button that silently does nothing is worse than no button. -->
         <button
           id="fullscreen"
-          class="hidden shrink-0 px-3 text-text-lo hover:text-text-hi hover:bg-surface-2
-                 transition-colors items-center gap-1.5 text-xs"
+          class="lg-btn hidden shrink-0 items-center gap-1.5"
           data-on="false"
           title="Full screen"
           aria-label="Full screen"
         >
-          <span id="fullscreen-icon" aria-hidden="true">⛶</span>
-          <span id="fullscreen-label" class="max-sm:hidden">Full</span>
+          <span id="fullscreen-icon" aria-hidden="true"><svg class="lg-ico" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V5.5A1.5 1.5 0 015.5 4H9M15 4h3.5A1.5 1.5 0 0120 5.5V9M20 15v3.5a1.5 1.5 0 01-1.5 1.5H15M9 20H5.5A1.5 1.5 0 014 18.5V15"/></svg></span>
+          <span id="fullscreen-label" class="lg-label max-lg:hidden">Full</span>
         </button>
         <!-- Attach a file: opens the native picker — on iOS that is Photo
              Library / Take Photo / Files — and uploads through the same path as
@@ -74,44 +74,37 @@
              desktop has drag-and-drop and paste. -->
         <button
           id="attach"
-          class="hidden touch:flex shrink-0 px-3 items-center gap-1.5 text-text-lo
-                 hover:text-text-hi hover:bg-surface-2 transition-colors text-xs"
+          class="lg-btn hidden touch:flex shrink-0 items-center gap-1.5"
           aria-label="Attach a file"
           title="Attach a file"
         >
-          <span aria-hidden="true">📎</span>
-          <span class="max-sm:hidden">Attach</span>
+          <svg class="lg-ico" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11.5l-7.8 7.8a5 5 0 01-7.1-7.1l8.5-8.5a3.3 3.3 0 014.7 4.7l-8.5 8.5a1.7 1.7 0 01-2.4-2.4l7.8-7.8"/></svg>
+          <span class="lg-label max-lg:hidden">Attach</span>
         </button>
         <button
           id="mic"
-          class="hidden shrink-0 px-3 items-center gap-1.5 text-text-lo hover:text-text-hi
-                 hover:bg-surface-2 transition-colors
-                 data-[state=recording]:text-state-err
-                 data-[state=transcribing]:text-accent
-                 disabled:opacity-30 disabled:cursor-not-allowed"
+          class="lg-btn lg-mic hidden shrink-0 items-center gap-1.5"
           data-state="idle"
           title="Hold ⌃Space to talk, or click to toggle"
           aria-label="Voice input"
         >
-          <span class="size-2 rounded-full bg-current
-                       data-[on=true]:animate-pulse" id="mic-dot" data-on="false"></span>
-          <span class="text-xs tabular-nums max-sm:hidden" id="mic-label">Voice</span>
+          <span id="mic-dot" data-on="false" class="lg-mic-ico"><svg class="lg-ico" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21"/></svg></span>
+          <span class="lg-label tabular-nums max-lg:hidden" id="mic-label">Voice</span>
         </button>
         <button
           id="new-tab"
-          class="shrink-0 px-3 text-text-lo hover:text-text-hi hover:bg-surface-2
-                 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-lg leading-none"
+          class="lg-btn lg-new shrink-0"
           title="New session (⌘T)"
           aria-label="New session"
         >
-          +
+          <svg class="lg-ico" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         </button>
       </div>
 
       <!-- Two views over the same terminals. Elements are MOVED between the
            stack and the grid; recreating one would lose its scrollback and
            reconnect its socket. Overlays sit above both. -->
-      <div id="surface" class="relative overflow-hidden bg-surface-0">
+      <div id="surface" class="lg-surface relative overflow-hidden">
         <div id="stack" class="absolute inset-0 overflow-hidden bg-term-bg"></div>
         <div id="grid" class="hidden absolute inset-0 overflow-hidden bg-surface-0 p-1.5"></div>
 
@@ -122,9 +115,8 @@
              comes back. -->
         <div
           id="offline-banner"
-          class="hidden absolute top-0 inset-x-0 z-40 items-center justify-center gap-2
-                 border-b border-state-err/40 bg-state-err/15 backdrop-blur-sm
-                 px-3 py-2 text-xs text-text-hi"
+          class="lg-glass lg-toast hidden absolute top-3 left-1/2 -translate-x-1/2 z-40 items-center justify-center gap-2
+                 px-4 py-2.5 text-sm text-text-hi"
           role="status"
           aria-live="polite"
         >
@@ -136,9 +128,10 @@
           id="empty-state"
           class="absolute inset-0 grid place-items-center text-center text-text-lo"
         >
-          <div>
-            <div class="text-sm">No sessions</div>
-            <div class="text-xs mt-1 opacity-70">Press ⌘T to connect to a host</div>
+          <div class="lg-empty">
+            <button id="empty-new" class="lg-empty-new" aria-label="New session"><svg class="lg-ico" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+            <div class="lg-empty-title">Open a terminal</div>
+            <div class="lg-empty-sub">Pick a machine and start working.<span class="touch:hidden"> Or press ⌘T.</span></div>
 
             <!-- Work that outlived papaya. Populated from /api/resumable, and
                  hidden when there is none, so the empty state stays quiet. -->
@@ -149,7 +142,7 @@
                 </div>
                 <button
                   id="resume-all"
-                  class="text-xs px-2 py-1 rounded border border-border hover:bg-surface-2"
+                  class="lg-pill-btn"
                 >
                   Resume all
                 </button>
@@ -163,9 +156,8 @@
         <div
           id="recording-pill"
           data-state="idle"
-          class="hidden absolute bottom-4 left-1/2 -translate-x-1/2 z-30 items-center gap-3
-                 rounded-full border border-surface-3 bg-surface-1/95 backdrop-blur-sm
-                 px-4 py-2 shadow-2xl select-none
+          class="lg-glass hidden absolute bottom-4 left-1/2 -translate-x-1/2 z-30 items-center gap-3
+                 rounded-full px-4 py-2 select-none
                  data-[state=recording]:flex data-[state=transcribing]:flex"
           role="status"
           aria-live="polite"
@@ -204,8 +196,7 @@
            bar keeps clear of the home indicator and the rounded corners. -->
       <div
         id="statusbar"
-        class="flex items-center justify-between h-6 px-3 text-xs bg-surface-1
-               border-t border-surface-3 text-text-lo safe-bottom"
+        class="lg-bar lg-bottom flex items-center justify-between text-text-lo"
       >
         <span id="status-left" class="min-w-0 flex-1 truncate pr-2"></span>
         <span id="status-right" class="flex shrink-0 items-center gap-2">
@@ -221,8 +212,7 @@
                with nothing to press. Hidden until something is actually wrong. -->
           <button
             id="reconnect"
-            class="hidden items-center gap-1 rounded px-1.5 py-0.5 text-xs
-                   text-state-warn hover:bg-surface-2 hover:text-text-hi transition-colors"
+            class="lg-btn lg-warn hidden items-center gap-1"
             title="Reconnect stale sessions"
           >
             <span aria-hidden="true">⟳</span>
@@ -235,8 +225,7 @@
                unless something is actually waiting. -->
           <button
             id="clipboard-pending"
-            class="hidden items-center gap-1 rounded px-1.5 py-0.5 text-xs
-                   text-state-warn hover:bg-surface-2 hover:text-text-hi transition-colors"
+            class="lg-btn lg-warn hidden items-center gap-1"
             title="Put the text copied on the remote host onto this machine's clipboard"
           >
             <span aria-hidden="true">⧉</span>
@@ -251,8 +240,7 @@
                Screen guide on iPhone and iPad (install.js). Hidden elsewhere. -->
           <button
             id="install-app"
-            class="hidden items-center gap-1 rounded px-1.5 py-0.5 text-xs
-                   text-accent hover:bg-surface-2 hover:text-text-hi transition-colors"
+            class="lg-btn lg-tint hidden items-center gap-1"
             title="Install Papaya as an app"
           >
             <span aria-hidden="true">⤓</span>
@@ -260,13 +248,12 @@
           </button>
           <button
             id="settings"
-            class="relative inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs
-                   text-text-lo hover:bg-surface-2 hover:text-text-hi transition-colors"
+            class="lg-btn relative inline-flex items-center gap-1.5"
             title="Machines and setup"
             aria-label="Machines and setup"
           >
-            <span aria-hidden="true">⚙</span>
-            <span class="hidden sm:inline">Machines</span>
+            <svg class="lg-ico" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
+            <span class="lg-label hidden sm:inline">Machines</span>
             <span id="settings-dot" class="hidden absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-accent"></span>
           </button>
         </span>

@@ -119,14 +119,14 @@ test('the key pad sends terminal keys on a touch device', async ({ browser }) =>
   })
   expect(sent).toBe(true)
 
-  // Tap all five keys; each must write its own escape sequence to the socket.
-  for (const k of ['esc', '↑', '↓', '←', '→']) {
+  // Tap every key; each must write its own sequence to the socket.
+  for (const k of ['esc', '↑', '↓', '←', '→', 'tab']) {
     await pad.locator(`button[data-key="${k}"]`).dispatchEvent('pointerdown')
   }
   await page.waitForTimeout(100)
 
   const bytes = await page.evaluate(() => window.__sent)
-  expect(bytes).toEqual(['\x1b', '\x1b[A', '\x1b[B', '\x1b[D', '\x1b[C'])
+  expect(bytes).toEqual(['\x1b', '\x1b[A', '\x1b[B', '\x1b[D', '\x1b[C', '\t'])
 
   await ctx.close()
 })

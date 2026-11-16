@@ -14,7 +14,7 @@ test('the page declares a manifest and an apple touch icon', async ({ page }) =>
     '/manifest.webmanifest',
   )
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveCount(1)
-  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0d1117')
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#08090d')
 })
 
 test('the manifest is served as a manifest, not as text', async ({ page, request }) => {

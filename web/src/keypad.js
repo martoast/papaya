@@ -19,11 +19,13 @@ const KEYS = [
   { label: '←', seq: '\x1b[D', repeat: true, cell: 'col-start-1 row-start-2' },
   { label: '↓', seq: '\x1b[B', repeat: true, cell: 'col-start-2 row-start-2' },
   { label: '→', seq: '\x1b[C', repeat: true, cell: 'col-start-3 row-start-2' },
+  // Tab: completion in every shell and the way through agent menus; the soft
+  // keyboard has none.
+  { label: 'tab', seq: '\t', cell: 'col-start-1 row-start-3 !h-10 !w-full' },
 ]
 
 const BTN =
-  'grid place-items-center size-11 rounded-lg border border-surface-3 bg-surface-2/85 ' +
-  'backdrop-blur-sm text-sm text-text-hi active:bg-surface-3 ' +
+  'lg-key grid place-items-center size-11 text-sm text-text-hi ' +
   'group-data-[open=false]:hidden'
 
 export function wireKeyPad(pad, getActiveTab) {
@@ -38,9 +40,8 @@ export function wireKeyPad(pad, getActiveTab) {
   // when the pad is hidden this chip is all that remains on screen.
   const toggle = document.createElement('button')
   toggle.className =
-    'col-start-3 row-start-1 self-center justify-self-end grid place-items-center size-7 ' +
-    'rounded-md border border-surface-3 bg-surface-1/70 backdrop-blur-sm text-xs ' +
-    'text-text-lo active:bg-surface-3'
+    'lg-key lg-key-chip col-start-3 row-start-1 self-center justify-self-end grid place-items-center size-8 ' +
+    'text-xs text-text-lo'
   toggle.dataset.key = 'toggle'
 
   const setOpen = (on) => {
@@ -105,9 +106,8 @@ export function wireKeyPad(pad, getActiveTab) {
   // is there to send the pasted prompt.
   const paste = document.createElement('button')
   paste.className =
-    'col-start-1 col-span-3 row-start-3 h-9 w-full grid place-items-center rounded-lg ' +
-    'border border-surface-3 bg-surface-2/85 backdrop-blur-sm text-xs text-text-hi ' +
-    'active:bg-surface-3 group-data-[open=false]:hidden'
+    'lg-key col-start-2 col-span-2 row-start-3 h-10 w-full grid place-items-center ' +
+    'text-sm text-text-hi group-data-[open=false]:hidden'
   paste.dataset.key = 'paste'
   paste.textContent = 'Paste'
   paste.addEventListener('click', () => {

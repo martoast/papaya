@@ -6,18 +6,16 @@ import { onLongPress } from './longpress.js'
 
 export const MAX_TABS = 10
 
+// Tabs are capsules inside the glass bar; the active one is a lens of
+// brighter glass (glass.css .lg-tab). Layout rules stay here.
 const TAB_CLASS =
-  'group relative flex items-center gap-2 min-w-0 flex-1 max-w-48 px-3 rounded-t-tab ' +
-  'cursor-pointer transition-colors bg-surface-2 text-text-lo hover:bg-surface-3 ' +
-  'data-[active=true]:bg-term-bg data-[active=true]:text-text-hi ' +
-  'data-[active=true]:shadow-[inset_0_2px_0_0_var(--color-accent)] ' +
+  'lg-tab group relative flex items-center gap-2 min-w-0 flex-1 max-w-52 px-3 ' +
+  'cursor-pointer text-text-lo ' +
   // On a phone the bar has room for one title. The active tab keeps its name
   // and takes whatever width the chips leave; every other tab collapses to a
   // centred status dot, still one tap to switch to.
   'max-sm:data-[active=false]:max-w-9 max-sm:data-[active=false]:px-0 ' +
-  'max-sm:data-[active=false]:justify-center max-sm:data-[active=true]:max-w-none ' +
-  // A session asking for attention is outlined until it is looked at.
-  'data-[attention=true]:bg-accent/15 data-[attention=true]:text-text-hi'
+  'max-sm:data-[active=false]:justify-center max-sm:data-[active=true]:max-w-none'
 
 const DOT_CLASS =
   'size-1.5 shrink-0 rounded-full transition-colors ' +
@@ -158,8 +156,8 @@ export class TabManager {
 
     const close = document.createElement('button')
     close.className =
-      'shrink-0 size-4 rounded opacity-0 group-hover:opacity-100 hover:bg-surface-3 ' +
-      'hover:text-state-err flex items-center justify-center text-xs transition-opacity ' +
+      'lg-tab-close shrink-0 size-5 rounded-full opacity-0 group-hover:opacity-100 group-data-[active=true]:opacity-60 ' +
+      'flex items-center justify-center text-sm transition-opacity ' +
       'max-sm:group-data-[active=false]:hidden'
     close.setAttribute('aria-label', 'Close')
     close.textContent = '×'

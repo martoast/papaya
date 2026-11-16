@@ -174,13 +174,11 @@ async function refreshResumable() {
 
   for (const w of items) {
     const row = document.createElement('button')
-    row.className =
-      'flex items-center justify-between gap-4 px-2 py-1.5 rounded ' +
-      'border border-border hover:bg-surface-2 text-xs'
+    row.className = 'lg-row flex items-center justify-between gap-4 text-sm'
     row.dataset.workspace = w.name
 
     const left = document.createElement('span')
-    left.className = 'font-mono'
+    left.className = 'font-mono text-text-hi'
     left.textContent = w.label
 
     const right = document.createElement('span')
@@ -1008,3 +1006,6 @@ if ('serviceWorker' in navigator) {
     })
   })
 }
+
+// The empty state's big + does what the bar's + does.
+el('empty-new')?.addEventListener('click', () => el('new-tab').click())

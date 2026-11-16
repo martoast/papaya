@@ -120,7 +120,7 @@ test('blur commits a rename', async ({ page }) => {
   await page.locator('[data-tab-id] .tab-name').first().dblclick()
   const input = page.locator('input[data-rename-input="true"]')
   await input.fill('after-blur')
-  await page.locator('#stack').click({ position: { x: 5, y: 5 } })
+  await page.locator('#stack').click({ position: { x: 40, y: 40 } })
 
   await expect(page.locator('[data-tab-id] .tab-name').first()).toHaveText('after-blur')
 })
