@@ -463,7 +463,6 @@ func TestLiveTmuxSurvivesRestart(t *testing.T) {
 	time.Sleep(2 * time.Second)
 }
 
-
 // waitForShell blocks until the remote shell is actually executing what we send.
 //
 // tmux switches to the alternate screen and repaints when it attaches, and

@@ -133,10 +133,10 @@ func TestTranscribeKeepsAudioExtension(t *testing.T) {
 		"note.mp3":       "audio.mp3",
 		// The API detects format from the extension, so an unknown one falls
 		// back to what browsers actually produce.
-		"weird.xyz":            "audio.webm",
-		"":                     "audio.webm",
-		"../../etc/passwd":     "audio.webm",
-		"a.wav; rm -rf /":      "audio.webm",
+		"weird.xyz":        "audio.webm",
+		"":                 "audio.webm",
+		"../../etc/passwd": "audio.webm",
+		"a.wav; rm -rf /":  "audio.webm",
 	}
 
 	for in, want := range cases {

@@ -53,7 +53,7 @@ type Options struct {
 	Keywords []string
 	// NoShellVocabulary suppresses the built-in command hints.
 	NoShellVocabulary bool
-	Timeout  time.Duration
+	Timeout           time.Duration
 }
 
 // Client talks to the OpenAI transcription endpoint.

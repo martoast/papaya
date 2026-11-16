@@ -201,10 +201,10 @@ func mustSigner(t *testing.T, path string) ssh.Signer {
 
 func TestClampDims(t *testing.T) {
 	cases := []struct {
-		inC, inR   int
-		wantC      int
-		wantR      int
-		reason     string
+		inC, inR int
+		wantC    int
+		wantR    int
+		reason   string
 	}{
 		{120, 40, 120, 40, "valid dims pass through"},
 		{0, 0, 80, 24, "zero from a hidden terminal falls back to defaults"},

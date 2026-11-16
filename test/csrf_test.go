@@ -2,9 +2,9 @@ package test
 
 import (
 	"bytes"
-	"strings"
 	"mime/multipart"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
