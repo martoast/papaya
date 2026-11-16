@@ -12,6 +12,7 @@ import { wireKeyPad, wireViewport } from './keypad.js'
 import { saveLayout, loadLayout, rehydrate } from './layout.js'
 import { reachability } from './connectivity.js'
 import { rememberTabs, recallTabs } from './remember.js'
+import { runSetup, watchNewMachines } from './setup.js'
 
 const el = (id) => document.getElementById(id)
 
@@ -926,7 +927,51 @@ window.addEventListener('beforeunload', () => {
   // Sessions deliberately survive a reload; only the sockets go away.
 })
 
-restore()
+// A fresh install opens on the setup screen; everything else starts as before.
+// Asking first costs one request, and a failure to ask (an older server, a
+// blip) falls through to the normal app rather than blocking it.
+async function start() {
+  let setupState = null
+  try {
+    setupState = await api.setup()
+  } catch {
+    // Not available: carry on as configured.
+  }
+
+  if (setupState && !setupState.complete) {
+    const first = await runSetup(el('overlays'), setupState)
+    await restore()
+    if (first && tabs.size === 0) openOn(first)
+  } else {
+    restore()
+  }
+  watchNewMachines(el('settings-dot'))
+}
+
+// openOn opens the first terminal on a machine setup has just made ready.
+async function openOn({ host, user }) {
+  try {
+    adoptSession(await api.createSession({ host, user, cols: 80, rows: 24 }))
+  } catch (err) {
+    notice(err.message, 'error')
+  }
+}
+
+el('settings').addEventListener('click', async () => {
+  let st
+  try {
+    st = await api.setup()
+  } catch (err) {
+    notice(`could not open setup: ${err.message}`, 'error')
+    return
+  }
+  const first = await runSetup(el('overlays'), st, { reopen: true })
+  api.seenMachines().catch(() => {})
+  el('settings-dot').classList.add('hidden')
+  if (first && tabs.size === 0) openOn(first)
+})
+
+start()
 initVoice()
 
 // The worker only supplies an offline fallback page (see public/sw.js). It is

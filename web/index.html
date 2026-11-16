@@ -240,6 +240,21 @@
             <span>Copy</span>
           </button>
           <span id="status-text"></span>
+          <!-- Machines and setup: reopens the setup screen to add or fix a
+               machine. Down here rather than in the tab bar, which is already
+               full on a phone. The dot lights when a machine joins the tailnet
+               that the owner has not been shown yet. -->
+          <button
+            id="settings"
+            class="relative inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs
+                   text-text-lo hover:bg-surface-2 hover:text-text-hi transition-colors"
+            title="Machines and setup"
+            aria-label="Machines and setup"
+          >
+            <span aria-hidden="true">⚙</span>
+            <span class="hidden sm:inline">Machines</span>
+            <span id="settings-dot" class="hidden absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-accent"></span>
+          </button>
         </span>
       </div>
     </div>

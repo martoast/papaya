@@ -45,6 +45,14 @@ export const api = {
     request('POST', '/api/sessions/resume', { host, user, name, workspace, cols, rows }),
 
   capabilities: () => request('GET', '/api/capabilities'),
+
+  // First-run setup: connect machines, test them, finish.
+  setup: () => request('GET', '/api/setup'),
+  saveMachines: (machines) => request('PUT', '/api/setup/machines', { machines }),
+  testMachine: ({ host, user, method, trust }) =>
+    request('POST', '/api/setup/test', { host, user, method, trust }),
+  completeSetup: (complete = true) => request('POST', '/api/setup/complete', { complete }),
+  seenMachines: () => request('POST', '/api/setup/seen'),
 }
 
 // upload posts a file with progress. XMLHttpRequest rather than fetch, because
