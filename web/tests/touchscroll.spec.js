@@ -117,3 +117,40 @@ test('switching tabs on a phone does not raise the keyboard', async ({ browser }
   expect(await typingTarget()).toBe(false)
   await ctx.close()
 })
+
+// Two devices on one tab: whichever you are looking at gets a shell drawn for
+// its screen. The phone switching to the tab takes the size; the desktop takes
+// it back as soon as the mouse moves there.
+test('the device you are looking at gets the shell drawn for its screen', async ({ page, browser }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await resetSessions(page)
+  const shared = await (await newTab(page, { name: 'shared' })).getAttribute('data-tab-id')
+  await newTab(page, { name: 'other' })
+  await page.locator(`[data-tab-id="${shared}"]`).click()
+  const size = () => page.evaluate(async (id) => {
+    const s = (await (await fetch('/api/sessions')).json()).find((x) => x.id === id)
+    return s ? s.cols : 0
+  }, shared)
+  const desktopCols = await page.evaluate((id) => document.querySelector(`.term-host[data-terminal-id="${id}"]`)._terminal.cols, shared)
+  await page.mouse.move(400, 400)
+  await expect.poll(size, { timeout: 5000 }).toBe(desktopCols)
+
+  const ctx = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 780 } })
+  const phone = await ctx.newPage()
+  try {
+    await phone.goto('/')
+    await expect(phone.locator(`[data-tab-id="${shared}"]`)).toBeVisible({ timeout: 10_000 })
+    await phone.locator('[data-tab-id]').last().tap()
+    await phone.locator(`[data-tab-id="${shared}"]`).tap()
+    const phoneCols = await phone.evaluate((id) => document.querySelector(`.term-host[data-terminal-id="${id}"]`)._terminal.cols, shared)
+    expect(phoneCols).toBeLessThan(desktopCols)
+    await expect.poll(size, { timeout: 5000 }).toBe(phoneCols)
+
+    await page.waitForTimeout(1100) // claims are at most one a second
+    await page.mouse.move(500, 420)
+    await page.mouse.move(520, 440)
+    await expect.poll(size, { timeout: 5000 }).toBe(desktopCols)
+  } finally {
+    await ctx.close()
+  }
+})

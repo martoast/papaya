@@ -148,6 +148,9 @@ type View struct {
 	Workspace string `json:"workspace"`
 	// Theme is the tab's own theme; empty means it follows the owner's.
 	Theme string `json:"theme,omitempty"`
+	// Cols and Rows are the shell's current size (the device in use's).
+	Cols int `json:"cols"`
+	Rows int `json:"rows"`
 }
 
 func (s *Session) View() View {
@@ -164,6 +167,8 @@ func (s *Session) View() View {
 		Attention: s.attention,
 		Workspace: s.tmuxName,
 		Theme:     s.theme,
+		Cols:      s.cols,
+		Rows:      s.rows,
 	}
 }
 

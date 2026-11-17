@@ -1110,7 +1110,14 @@ el('themes-item').addEventListener('click', () => {
 // window coming forward claims the tab in front.
 document.addEventListener('visibilitychange', () => {
   for (const t of tabs.all()) t.sendPresence(false)
+  // Coming back to the app is looking at the tab in front: it takes the size.
+  if (document.visibilityState === 'visible') tabs.active?.claim()
 })
 if (!window.matchMedia('(pointer: coarse)').matches) {
+  // On a computer, any sign you are here takes the size back for the tab in
+  // front: the window coming forward, a key, the mouse moving. (claim() sends
+  // at most one message a second.)
   window.addEventListener('focus', () => tabs.active?.claim())
+  document.addEventListener('keydown', () => tabs.active?.claim(), true)
+  document.addEventListener('mousemove', () => tabs.active?.claim(), { passive: true })
 }

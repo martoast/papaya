@@ -647,6 +647,10 @@ export class TerminalTab {
     // Repaint what it already holds: it was off-screen, and a renderer can show
     // stale fragments until the next output otherwise.
     this.term.refresh(0, this.term.rows - 1)
+    // Switching to a tab is looking at it here: this device's size wins, so the
+    // shell is drawn for this screen (a phone was shown lines drawn 237 columns
+    // wide for the Mac, wrapped into a mess).
+    if (document.visibilityState === 'visible') this.claim()
     // On a phone, focusing raises the keyboard, which shrinks the screen and
     // makes tmux redraw at a new size (and again when it is dismissed): switching
     // tabs is looking, not typing. The keyboard comes up when the terminal is
