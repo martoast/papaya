@@ -1,7 +1,7 @@
 {
   "name": "dither-dunes",
   "description": "Dithered dunes drift under a pulsing sun while a tiny caravan crosses the ridge. A light theme.",
-  "opacity": 0.8,
+  "opacity": 0.62,
   "colors": {
     "surface-0": "#efe2c6",
     "surface-1": "#e8d8b6",

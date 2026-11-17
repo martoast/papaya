@@ -264,7 +264,7 @@ func run(addr, user string) error {
 		HTTPS: func() httpapi.HTTPSState {
 			return httpapi.HTTPSState{Available: *httpsAvailable, URL: "http://" + addr}
 		},
-		SSHUserAllowed: func(u string) bool { return u != "" && u != "root" },
+		SSHUserAllowed: func(u string) bool { return u != "" && u != "nobody" },
 		Self:           func() string { return "papaya" },
 	})
 

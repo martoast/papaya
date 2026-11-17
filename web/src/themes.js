@@ -193,6 +193,7 @@ async function wear(view) {
       if (fresh) showNow(fresh)
     } else unmountScene({ now: true })
     document.documentElement.dataset.theme = view.name
+    document.documentElement.dataset.tone = isLight(view.colors?.['surface-0'] || view.colors?.['term-bg']) ? 'light' : 'dark'
     window.dispatchEvent(new Event('papaya:theme'))
   }
   // The new theme takes over in a circle that grows from the bottom of the
@@ -200,6 +201,34 @@ async function wear(view) {
   // paint does not animate.
   if (!first && document.startViewTransition && !reduced()) document.startViewTransition(swap)
   else swap()
+}
+
+// layoutScene keeps the backdrop clear of the controls along the bottom (see
+// #scene in glass.css). Not while the keyboard is up: the scene would jump.
+function layoutScene() {
+  const surface = document.getElementById('surface')
+  if (!surface || document.documentElement.classList.contains('kb-open')) return
+  const gap = Math.max(0, Math.round(window.innerHeight - surface.getBoundingClientRect().bottom))
+  document.documentElement.style.setProperty('--scene-bottom', `${gap}px`)
+}
+window.addEventListener('resize', () => requestAnimationFrame(layoutScene))
+window.addEventListener('load', layoutScene)
+if ('ResizeObserver' in window) {
+  queueMicrotask(() => {
+    const el = document.getElementById('surface')
+    if (el) new ResizeObserver(() => layoutScene()).observe(el)
+  })
+}
+
+// isLight says whether a colour is a pale one (relative luminance), so the
+// glass chrome can switch to its light-theme look.
+function isLight(c) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(c || '').trim())
+  if (!m) return false
+  const n = parseInt(m[1], 16)
+  const lin = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }
+  const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255)
+  return L > 0.45
 }
 
 function applyColors(colors) {
@@ -238,6 +267,7 @@ function mountScene(url, version) {
   f.dataset.version = version
   f.ready = new Promise((resolve) => { f.onReady = resolve })
   f.src = url
+  layoutScene()
   document.body.prepend(f)
   frame = f
   // If it never says it is ready, show it anyway rather than hide it forever.

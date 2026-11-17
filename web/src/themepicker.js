@@ -3,9 +3,9 @@
 // so the next one is a tap away, and only covers the bottom of the screen, so
 // the change is visible above it.
 //
-// Every card is a small phone screen: the theme's own scene, drawn for a
-// moment and held still (a "poster", see /theme/scene/{name}?poster=1), with a
-// little glass terminal in the theme's colours on top. Cards sit in rows that
+// Every card is a small phone screen running the theme's own scene, live
+// (/theme/scene/{name}?preview=1), with a little glass terminal in the theme's
+// colours on top. Cards sit in rows that
 // scroll sideways, a row per kind, so nothing can overflow the screen.
 //
 // Agents still build themes with papaya-theme; a new one appears here.
@@ -29,8 +29,8 @@ function card(t, on) {
   const fg = c['term-fg'] || '#ebebf0'
   const acc = c.accent || '#ff9447'
   const visual = t.hasScene
-    ? `<iframe class="tp-poster" src="/theme/scene/${encodeURIComponent(t.name)}?v=${encodeURIComponent(t.version || '')}&poster=1"
-         sandbox="allow-scripts" loading="lazy" tabindex="-1" aria-hidden="true" inert referrerpolicy="no-referrer"></iframe>`
+    ? `<iframe class="tp-poster" data-live="/theme/scene/${encodeURIComponent(t.name)}?v=${encodeURIComponent(t.version || '')}&preview=1"
+         sandbox="allow-scripts" tabindex="-1" aria-hidden="true" inert referrerpolicy="no-referrer"></iframe>`
     : `<span class="tp-plain" style="background:radial-gradient(110% 55% at 50% -12%, ${esc(acc)}88, ${esc(acc)}22 45%, transparent 72%), radial-gradient(90% 45% at 50% 115%, #7a5cff44, transparent 70%), ${esc(bg)}"></span>`
   return `<button class="tp-card ${on ? 'is-on' : ''}" data-theme="${esc(t.name)}" aria-pressed="${on}" title="${esc(t.description || '')}">
       <span class="tp-screen">
@@ -68,7 +68,23 @@ export async function showThemePicker({ tab = null } = {}) {
       ${tab ? '<button class="tp-all" data-act="all">Use this theme on all tabs</button>' : ''}
       <div class="tp-body" data-grid><div class="tp-loading">Loading…</div></div>
     </div>`
-  const close = () => root.remove()
+  // Live previews, only while a card is on screen: each scene starts as its
+  // card scrolls into view and is unloaded once it leaves, so a few run at a
+  // time (light: standard resolution, 30 fps), never all of them.
+  const live = 'IntersectionObserver' in window
+    ? new IntersectionObserver((entries) => {
+        for (const e of entries) {
+          const f = e.target
+          if (e.isIntersecting) { if (f.getAttribute('src') !== f.dataset.live) f.src = f.dataset.live }
+          else if (f.getAttribute('src')) f.removeAttribute('src')
+        }
+      }, { rootMargin: '0px 40px' })
+    : null
+  const watch = () => body.querySelectorAll('iframe[data-live]').forEach((f) => (live ? live.observe(f) : (f.src = f.dataset.live)))
+  const close = () => {
+    live?.disconnect()
+    root.remove()
+  }
   root.addEventListener('click', (e) => {
     if (e.target === root || e.target.closest('[data-act="done"]')) close()
   })
@@ -96,6 +112,7 @@ export async function showThemePicker({ tab = null } = {}) {
       row('Wallpapers', all.filter((t) => kind(t) === 'wallpaper')) +
       row('Colours', all.filter((t) => kind(t) === 'colours'))
     body.querySelectorAll('.tp-row').forEach((r, i) => { r.scrollLeft = keep[i] || 0 })
+    watch()
   }
   // Selecting only moves the ring: no repaint, so posters don't reload.
   const mark = () => {

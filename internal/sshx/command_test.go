@@ -210,3 +210,15 @@ func TestKillTmuxSessionHonoursItsContext(t *testing.T) {
 	require.Less(t, time.Since(start), 5*time.Second,
 		"the context must bound the command, not merely the connection to it")
 }
+
+// Any tmux session with a safe name can be attached, papaya's or not (another
+// web terminal's, or the user's own); anything that could escape the command
+// is refused.
+func TestValidWorkspaceName(t *testing.T) {
+	for _, ok := range []string{"papaya-reports", "tsterm-Henry", "main", "0", "work_1"} {
+		require.Truef(t, sshx.ValidWorkspaceName(ok), "%q is safe", ok)
+	}
+	for _, bad := range []string{"", "-t", "a b", "a;b", "$(id)", "a.b", "a:b", "`x`", "a'b", strings.Repeat("x", 129)} {
+		require.Falsef(t, sshx.ValidWorkspaceName(bad), "%q must be refused", bad)
+	}
+}

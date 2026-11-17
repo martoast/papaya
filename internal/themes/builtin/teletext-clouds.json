@@ -1,7 +1,7 @@
 {
   "name": "teletext-clouds",
   "description": "Chunky pixel clouds drift under a crescent moon; a little bird flies across when agents talk.",
-  "opacity": 0.72,
+  "opacity": 0.62,
   "colors": {
     "surface-0": "#16238a",
     "surface-1": "#121e7a",

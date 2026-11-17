@@ -135,7 +135,7 @@ with the setup screen. They are validated before the node starts.
 | `PAPAYA_SSH_USER` | no² | — | Default remote account. No built-in default; the setup screen sets one per machine |
 | `PAPAYA_HOSTS` | no | — | Comma list for the picker (suggestion only) |
 | `PAPAYA_ALLOWED_HOSTS` | no | — | **Enforced** allow list of hosts. Empty = any host the ACL permits |
-| `PAPAYA_ALLOWED_SSH_USERS` | no | — | **Enforced** allow list of remote accounts. Empty = any except root |
+| `PAPAYA_ALLOWED_SSH_USERS` | no | — | **Enforced** allow list of remote accounts. Empty = any account, root included |
 | `PAPAYA_TMUX` | no | `false` | Run remote shells in tmux so work survives restarts |
 | `PAPAYA_TLS` | no | automatic | Unset: HTTPS as soon as the tailnet offers a cert, HTTP until then. `true`/`false` forces it |
 | `PAPAYA_TLS_CERT` | no | — | Your own certificate, for a custom domain |
@@ -240,14 +240,13 @@ so both are checked server-side.
 
 ```bash
 PAPAYA_ALLOWED_HOSTS='devbox-1,devbox-2'   # nothing else is reachable
-PAPAYA_ALLOWED_SSH_USERS='ubuntu'          # no other account, and no root
+PAPAYA_ALLOWED_SSH_USERS='ubuntu'          # no other account
 ```
 
-- **root is refused unless you name it.** The tailnet SSH policy commonly ends
-  `"users": ["autogroup:nonroot", "root"]`, which means a web terminal that
-  passes the requested account straight through will happily open a uid 0 shell.
-  `root`, `toor`, and `admin` are rejected unless listed explicitly, so widening
-  the tailnet policy later cannot silently re-open that door.
+- **Any account, root included, unless you restrict it.** Papaya is reachable
+  only from your own Tailscale devices and you choose its machines, so it logs
+  in as whatever account you give it (many servers only have root). To pin it
+  down, list the only accounts allowed in `PAPAYA_ALLOWED_SSH_USERS`.
 - **Host matching accepts any spelling of the same machine** — short MagicDNS
   name, FQDN, or address — so `devbox-1` also matches
   `devbox-1.tailnet.ts.net`. Addresses must be listed literally.

@@ -125,3 +125,24 @@ test('where the browser can install apps, one click installs Papaya', async ({ p
   // Installed: the item is gone from the menu.
   await expect(page.locator('#install-app')).toHaveClass(/\bhidden\b/)
 })
+
+// A home-screen app resumes from memory rather than reloading, so a deploy
+// could go unseen. Coming back to the screen, the app notices a new build and
+// reloads itself.
+test('the app reloads itself when a new version is deployed', async ({ page }) => {
+  await page.goto('/')
+  await page.waitForLoadState('networkidle')
+  await page.evaluate(() => { window.__before = true })
+  // Pretend a new build is up: the next fetch of the page names another bundle.
+  await page.route('/', async (route) => {
+    const res = await route.fetch()
+    const html = (await res.text()).replace(/\/assets\/index-[^"]+\.js/, '/assets/index-NEWBUILD.js')
+    await route.fulfill({ response: res, body: html })
+  }, { times: 1 })
+  const reloaded = page.waitForEvent('framenavigated')
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
+  await reloaded
+  await page.unroute('/')
+  await page.waitForLoadState('load')
+  expect(await page.evaluate(() => window.__before === undefined)).toBe(true)
+})

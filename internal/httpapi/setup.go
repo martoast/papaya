@@ -269,8 +269,8 @@ func (s *Server) putSetupMachines(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if len(bad) > 0 {
-		writeError(w, http.StatusBadRequest, "Papaya won't log in as root or an admin account ("+
-			strings.Join(bad, ", ")+"). Use your everyday account on that machine.")
+		writeError(w, http.StatusBadRequest, "This Papaya only allows certain accounts (PAPAYA_ALLOWED_SSH_USERS); not "+
+			strings.Join(bad, ", ")+".")
 		return
 	}
 
@@ -477,8 +477,8 @@ func (a *setupAPI) test(ctx context.Context, host, user, method, trust string) T
 			Message: "Type the account you log in with on " + host + "."}
 	}
 	if a.d.SSHUserAllowed != nil && !a.d.SSHUserAllowed(user) {
-		return TestResult{Status: "error", Code: "root",
-			Message: "Papaya won't log in as " + user + ". Use your everyday account on " + host + "."}
+		return TestResult{Status: "error", Code: "not-allowed",
+			Message: "This Papaya only allows certain accounts (PAPAYA_ALLOWED_SSH_USERS), and " + user + " is not one of them."}
 	}
 
 	cfg := a.d.SSH

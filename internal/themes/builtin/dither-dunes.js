@@ -58,10 +58,10 @@ papaya.scene({
     if (!W) return
     const ridge = (k, x) => H * k.base + Math.sin((x + t * k.v) * k.f + k.p) * H * k.a + Math.sin((x - t * k.v * 0.7) * k.f * 2.3 + k.p * 2) * H * k.a * 0.35
     const layers = [
-      { base: 0.62, a: 0.03, f: 0.012, v: 1.2, p: 0.5, ink: [216, 195, 154], dens: 0.45 },
-      { base: 0.7, a: 0.035, f: 0.016, v: 1.8, p: 2.1, ink: [196, 168, 119], dens: 0.55 },
-      { base: 0.8, a: 0.04, f: 0.02, v: 2.6, p: 4.0, ink: [167, 135, 87], dens: 0.65 },
-      { base: 0.9, a: 0.035, f: 0.026, v: 3.4, p: 1.3, ink: [138, 106, 64], dens: 0.75 },
+      { base: 0.5, a: 0.045, f: 0.012, v: 1.2, p: 0.5, ink: [216, 195, 154], dens: 0.45 },
+      { base: 0.61, a: 0.05, f: 0.016, v: 1.8, p: 2.1, ink: [196, 168, 119], dens: 0.55 },
+      { base: 0.73, a: 0.055, f: 0.02, v: 2.6, p: 4.0, ink: [167, 135, 87], dens: 0.65 },
+      { base: 0.86, a: 0.05, f: 0.026, v: 3.4, p: 1.3, ink: [138, 106, 64], dens: 0.75 },
     ]
 
     if (t - st.cachedAt > 0.25 || st.cachedAt < 0) {
@@ -95,7 +95,9 @@ papaya.scene({
 
     // The sun: a dithered disc that breathes.
     st.flare = Math.max(0, st.flare - dt * 0.35)
-    const sx = W * 0.82, sy = H * 0.26, R = Math.min(W, H) * (0.07 + 0.01 * Math.sin(t * 0.6)) * (1 + st.flare * 0.5)
+    const narrow = W < H
+    const sx = W * (narrow ? 0.7 : 0.8), sy = H * (narrow ? 0.3 : 0.24)
+    const R = Math.min(W, H) * (narrow ? 0.14 : 0.09) * (1 + 0.04 * Math.sin(t * 0.6)) * (1 + st.flare * 0.5)
     ctx.fillStyle = '#d9532f'
     for (let y = Math.floor(sy - R * 1.8); y < sy + R * 1.8; y++) for (let x = Math.floor(sx - R * 1.8); x < sx + R * 1.8; x++) {
       const d = Math.hypot(x - sx, y - sy) / R

@@ -40,7 +40,8 @@ papaya.scene({
     st.W = Math.ceil(s.w / CELL)
     st.H = Math.ceil(s.h / CELL)
     // The fire lives in a band at the bottom: about a fifth of the screen.
-    st.FH = Math.max(18, Math.round(st.H * 0.3))
+    // The fire takes the bottom 40% of the screen: it is the scene.
+    st.FH = Math.max(24, Math.round(st.H * 0.4))
     st.fire = new Uint8Array(st.W * st.FH)
     const bg = document.createElement('canvas')
     bg.width = Math.ceil(s.w); bg.height = Math.ceil(s.h)
@@ -96,7 +97,8 @@ papaya.scene({
           const r = (Math.random() * 3) | 0
           // Cooling sets how tall flames get: on average they die out well
           // before the top of the band, a little higher during a flare.
-          const cool = (Math.random() * (st.flare > 0.2 ? 2.6 : 3.4)) | 0
+          // Taller bands need gentler cooling to keep the same flame shape.
+          const cool = Math.random() < (st.flare > 0.2 ? 0.42 : 0.55) * (40 / FH) * 1.6 ? 1 : 0
           const dst = src - W - r + 1
           fire[dst < 0 ? 0 : dst] = Math.max(0, v - cool)
         }

@@ -1,7 +1,7 @@
 {
   "name": "honu-lagoon",
   "description": "A mosaic lagoon: sea turtles paddle past swaying kelp; each tab's turtle swims harder while its agent works.",
-  "opacity": 0.72,
+  "opacity": 0.62,
   "colors": {
     "surface-0": "#11607e",
     "surface-1": "#0d5470",

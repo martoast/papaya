@@ -106,7 +106,7 @@ func newFixture(t *testing.T) *fixture {
 	h := hub.New(sshx.NewPool(dialer, sshCfg), hub.Options{UploadDir: filepath.Join(dir, "up")})
 	t.Cleanup(func() { h.CloseAll("test over") })
 
-	allowed := func(u string) bool { return u != "" && u != "root" }
+	allowed := func(u string) bool { return u != "" && u != "nobody" }
 	api := httpapi.New(h,
 		tsnode.NewAuth(whoIs{"alice@example.com"}, map[string]bool{"alice@example.com": true}, nil),
 		p, nil, httpapi.Options{Hostname: "papaya", SSHUserAllowed: allowed})
@@ -182,17 +182,22 @@ func TestSetupListsTheTailnetsMachines(t *testing.T) {
 	require.Equal(t, setup.MethodKey, laptop.Method, "a Mac defaults to papaya's key: Tailscale SSH is Linux-only")
 }
 
-func TestSetupRefusesRoot(t *testing.T) {
+// Root is welcome; an account outside a configured allow list is refused with
+// the reason.
+func TestSetupAllowsRootAndRefusesUnlistedAccounts(t *testing.T) {
 	f := newFixture(t)
 	code := f.call(t, "PUT", "/api/setup/machines", map[string]any{
 		"machines": []map[string]string{{"name": "server", "user": "root"}},
 	}, nil)
-	require.Equal(t, http.StatusBadRequest, code)
+	require.Equal(t, http.StatusOK, code)
 
+	code = f.call(t, "PUT", "/api/setup/machines", map[string]any{
+		"machines": []map[string]string{{"name": "server", "user": "nobody"}},
+	}, nil)
+	require.Equal(t, http.StatusBadRequest, code)
 	var res httpapi.TestResult
-	f.call(t, "POST", "/api/setup/test", map[string]string{"host": "server", "user": "root"}, &res)
+	f.call(t, "POST", "/api/setup/test", map[string]string{"host": "server", "user": "nobody"}, &res)
 	require.Equal(t, "error", res.Status)
-	require.Equal(t, "root", res.Code)
 }
 
 // A Tailscale SSH machine passes on the first try: its host key comes from the
@@ -317,7 +322,7 @@ func TestOneLineJoinConnectsTheCallingMachine(t *testing.T) {
 	require.Contains(t, script, "/api/setup/join")
 
 	var v httpapi.SetupView
-	require.Equal(t, 400, f.call(t, "POST", "/api/setup/join", map[string]any{"user": "root", "sshd": true}, nil), "root is refused")
+	require.Equal(t, 400, f.call(t, "POST", "/api/setup/join", map[string]any{"user": "nobody", "sshd": true}, nil), "an account outside the allow list is refused")
 	require.Equal(t, 400, f.call(t, "POST", "/api/setup/join", map[string]any{"user": "a b", "sshd": true}, nil))
 	require.Equal(t, 200, f.call(t, "POST", "/api/setup/join", map[string]any{"user": "alex", "sshd": false, "os": "Darwin"}, nil))
 

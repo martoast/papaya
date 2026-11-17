@@ -227,16 +227,15 @@ func TestOverrides(t *testing.T) {
 
 // --- SSH user allow list ---
 
-// root must be refused unless deliberately named. The tailnet policy may permit
-// it, but a web terminal should not hand out uid 0 by default.
-func TestRootIsDeniedByDefault(t *testing.T) {
+// Any account is fine by default, root included: plenty of servers have
+// nothing else.
+func TestAnyAccountIsAllowedByDefault(t *testing.T) {
 	cfg, err := loadFrom(env(base()))
 	require.NoError(t, err)
 
-	for _, u := range []string{"root", "ROOT", "Root", "toor", "admin"} {
-		require.Falsef(t, cfg.SSHUserAllowed(u), "%q must be refused by default", u)
+	for _, u := range []string{"root", "admin", "alice"} {
+		require.Truef(t, cfg.SSHUserAllowed(u), "%q is allowed by default", u)
 	}
-	require.True(t, cfg.SSHUserAllowed("alice"))
 	require.True(t, cfg.SSHUserAllowed("ubuntu"))
 	require.False(t, cfg.SSHUserAllowed(""), "an empty user is not a user")
 }
@@ -256,8 +255,8 @@ func TestSSHUserAllowListIsExclusive(t *testing.T) {
 	require.False(t, cfg.SSHUserAllowed("ec2-user"))
 }
 
-// root is still possible, but only by naming it, which is a deliberate act.
-func TestRootRequiresExplicitOptIn(t *testing.T) {
+// An allow list may name root like any other account.
+func TestRootCanBeOnTheAllowList(t *testing.T) {
 	e := base()
 	e["PAPAYA_ALLOWED_SSH_USERS"] = "root"
 	e["PAPAYA_SSH_USER"] = "root"
@@ -279,12 +278,13 @@ func TestDefaultSSHUserMustBeAllowed(t *testing.T) {
 	require.Contains(t, err.Error(), "not permitted")
 }
 
-func TestDefaultSSHUserMustNotBeRoot(t *testing.T) {
+func TestDefaultSSHUserMayBeRoot(t *testing.T) {
 	e := base()
 	e["PAPAYA_SSH_USER"] = "root"
 
-	_, err := loadFrom(env(e))
-	require.Error(t, err, "defaulting every session to root must not be possible by accident")
+	cfg, err := loadFrom(env(e))
+	require.NoError(t, err)
+	require.Equal(t, "root", cfg.SSHUser)
 }
 
 // --- host allow list ---

@@ -66,7 +66,7 @@ func run(addr string, verbose bool) error {
 	if len(cfg.AllowedSSHUsers) > 0 {
 		log.Printf("remote users restricted to: %s", strings.Join(sortedKeys(cfg.AllowedSSHUsers), ", "))
 	} else {
-		log.Printf("remote users: any except root (set PAPAYA_ALLOWED_SSH_USERS to restrict further)")
+		log.Printf("remote users: any (set PAPAYA_ALLOWED_SSH_USERS to restrict)")
 	}
 
 	if cfg.InsecureSkipHostKey {

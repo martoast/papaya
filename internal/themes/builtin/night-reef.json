@@ -1,7 +1,7 @@
 {
   "name": "night-reef",
   "description": "Deep water at night: a glowing manta, a turtle and jellyfish drift through twinkling plankton.",
-  "opacity": 0.72,
+  "opacity": 0.6,
   "colors": {
     "surface-0": "#0a1640",
     "surface-1": "#081236",

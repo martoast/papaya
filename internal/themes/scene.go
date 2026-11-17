@@ -41,18 +41,24 @@ func NewNonce() string {
 // sequences that would end the <script> element. Theme data goes in as JSON,
 // which encoding/json escapes for HTML (<, > and & become < and so on).
 func SceneDocument(t *Theme, nonce string, image []byte) []byte {
-	return sceneDocument(t, nonce, image, false)
+	return sceneDocument(t, nonce, image, "")
 }
 
 // PosterDocument is the scene drawn for about a second and then held still:
 // the theme picker's preview of an animated theme, without twenty animations
 // running at once on a phone.
 func PosterDocument(t *Theme, nonce string, image []byte) []byte {
-	return sceneDocument(t, nonce, image, true)
+	return sceneDocument(t, nonce, image, "poster")
 }
 
-func sceneDocument(t *Theme, nonce string, image []byte, poster bool) []byte {
-	head := sceneHead(t, nonce, image, poster)
+// PreviewDocument is the scene running live but light: standard resolution
+// and 30 frames a second, for the picker's small cards.
+func PreviewDocument(t *Theme, nonce string, image []byte) []byte {
+	return sceneDocument(t, nonce, image, "preview")
+}
+
+func sceneDocument(t *Theme, nonce string, image []byte, mode string) []byte {
+	head := sceneHead(t, nonce, image, mode)
 	scene := t.Scene
 	if scene == "" && len(image) > 0 {
 		scene = WallpaperScene
@@ -65,12 +71,13 @@ func sceneDocument(t *Theme, nonce string, image []byte, poster bool) []byte {
 }
 
 // sceneHead is everything in the document before the scene's first line.
-func sceneHead(t *Theme, nonce string, image []byte, poster bool) string {
+func sceneHead(t *Theme, nonce string, image []byte, mode string) string {
 	meta, _ := json.Marshal(map[string]any{
 		"name":    t.Name,
 		"version": t.Version(),
 		"colors":  t.Colors,
-		"poster":  poster,
+		"poster":  mode == "poster",
+		"preview": mode == "preview",
 	})
 	var b strings.Builder
 	b.WriteString(`<!doctype html><html><head><meta charset="utf-8">` +
@@ -95,7 +102,7 @@ var stackLineRE = regexp.MustCompile(`/theme/scene/[^\s:)]+:(\d+):(\d+)`)
 // SceneError rewrites a browser's error message so line numbers point into
 // scene.js rather than into the frame document, which the agent never sees.
 func SceneError(t *Theme, msg string) string {
-	offset := strings.Count(sceneHead(t, "x", nil, false), "\n")
+	offset := strings.Count(sceneHead(t, "x", nil, ""), "\n")
 	lines := strings.Count(t.Scene, "\n") + 1
 	return stackLineRE.ReplaceAllStringFunc(msg, func(m string) string {
 		sub := stackLineRE.FindStringSubmatch(m)
@@ -245,7 +252,7 @@ const runtimeJS = `(function () {
   }
 
   function resize() {
-    s.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    s.dpr = THEME.preview ? 1 : Math.min(window.devicePixelRatio || 1, 2);
     s.w = window.innerWidth; s.h = window.innerHeight;
     canvas.width = Math.max(1, Math.round(s.w * s.dpr));
     canvas.height = Math.max(1, Math.round(s.h * s.dpr));
@@ -259,6 +266,8 @@ const runtimeJS = `(function () {
     requestAnimationFrame(tick);
     // With reduced motion asked for, a scene still draws, but twice a second.
     if (s.reducedMotion && now - last < 500 && s.frame > 0) return;
+    // A preview card runs at 30 frames a second.
+    if (THEME.preview && now - last < 30 && s.frame > 0) return;
     s.dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
     last = now;
     s.t += s.dt;

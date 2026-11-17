@@ -1047,3 +1047,32 @@ el('themes-item').addEventListener('click', () => {
   const t = tabs.active
   showThemePicker({ tab: t ? { id: t.id, name: t.session.name || t.session.host } : null })
 })
+
+// --- picking up a new version ---
+// An app on the iPhone home screen is rarely really closed: reopening it
+// resumes the old page from memory, so a deploy could go unseen for days. When
+// the app comes back to the screen (and every ten minutes while it is), ask
+// for the page again; if it now loads a different build, reload. Terminals
+// come back exactly as they were: they live in tmux on the machines.
+{
+  const mine = document.querySelector('script[type="module"][src*="/assets/"]')?.getAttribute('src')
+  let checking = false
+  const check = async () => {
+    if (!mine || checking || document.visibilityState !== 'visible') return
+    checking = true
+    try {
+      const html = await (await fetch('/', { cache: 'no-store' })).text()
+      const now = html.match(/src="(\/assets\/index-[^"]+\.js)"/)?.[1]
+      // Never in the middle of a recording or with a sheet open.
+      const busy = voice.isBusy || document.querySelector('#theme-picker, [data-modal], #voice-setup')
+      if (now && now !== mine && !busy) location.reload()
+    } catch {
+      // Offline: the next check will do.
+    } finally {
+      checking = false
+    }
+  }
+  document.addEventListener('visibilitychange', check)
+  window.addEventListener('pageshow', check)
+  setInterval(check, 10 * 60 * 1000)
+}

@@ -1,7 +1,7 @@
 {
   "name": "snow-pines",
   "description": "A pixel pine forest under falling snow; a warm cabin window, a shooting star for every message and fireworks on a cue.",
-  "opacity": 0.74,
+  "opacity": 0.6,
   "colors": {
     "surface-0": "#1b1645",
     "surface-1": "#16123d",

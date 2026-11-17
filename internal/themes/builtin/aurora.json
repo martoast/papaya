@@ -1,7 +1,7 @@
 {
   "name": "aurora",
   "description": "Pixel aurora curtains ripple over dark mountains and shimmer in the lake below.",
-  "opacity": 0.72,
+  "opacity": 0.58,
   "colors": {
     "surface-0": "#08122b",
     "surface-1": "#060e24",

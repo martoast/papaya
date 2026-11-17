@@ -107,7 +107,7 @@ func TestBuiltinsAreReadOnly(t *testing.T) {
 // only knows its scene.js.
 func TestSceneErrorPointsIntoSceneJS(t *testing.T) {
 	th := &Theme{Name: "koi", Scene: "papaya.scene({\n  draw(s) {\n    boom()\n  }\n})"}
-	head := strings.Count(sceneHead(th, "x", nil, false), "\n")
+	head := strings.Count(sceneHead(th, "x", nil, ""), "\n")
 	msg := "ReferenceError: boom is not defined\n    at Object.draw (https://papaya.ts.net/theme/scene/koi?v=abc:" +
 		strconv.Itoa(head+3) + ":5)\n    at call (https://papaya.ts.net/theme/scene/koi?v=abc:40:12)"
 	out := SceneError(th, msg)
@@ -147,7 +147,7 @@ func TestWallpapers(t *testing.T) {
 	doc := string(SceneDocument(th, "N", png))
 	require.Contains(t, doc, `window.__PAPAYA_IMAGE__="data:image/png;base64,`)
 	require.Contains(t, doc, "Papaya's wallpaper scene", "a wallpaper without a scene gets the default one")
-	require.Equal(t, strings.Count(sceneHead(th, "N", png, false), "\n"), strings.Count(sceneHead(th, "N", nil, false), "\n"),
+	require.Equal(t, strings.Count(sceneHead(th, "N", png, ""), "\n"), strings.Count(sceneHead(th, "N", nil, ""), "\n"),
 		"the wallpaper must not move scene line numbers")
 
 	png2 := append(png, 1)
@@ -166,4 +166,5 @@ func TestPosterHoldsAFrame(t *testing.T) {
 	th := &Theme{Name: "p", Scene: "papaya.scene({})", Colors: map[string]string{}}
 	require.Contains(t, string(PosterDocument(th, "n", nil)), `"poster":true`)
 	require.Contains(t, string(SceneDocument(th, "n", nil)), `"poster":false`)
+	require.Contains(t, string(PreviewDocument(th, "n", nil)), `"preview":true`)
 }

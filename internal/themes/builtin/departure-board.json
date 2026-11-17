@@ -1,7 +1,7 @@
 {
   "name": "departure-board",
   "description": "An amber flip-dot board listing your tabs: on time, working, or boarding when an agent needs you.",
-  "opacity": 0.76,
+  "opacity": 0.68,
   "colors": {
     "surface-0": "#1d1309",
     "surface-1": "#170f07",

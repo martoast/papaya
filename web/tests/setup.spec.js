@@ -208,17 +208,13 @@ test('an offline machine says what to do', async ({ page }) => {
   await expect(setup.locator('[data-act="finish"]')).toBeDisabled()
 })
 
-test('root is refused with a reason', async ({ page }) => {
+test('root is welcome: the one-line join works as root', async ({ page }) => {
   await freshSetup(page)
   const setup = page.locator('[data-modal="setup"]')
   await setup.locator('[data-pick="web-server"]').check()
   await setup.locator('[data-act="next"]').click()
-  expect(await joinFrom(page, 'web-server', { user: 'root' })).toBe(400)
-  const card = setup.locator('[data-access="web-server"]')
-  await card.locator('[data-manual]').click()
-  await card.locator('[data-user="web-server"]').fill('root')
-  await card.locator('button[data-retest]').click()
-  await expect(setup.locator('[data-error]')).toContainText('everyday account')
+  expect(await joinFrom(page, 'web-server', { user: 'root' })).toBe(200)
+  await expect(setup.locator('[data-access="web-server"]')).toHaveAttribute('data-joined', 'true', { timeout: 10_000 })
 })
 
 test('Machines in the menu reopens setup, and it can be closed', async ({ page }) => {

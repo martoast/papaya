@@ -174,12 +174,14 @@ func ShellCommandFor(tmux bool, workspace string) string {
 			`else exec "${SHELL:-/bin/sh}" -l; fi`, name)
 }
 
-// Workspace is a tmux session papaya created, as it exists on the remote host.
+// Workspace is a tmux session on the remote host: one papaya created, or any
+// other the user already had running there (another terminal app's, their own
+// "main"), which papaya can pick up too.
 type Workspace struct {
 	// Name is the full tmux session name, e.g. "papaya-reports".
 	Name string `json:"name"`
-	// Label is Name without the "papaya-" prefix: what the user typed, or the
-	// host, and what a tab reattaching to it should be called.
+	// Label is what a tab reattaching to it should be called: Name without
+	// papaya's own "papaya-" prefix, or the whole name for anyone else's.
 	Label string `json:"label"`
 	// Windows is how many windows the session has, a rough sign of life.
 	Windows int `json:"windows"`
@@ -203,7 +205,10 @@ const listWorkspacesCmd = `tmux list-sessions ` +
 	`-F '#{session_name},#{session_windows},#{session_created},#{?session_attached,1,0}' ` +
 	`2>/dev/null || true`
 
-// ListWorkspaces returns the papaya-created tmux sessions on a host.
+// ListWorkspaces returns the tmux sessions on a host that papaya can attach
+// to: its own, and any other whose name is safe to put in a command (letters,
+// digits, - and _). So work started elsewhere, in plain tmux or another web
+// terminal, can be picked up from papaya without restarting it.
 //
 // This is how work survives papaya itself: after a restart the remote sessions
 // are still running, but nothing in papaya remembers them, so without asking the
@@ -241,7 +246,7 @@ func ListWorkspaces(ctx context.Context, client *ssh.Client) ([]Workspace, error
 	var out []Workspace
 	for _, line := range strings.Split(string(r.out), "\n") {
 		f := strings.Split(strings.TrimRight(line, "\r"), ",")
-		if len(f) != 4 || !strings.HasPrefix(f[0], tmuxPrefix) {
+		if len(f) != 4 || !ValidWorkspaceName(f[0]) {
 			continue
 		}
 		w := Workspace{
@@ -256,11 +261,13 @@ func ListWorkspaces(ctx context.Context, client *ssh.Client) ([]Workspace, error
 	return out, nil
 }
 
-// ValidWorkspaceName reports whether a name is one this package could have
-// produced. A workspace name reaches a remote shell inside a command, and one
-// arriving from a client is not to be trusted just because it looks plausible.
+// ValidWorkspaceName reports whether a tmux session name is safe to attach to.
+// A workspace name reaches a remote shell inside a command, and one arriving
+// from a client is not to be trusted just because it looks plausible: only
+// letters, digits, - and _ are allowed (no spaces, quotes, ".", ":" or "$"),
+// and it may not start with "-", where tmux would read it as a flag.
 func ValidWorkspaceName(name string) bool {
 	return name != "" && len(name) <= 128 && workspaceRe.MatchString(name)
 }
 
-var workspaceRe = regexp.MustCompile(`^papaya-[A-Za-z0-9_-]+$`)
+var workspaceRe = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_-]*$`)

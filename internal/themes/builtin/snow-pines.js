@@ -49,15 +49,18 @@ function backdrop(s) {
   }
   // Far hills, a soft band.
   for (let x = 0; x < W; x++) {
-    const top = Math.round(H * 0.78 + Math.sin(x * 0.07) * 2.5 + Math.sin(x * 0.023 + 1) * 3)
+    const top = Math.round(H * 0.7 + Math.sin(x * 0.07) * 2.5 + Math.sin(x * 0.023 + 1) * 3)
     for (let y = top; y < H; y++) put(x, y, hash(x, y) > 0.85 ? '#3b3478' : '#332d6d')
   }
   // Three rows of pines, far to near.
   const rows = [
-    { y: 0.84, color: '#2a4f63', snow: '#8fa3d8', h: [5, 9], gap: [3, 6] },
-    { y: 0.9, color: '#245a5e', snow: '#b8c6f0', h: [8, 13], gap: [5, 10] },
-    { y: 0.98, color: '#2f7068', snow: '#e8f0ff', h: [11, 18], gap: [9, 18] },
+    { y: 0.8, color: '#2a4f63', snow: '#8fa3d8', h: [6, 10], gap: [3, 6] },
+    { y: 0.88, color: '#245a5e', snow: '#b8c6f0', h: [9, 15], gap: [5, 10] },
+    { y: 0.98, color: '#2f7068', snow: '#e8f0ff', h: [13, 22], gap: [9, 18] },
   ]
+  // Tree heights are fractions of the screen, not fixed tile counts, so a tall
+  // phone gets tall trees too.
+  const S = H / 60
   let seed = 3
   const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647
   for (const row of rows) {
@@ -65,9 +68,9 @@ function backdrop(s) {
     for (let x = -2; x < W + 2;) {
       // Keep the middle of a wide screen open, with trees massed at the sides.
       const mid = W > 120 && x > W * 0.35 && x < W * 0.65
-      const h = Math.round(row.h[0] + r() * (row.h[1] - row.h[0]) * (mid ? 0.55 : 1))
+      const h = Math.round((row.h[0] + r() * (row.h[1] - row.h[0]) * (mid ? 0.55 : 1)) * S)
       tree(put, x, base, h, row.color, row.snow)
-      x += Math.round(row.gap[0] + r() * (row.gap[1] - row.gap[0]) + (mid ? 6 : 0))
+      x += Math.round((row.gap[0] + r() * (row.gap[1] - row.gap[0])) * Math.min(1.6, S) + (mid ? 6 : 0))
     }
   }
   // Snow on the ground.

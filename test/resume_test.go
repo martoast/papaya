@@ -35,15 +35,21 @@ func TestRunningWorkspacesAreOfferedForResume(t *testing.T) {
 }
 
 // Sessions unrelated to papaya belong to the user, not to us.
-func TestResumeIgnoresForeignTmuxSessions(t *testing.T) {
+// Every tmux session already running on a machine is offered, papaya's and
+// anyone else's (plain tmux, another web terminal), so work can move to papaya
+// without restarting it. Papaya's own keep their short label.
+func TestResumeOffersEveryTmuxSession(t *testing.T) {
 	st, srv := newStack(t, harness.StackOptions{Tmux: true})
 	c := st.Client(alice)
 
-	srv.SetWorkspaces("papaya-mine", "irc", "build-watch", "papaya")
+	srv.SetWorkspaces("papaya-mine", "irc", "tsterm-Henry")
 
 	got := c.Resumable()
-	require.Len(t, got, 1, "only papaya's own workspaces may be offered")
-	require.Equal(t, "mine", got[0]["label"])
+	labels := map[string]string{}
+	for _, w := range got {
+		labels[w["name"].(string)] = w["label"].(string)
+	}
+	require.Equal(t, map[string]string{"papaya-mine": "mine", "irc": "irc", "tsterm-Henry": "tsterm-Henry"}, labels)
 }
 
 // A workspace already on screen is not something to offer to reopen.
@@ -105,7 +111,7 @@ func TestClosingAResumedTabEndsThatWorkspace(t *testing.T) {
 // The workspace name reaches a remote shell inside a command. It arrives from a
 // client, and being shaped like something this server produced is not a reason
 // to trust it.
-func TestResumeRefusesWorkspaceNamesItCouldNotHaveCreated(t *testing.T) {
+func TestResumeRefusesUnsafeWorkspaceNames(t *testing.T) {
 	st, _ := newStack(t, harness.StackOptions{Tmux: true})
 	c := st.Client(alice)
 
@@ -117,8 +123,8 @@ func TestResumeRefusesWorkspaceNamesItCouldNotHaveCreated(t *testing.T) {
 		"papaya-win.0",  // tmux reads "." as address syntax
 		"papaya-sess:1", // and ":" likewise
 		"../../etc",
-		"other-prefix",
-		"papaya-",
+		"-t", // tmux would read it as a flag
+		"a'b",
 		"",
 	}
 

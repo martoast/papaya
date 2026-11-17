@@ -338,6 +338,10 @@ func (s *Server) sceneDocument(w http.ResponseWriter, r *http.Request) {
 		h.Set("Cache-Control", "no-store")
 	}
 	// ?poster=1: drawn for a moment and held still, for the picker's preview.
+	if r.URL.Query().Get("preview") == "1" {
+		w.Write(themes.PreviewDocument(t, nonce, image))
+		return
+	}
 	if r.URL.Query().Get("poster") == "1" {
 		w.Write(themes.PosterDocument(t, nonce, image))
 		return

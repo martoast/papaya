@@ -102,7 +102,7 @@ func (s *Server) join(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.setup.d.SSHUserAllowed != nil && !s.setup.d.SSHUserAllowed(req.User) {
-		writeError(w, http.StatusBadRequest, "run it as your everyday account, not root or an admin account")
+		writeError(w, http.StatusBadRequest, "this Papaya is set to only allow certain accounts (PAPAYA_ALLOWED_SSH_USERS), and "+req.User+" is not one of them")
 		return
 	}
 
@@ -176,10 +176,6 @@ KEY=%s
 
 say() { printf '%%s\n' "$*"; }
 me=$(id -un)
-if [ "$me" = root ]; then
-	say "Run this as your everyday account (without sudo), not as root."
-	exit 1
-fi
 
 mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
 touch "$HOME/.ssh/authorized_keys" && chmod 600 "$HOME/.ssh/authorized_keys"

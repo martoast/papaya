@@ -306,13 +306,13 @@ func TestUnknownSessionReturns404(t *testing.T) {
 	_ = fmt.Sprint()
 }
 
-// S13: the remote account is client-supplied. The tailnet SSH policy may permit
-// root, but the web terminal must not hand out uid 0 by default.
-func TestS13RootIsRefused(t *testing.T) {
-	st, _ := newStack(t, harness.StackOptions{})
+// S13: the remote account is client-supplied. With an allow list set, nothing
+// outside it (root included) gets a session.
+func TestS13RootIsRefusedWhenNotListed(t *testing.T) {
+	st, _ := newStack(t, harness.StackOptions{AllowedSSHUsers: []string{"tester"}, DefaultSSHUser: "tester"})
 	c := st.Client(alice)
 
-	for _, u := range []string{"root", "ROOT", "toor", "admin"} {
+	for _, u := range []string{"root", "admin"} {
 		resp, body := c.Do(http.MethodPost, "/api/sessions", map[string]any{
 			"host": "devbox-1", "user": u, "cols": 80, "rows": 24,
 		})

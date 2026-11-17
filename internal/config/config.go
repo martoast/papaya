@@ -47,7 +47,9 @@ type Config struct {
 	Tmux bool
 
 	// AllowedSSHUsers, when non-empty, is the only set of remote accounts that
-	// may be connected as. Empty means "any account except root".
+	// may be connected as. Empty means any account, root included: Papaya is
+	// reachable only from the owner's own Tailscale devices, and the owner
+	// chooses the machines. Set it to narrow that down.
 	//
 	// This is deliberately separate from the tailnet SSH policy. The policy is
 	// the real boundary, but it lives somewhere else and is easy to widen by
@@ -437,19 +439,18 @@ func (c *Config) TranscriptionEnabled() bool { return c.OpenAIAPIKey != "" }
 
 // SSHUserAllowed reports whether a remote account may be connected as.
 //
-// root is refused unless it is named explicitly. A web terminal that silently
-// grants uid 0 because the tailnet policy happened to permit it is exactly the
-// kind of boundary that widens without anyone noticing.
+// Any account is allowed, root included, unless PAPAYA_ALLOWED_SSH_USERS
+// lists the only ones permitted. Many servers (a fresh VPS, a client box) have
+// nothing but root, and refusing it only made setup harder.
 func (c *Config) SSHUserAllowed(user string) bool {
 	user = strings.TrimSpace(user)
 	if user == "" {
 		return false
 	}
-
 	if len(c.AllowedSSHUsers) > 0 {
 		return c.AllowedSSHUsers[user]
 	}
-	return !isRootAccount(user)
+	return true
 }
 
 // UserForHost is the remote account to use on host: the one given as
@@ -486,14 +487,6 @@ func (c *Config) hostUser(host string) string {
 		}
 	}
 	return ""
-}
-
-func isRootAccount(user string) bool {
-	switch strings.ToLower(user) {
-	case "root", "toor", "admin":
-		return true
-	}
-	return false
 }
 
 // HostAllowed reports whether a host may be connected to.

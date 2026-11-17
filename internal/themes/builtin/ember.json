@@ -1,7 +1,7 @@
 {
   "name": "ember",
   "description": "A pixel campfire crackles at the bottom of the screen; embers rise, and it flares when an agent rings.",
-  "opacity": 0.74,
+  "opacity": 0.6,
   "colors": {
     "surface-0": "#1e0c08",
     "surface-1": "#170906",

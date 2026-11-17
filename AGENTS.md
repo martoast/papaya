@@ -159,7 +159,7 @@ ss -tlnp | grep ':443'                                # must not list papaya
 BASE=https://papaya.<tailnet>.ts.net
 curl -s -o /dev/null -w '%{http_code}\n' -X POST $BASE/api/sessions \
   -H "Origin: $BASE" -H 'Content-Type: application/json' \
-  -d '{"host":"<a-target>","user":"root"}'            # expect 403
+  -d '{"host":"<a-target>","user":"x"}'               # expect 403 with PAPAYA_ALLOWED_SSH_USERS set
 
 curl -s -o /dev/null -w '%{http_code}\n' -X POST "$BASE/upload?session=x" \
   -H 'Origin: https://evil.com' -F file=@/etc/hostname # expect 403
@@ -212,10 +212,9 @@ public records — including the `_acme-challenge` TXT that was just written.
 `deploy/setup-domain.sh` already pins `1.1.1.1` and `8.8.8.8`; anything else
 doing ACME here needs the same.
 
-**Root is refused by default, even if the tailnet ACL allows it.** `root`,
-`toor`, and `admin` are rejected unless named explicitly in
-`PAPAYA_ALLOWED_SSH_USERS`. A web terminal handing out uid 0 because the ACL
-happened to permit it is not a default worth having.
+**Any remote account is allowed by default, root included.** Set
+`PAPAYA_ALLOWED_SSH_USERS` to the only accounts permitted when you want it
+narrower; anything outside that list is refused.
 
 **Building needs a current Go toolchain.** `tailscale.com` requires a newer Go
 than most distributions ship. Every Make target exports `GOTOOLCHAIN=auto` so the
