@@ -251,14 +251,40 @@ const runtimeJS = `(function () {
     try { def[fn](s, arg); } catch (e) { fail(e); }
   }
 
+  // pad is the strip along the bottom that Papaya's controls cover (the dock,
+  // the home indicator). The scene is laid out above it (s.h stops there, so
+  // its ground stays in view) and the strip shows a soft reflection of the
+  // scene's lowest part, so the picture still reaches the bottom of the screen.
+  var pad = 0;
   function resize() {
     s.dpr = THEME.preview ? 1 : Math.min(window.devicePixelRatio || 1, 2);
-    s.w = window.innerWidth; s.h = window.innerHeight;
+    s.w = window.innerWidth; s.h = Math.max(1, window.innerHeight - pad);
     canvas.width = Math.max(1, Math.round(s.w * s.dpr));
-    canvas.height = Math.max(1, Math.round(s.h * s.dpr));
+    canvas.height = Math.max(1, Math.round(window.innerHeight * s.dpr));
     if (s.ctx && s.ctx.setTransform) s.ctx.setTransform(s.dpr, 0, 0, s.dpr, 0, 0);
     if (s.ctx && s.ctx.viewport) s.ctx.viewport(0, 0, canvas.width, canvas.height);
     if (started) call('resize');
+  }
+
+  function reflect() {
+    var ctx = s.ctx;
+    if (!pad || !ctx || !ctx.drawImage) return;
+    var d = s.dpr, band = Math.min(pad, s.h);
+    try {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, s.h * d, canvas.width, pad * d);
+      // The band just above the line, mirrored below it.
+      ctx.translate(0, 2 * s.h * d);
+      ctx.scale(1, -1);
+      ctx.drawImage(canvas, 0, (s.h - band) * d, canvas.width, band * d, 0, (s.h - band) * d, canvas.width, band * d);
+      ctx.restore();
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.fillRect(0, s.h * d, canvas.width, pad * d);
+      ctx.restore();
+    } catch (e) { pad = 0; }
   }
 
   function tick(now) {
@@ -272,6 +298,7 @@ const runtimeJS = `(function () {
     last = now;
     s.t += s.dt;
     call('draw');
+    reflect();
     s.frame++; frames++;
     // A poster (the picker's preview) holds a frame once the scene has settled.
     if (THEME.poster && s.t > 1.2) { dead = true; return; }
@@ -288,6 +315,11 @@ const runtimeJS = `(function () {
     if (m.type === 'init') {
       s.tabs = Array.isArray(m.tabs) ? m.tabs : [];
       call('init');
+      return;
+    }
+    if (m.type === 'layout') {
+      var p = Math.max(0, Math.min(400, Math.round(Number(m.bottom) || 0)));
+      if (p !== pad) { pad = p; resize(); }
       return;
     }
     if (m.type === 'event' && m.event && typeof m.event.type === 'string') {

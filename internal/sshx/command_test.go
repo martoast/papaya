@@ -222,3 +222,16 @@ func TestValidWorkspaceName(t *testing.T) {
 		require.Falsef(t, sshx.ValidWorkspaceName(bad), "%q must be refused", bad)
 	}
 }
+
+// A reattaching browser gets tmux's own drawing of the screen: lines with CR
+// LF endings and the cursor put back, not the raw output replayed.
+func TestParseSnapshot(t *testing.T) {
+	// A 4-line screen, the cursor after "> " on its third line.
+	out := []byte("first line\n\x1b[31mred\x1b[0m\n> \n\n\x1e2 2 4\n")
+	b, ok := sshx.ParseSnapshot(out)
+	require.True(t, ok)
+	require.Equal(t, "\x1b[0mfirst line\r\n\x1b[31mred\x1b[0m\r\n> \r\n\x1b[0m\x1b[1A\r\x1b[2C", string(b))
+	_, ok = sshx.ParseSnapshot([]byte("no separator"))
+	require.False(t, ok)
+	require.Contains(t, sshx.SnapshotCommand("tsterm-Henry", 500), "capture-pane -e -p -S -500")
+}

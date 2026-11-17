@@ -36,6 +36,8 @@ test('clicking the mic records, then transcribes and inserts the text', async ({
 
   // The stub transcriber returns a fixed phrase; it must land at the cursor.
   await expect.poll(() => termText(page), { timeout: 15_000 }).toContain('git status --short')
+  // And only there: no bubble repeating it.
+  await expect(page.locator('#status-text')).toHaveText('')
 })
 
 test('push-to-talk records while the hotkey is held', async ({ page }) => {

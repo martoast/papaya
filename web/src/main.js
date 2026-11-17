@@ -564,7 +564,7 @@ async function stopVoiceAndTranscribe() {
     } else if (res.injected === false) {
       notice(`transcribed but not inserted: ${res.text}`, 'error')
     } else {
-      notice(`"${res.text}"`)
+      // The words are already in the terminal: no bubble repeating them.
       tab.focus()
     }
   } catch (err) {

@@ -213,7 +213,11 @@ function layoutScene() {
   if (!surface || document.documentElement.classList.contains('kb-open')) return
   const gap = Math.max(0, Math.round(window.innerHeight - surface.getBoundingClientRect().bottom))
   document.documentElement.style.setProperty('--scene-bottom', `${gap}px`)
+  sceneGap = gap
+  // Tell the scene: it lays out above this strip and reflects into it.
+  if (frame && frameReady) frame.contentWindow?.postMessage({ papaya: 'host', type: 'layout', bottom: gap }, '*')
 }
+let sceneGap = 0
 window.addEventListener('resize', () => requestAnimationFrame(layoutScene))
 window.addEventListener('load', layoutScene)
 if ('ResizeObserver' in window) {
@@ -321,6 +325,7 @@ window.addEventListener('message', (e) => {
   if (m.type === 'ready') {
     frameReady = true
     frame.onReady?.()
+    frame.contentWindow.postMessage({ papaya: 'host', type: 'layout', bottom: sceneGap }, '*')
     frame.contentWindow.postMessage({ papaya: 'host', type: 'init', tabs: [...tabs.values()].map(tabInfo) }, '*')
     const pending = queue
     queue = []

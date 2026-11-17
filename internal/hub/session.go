@@ -877,6 +877,11 @@ func (s *Session) sendEvent(c *wsConn, v any) {
 // and a phone. They mirror each other, exactly as two tmux clients on one
 // session do, because there is one PTY underneath and it has one screen.
 func (s *Session) attach(c *wsConn) {
+	// For a tmux tab, tmux's own drawing of the screen is what a (re)attaching
+	// browser gets: taken before this client starts receiving live output, so
+	// the two never interleave. The raw replay is the fallback.
+	snapshot, haveSnapshot := s.tmuxSnapshot()
+
 	s.mu.Lock()
 	if s.clients == nil {
 		s.clients = map[*wsConn]clientView{}
@@ -888,7 +893,9 @@ func (s *Session) attach(c *wsConn) {
 	st := s.state
 	s.mu.Unlock()
 
-	if replay := s.ring.Snapshot(); len(replay) > 0 {
+	if haveSnapshot {
+		c.enqueue(wsMessage{binary: true, data: snapshot})
+	} else if replay := s.ring.Snapshot(); len(replay) > 0 {
 		c.enqueue(wsMessage{binary: true, data: replay})
 	}
 
@@ -1060,6 +1067,19 @@ func (s *Session) remoteTmux(ctx context.Context, build func(workspace string) s
 	}
 	defer release()
 	return sshx.RunTmux(ctx, client, build(name), stdin)
+}
+
+// tmuxSnapshot asks tmux for the tab's screen (see sshx.SnapshotCommand),
+// briefly: a slow host falls back to the raw replay rather than holding the
+// browser at a blank screen.
+func (s *Session) tmuxSnapshot() ([]byte, bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+	defer cancel()
+	out, err := s.remoteTmux(ctx, func(ws string) string { return sshx.SnapshotCommand(ws, 500) }, nil)
+	if err != nil {
+		return nil, false
+	}
+	return sshx.ParseSnapshot(out)
 }
 
 // Say pastes text into this tab's workspace as if it had been typed there,

@@ -57,6 +57,56 @@ func SayCommand(workspace string, enter bool) string {
 	return cmd
 }
 
+// SnapshotCommand prints what tmux shows in the workspace, with colours, for a
+// browser that is (re)attaching: up to history lines of scrollback and the
+// visible screen (just the screen when a full-screen program is in its
+// alternate screen), then a record separator (0x1e) and the cursor as
+// "x y height". tmux's own screen is already drawn: replaying the raw output
+// instead re-runs every cursor jump a spinner made, at whatever width it was
+// drawn for, and comes out garbled on a screen of another size.
+func SnapshotCommand(workspace string, history int) string {
+	t := ShellQuote("=" + workspace + ":")
+	return fmt.Sprintf(`if [ "$(tmux display-message -p -t %[1]s '#{alternate_on}')" = 1 ]; then `+
+		`tmux capture-pane -e -p -t %[1]s; else tmux capture-pane -e -p -S -%[2]d -t %[1]s; fi; `+
+		`printf '\036'; tmux display-message -p -t %[1]s '#{cursor_x} #{cursor_y} #{pane_height}'`, t, history)
+}
+
+// ParseSnapshot turns SnapshotCommand's output into bytes for a fresh
+// terminal: the lines with CR LF endings, then the cursor put back where tmux
+// has it.
+func ParseSnapshot(out []byte) ([]byte, bool) {
+	i := bytes.LastIndexByte(out, 0x1e)
+	if i < 0 {
+		return nil, false
+	}
+	var cx, cy, h int
+	if _, err := fmt.Sscanf(strings.TrimSpace(string(out[i+1:])), "%d %d %d", &cx, &cy, &h); err != nil {
+		return nil, false
+	}
+	// Every line as tmux printed it (the visible screen is the last h of
+	// them, blank ones included), so the cursor can be placed relative to the
+	// bottom: right whatever height the browser's terminal has.
+	text := strings.TrimSuffix(string(out[:i]), "\n")
+	lines := strings.Split(text, "\n")
+	var b strings.Builder
+	b.WriteString("\x1b[0m")
+	for n, l := range lines {
+		if n > 0 {
+			b.WriteString("\r\n")
+		}
+		b.WriteString(l)
+	}
+	b.WriteString("\x1b[0m")
+	if up := h - 1 - cy; up > 0 && up < len(lines) {
+		fmt.Fprintf(&b, "\x1b[%dA", up)
+	}
+	b.WriteString("\r")
+	if cx > 0 {
+		fmt.Fprintf(&b, "\x1b[%dC", cx)
+	}
+	return []byte(b.String()), true
+}
+
 // CaptureCommand prints the last lines of the tmux session's visible pane.
 func CaptureCommand(workspace string, lines int) string {
 	return fmt.Sprintf("tmux capture-pane -p -J -S -%s -t %s",

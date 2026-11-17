@@ -608,7 +608,8 @@ html[data-tone='light'] .lg-surface { box-shadow: 0 0 0 0.5px rgba(60, 40, 20, 0
    mic and the home indicator cover the bottom of the screen, and a scene's
    ground (a fire, trees, dunes) drawn there was hidden. themes.js measures the
    gap into --scene-bottom; the strip below wears the theme's own background. */
-html body #scene { height: calc(100% - var(--scene-bottom, 0px)); bottom: auto; }
+/* (The frame itself covers the whole screen; the scene is told the height of
+   the strip the controls cover and reflects into it. See the runtime's pad.) */
 html[data-backdrop='on'], html[data-backdrop='on'] body { background-color: var(--color-surface-0) !important; }
 
 /* Recording: the glass glows red; transcribing: warm papaya glass. */
