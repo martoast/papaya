@@ -31,7 +31,7 @@ papaya-theme rm koi-pond
 
 Built-in: **koi-pond** (a mosaic pond; a koi per tab), **honu-lagoon** (mosaic sea
 turtles, one per tab), **night-reef** (a glowing manta, turtle and jellyfish),
-**shark-reef** (a light theme: sharks made of letter tiles, one per tab),
+**shark-reef** (sharks made of letter tiles in blue reef water, one per tab),
 **snow-pines** (snow, a cabin, fireworks on a cue), **teletext-clouds**, **aurora**,
 **ember** (a pixel campfire), **dither-dunes** (a light theme), **departure-board**
 (your tabs as a flip-dot timetable), **orchard** (every tab a seed that glows while its agent works;
