@@ -16,6 +16,7 @@ import { runSetup, watchNewMachines } from './setup.js'
 import { initThemes } from './themes.js'
 import { initInstall } from './install.js'
 import { showVoiceSetup } from './voicesetup.js'
+import { showThemePicker } from './themepicker.js'
 
 const el = (id) => document.getElementById(id)
 
@@ -1038,3 +1039,5 @@ el('empty-new')?.addEventListener('click', () => el('new-tab').click())
 if (window.matchMedia('(pointer: coarse)').matches) {
   el('dock').appendChild(el('mic'))
 }
+
+el('themes-item').addEventListener('click', () => showThemePicker())

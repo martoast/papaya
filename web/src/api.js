@@ -46,6 +46,9 @@ export const api = {
 
   capabilities: () => request('GET', '/api/capabilities'),
   setVoiceKey: (key) => request('PUT', '/api/voice/key', { key }),
+  themes: () => request('GET', '/api/themes'),
+  theme: (name) => request('GET', `/api/themes/${encodeURIComponent(name)}`),
+  useTheme: (name) => request('POST', '/api/themes/active', { name }),
   deleteVoiceKey: () => request('DELETE', '/api/voice/key'),
 
   // First-run setup: connect machines, test them, finish.

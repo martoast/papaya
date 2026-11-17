@@ -158,3 +158,29 @@ test('list, pull and the built-ins', async ({ page }) => {
     await expect.poll(() => theme(['status', name], { ok: false }), { timeout: 12_000 }).toMatch(/running at \d+ fps/)
   }
 })
+
+// A person switches themes from the app: ••• → Themes → tap. It changes at
+// once, the card shows it is on, and the sheet stays for the next try.
+test('themes can be switched from the menu', async ({ page }) => {
+  await page.goto('/')
+  try {
+    await page.click('#more')
+    await page.click('#themes-item')
+    const picker = page.locator('#theme-picker')
+    await expect(picker).toBeVisible()
+    await expect(picker.locator('[data-theme="default"]')).toHaveAttribute('aria-pressed', 'true')
+    await expect(picker.locator('[data-theme="synthwave"]')).toBeVisible()
+    await picker.locator('[data-theme="synthwave"]').click()
+    await expect(picker.locator('[data-theme="synthwave"]')).toHaveAttribute('aria-pressed', 'true')
+    await expect
+      .poll(() => page.evaluate(async () => (await (await fetch('/api/theme')).json()).name))
+      .toBe('synthwave')
+    await expect(page.locator('html')).toHaveAttribute('data-backdrop', 'on', { timeout: 10_000 })
+    await picker.locator('[data-act="done"]').click()
+    await expect(picker).toHaveCount(0)
+  } finally {
+    await page.evaluate(() =>
+      fetch('/api/themes/active', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'default' }) }),
+    )
+  }
+})
