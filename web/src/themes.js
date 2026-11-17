@@ -133,7 +133,8 @@ export function forgetTab(id) {
 export function setActiveTab(id) {
   if (activeId === id) return
   activeId = id
-  applyActive()
+  // Switching tabs changes the look at once: the reveal is for picking a theme.
+  applyActive({ animate: false })
 }
 
 // setTabTheme gives one tab its own theme ('' to follow the owner's again).
@@ -149,7 +150,9 @@ export async function setTabTheme(id, name, { remote = true } = {}) {
       })
     : null
   await ensureView(name)
-  if (id === activeId) await applyActive()
+  // Picked here: the reveal. Arrived from the server (another device, or a
+  // catch-up on reconnect): applied at once.
+  if (id === activeId) await applyActive({ animate: remote })
   window.dispatchEvent(new Event('papaya:theme'))
   if (saved) await saved
 }
@@ -164,17 +167,17 @@ export function tabIds() {
   return [...tabThemes.keys()]
 }
 
-async function applyActive() {
+async function applyActive({ animate = true } = {}) {
   const view = await ensureView(effectiveName(activeId))
   if (current && view.name === current.name && view.version === current.version) return
-  wear(view)
+  wear(view, { animate })
 }
 
 const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 let wearing = 0
 
-async function wear(view) {
-  const first = current === null && !document.documentElement.dataset.theme
+async function wear(view, { animate = true } = {}) {
+  const first = !animate || (current === null && !document.documentElement.dataset.theme)
   current = view
   const token = ++wearing
   // Load the new backdrop first, hidden, so the reveal shows the real scene,

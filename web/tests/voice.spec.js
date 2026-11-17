@@ -292,3 +292,36 @@ test('tapping the mic before voice is on asks for a key, then voice works', asyn
     )
   }
 })
+
+// Changing your mind: the ✕ on the recording pill throws the recording away
+// while you talk, and stops the transcription before anything is typed.
+test('the ✕ cancels a recording, and a transcription, without typing anything', async ({ page }) => {
+  await newTab(page, { name: 'cancel' })
+  const mic = page.locator('#mic')
+  let posted = 0
+  page.on('request', (r) => { if (r.url().includes('/api/transcribe')) posted++ })
+
+  await mic.click()
+  await expect(mic).toHaveAttribute('data-state', 'recording')
+  await page.waitForTimeout(1200)
+  await page.locator('#recording-cancel').click()
+  await expect(mic).toHaveAttribute('data-state', 'idle')
+  await expect(page.locator('#status-text')).toContainText('discarded')
+  expect(posted).toBe(0)
+
+  // While transcribing: hold the request so there is time to cancel it.
+  await page.route('**/api/transcribe**', async (route) => {
+    await new Promise((r) => setTimeout(r, 3000))
+    await route.continue().catch(() => {})
+  })
+  await mic.click()
+  await expect(mic).toHaveAttribute('data-state', 'recording')
+  await page.waitForTimeout(1200)
+  await mic.click()
+  await expect(mic).toHaveAttribute('data-state', 'transcribing')
+  await page.locator('#recording-cancel').click()
+  await expect(mic).toHaveAttribute('data-state', 'idle')
+  await expect(page.locator('#status-text')).toContainText('nothing was typed')
+  await page.waitForTimeout(4000)
+  expect(await termText(page)).not.toContain('git status --short')
+})

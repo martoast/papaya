@@ -211,6 +211,12 @@
           <span id="recording-hint" class="text-xs text-text-lo whitespace-nowrap">
             release to send · Esc cancels
           </span>
+
+          <!-- Cancel: throws the recording away, or stops a transcription
+               before anything is typed. -->
+          <button id="recording-cancel" class="lg-pill-x" aria-label="Cancel, don't type anything" title="Cancel">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>
+          </button>
         </div>
 
         <!-- drop overlay; the depth counter in upload.js drives data-on -->

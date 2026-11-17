@@ -117,6 +117,9 @@ type control struct {
 	Type string `json:"type"`
 	Cols int    `json:"cols"`
 	Rows int    `json:"rows"`
+	// presence: is this device's page visible, and is the tab in use there.
+	Visible bool `json:"visible"`
+	Active  bool `json:"active"`
 }
 
 // readPump feeds client input to the shell until the socket dies.
@@ -147,6 +150,8 @@ func (c *wsConn) readPump(s *Session) {
 			if err := s.WriteInput(data); err != nil {
 				return
 			}
+			// Typing is using: this device's size wins until another is used.
+			s.markUsed(c)
 
 		case websocket.TextMessage:
 			var msg control
@@ -156,6 +161,8 @@ func (c *wsConn) readPump(s *Session) {
 			switch msg.Type {
 			case "resize":
 				s.resizeFrom(c, msg.Cols, msg.Rows)
+			case "presence":
+				s.presence(c, msg.Visible, msg.Active)
 			case "ping":
 				// The read deadline was already extended by the read itself; the
 				// reply lets the client tell a live socket from one that a phone's

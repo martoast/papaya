@@ -114,6 +114,13 @@ func (s *Server) transcribeAudio(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Cancelled in the app while the words were on their way back: the
+		// person changed their mind, so nothing is typed.
+		if r.Context().Err() != nil {
+			log.Printf("transcription for session %s cancelled; not typing it", sess.ID)
+			return
+		}
+
 		// Injected without a trailing newline: the user reads it and decides.
 		injected := true
 		if err := sess.InjectText(res.Text); err != nil {

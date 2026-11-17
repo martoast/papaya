@@ -523,6 +523,27 @@ async function startVoice() {
   await voice.start()
 }
 
+// The transcription in flight, so it can be cancelled before it is typed.
+let transcribing = null
+
+// cancelVoice throws a recording away, or stops a transcription before its
+// text is typed: changing your mind is always one tap.
+function cancelVoice() {
+  if (transcribing) {
+    transcribing.abort()
+    transcribing = null
+    pttHeld = false
+    setMicState('idle')
+    notice('cancelled: nothing was typed')
+    return
+  }
+  if (voice.isBusy) {
+    pttHeld = false
+    voice.cancel()
+    notice('recording discarded')
+  }
+}
+
 async function stopVoiceAndTranscribe() {
   if (!voice.isBusy) return
 
@@ -534,8 +555,10 @@ async function stopVoiceAndTranscribe() {
   }
 
   setMicState('transcribing')
+  const ctl = new AbortController()
+  transcribing = ctl
   try {
-    const res = await transcribe(tab.id, audio.blob, audio.filename)
+    const res = await transcribe(tab.id, audio.blob, audio.filename, ctl.signal)
     if (!res.text) {
       notice('nothing was heard')
     } else if (res.injected === false) {
@@ -545,11 +568,18 @@ async function stopVoiceAndTranscribe() {
       tab.focus()
     }
   } catch (err) {
+    if (ctl.signal.aborted) return // cancelled: cancelVoice said so already
     notice(err.message || 'transcription failed', 'error')
   } finally {
-    setMicState('idle')
+    if (transcribing === ctl) transcribing = null
+    if (!ctl.signal.aborted) setMicState('idle')
   }
 }
+
+el('recording-cancel').addEventListener('click', (e) => {
+  e.stopPropagation()
+  cancelVoice()
+})
 
 // Click toggles; holding the hotkey is push-to-talk.
 micBtn.addEventListener('click', () => {
@@ -586,13 +616,9 @@ document.addEventListener('keyup', (e) => {
   }
 })
 
-// Escape abandons a recording without sending it.
+// Escape abandons a recording, or a transcription, without typing anything.
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && voice.isBusy) {
-    pttHeld = false
-    voice.cancel()
-    notice('recording discarded')
-  }
+  if (e.key === 'Escape' && (voice.isBusy || transcribing)) cancelVoice()
 })
 
 async function initVoice() {
@@ -1075,4 +1101,15 @@ el('themes-item').addEventListener('click', () => {
   document.addEventListener('visibilitychange', check)
   window.addEventListener('pageshow', check)
   setInterval(check, 10 * 60 * 1000)
+}
+
+// --- which device sets the size ---
+// One terminal, several devices: it takes the size of the one in use. Going to
+// the background stops this device counting for every tab; a computer's
+// window coming forward claims the tab in front.
+document.addEventListener('visibilitychange', () => {
+  for (const t of tabs.all()) t.sendPresence(false)
+})
+if (!window.matchMedia('(pointer: coarse)').matches) {
+  window.addEventListener('focus', () => tabs.active?.claim())
 }

@@ -93,6 +93,20 @@ export async function showThemePicker({ tab = null } = {}) {
   root.querySelector('[data-act="done"]').focus()
 
   const body = root.querySelector('[data-grid]')
+
+  // A mouse wheel scrolls up and down; over a row that scrolls sideways (a
+  // narrow window), turn it into sideways scrolling until the row's end, then
+  // let the sheet scroll as usual.
+  body.addEventListener('wheel', (e) => {
+    const row = e.target.closest('.tp-row')
+    if (!row || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return
+    const max = row.scrollWidth - row.clientWidth
+    if (max <= 1) return
+    const next = row.scrollLeft + e.deltaY
+    if ((e.deltaY < 0 && row.scrollLeft <= 0) || (e.deltaY > 0 && row.scrollLeft >= max - 1)) return
+    row.scrollLeft = Math.max(0, Math.min(max, next))
+    e.preventDefault()
+  }, { passive: false })
   let all = [DEFAULT]
   let active = 'default'
 

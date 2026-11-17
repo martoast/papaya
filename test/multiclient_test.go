@@ -57,49 +57,46 @@ func TestOutputReachesEveryAttachedClient(t *testing.T) {
 	laptop.WaitForOutput("TYPED-ON-PHONE", 10*time.Second)
 }
 
-// The shell has one screen, so with two viewers it has to fit the smaller —
-// the rule tmux uses. Letting the last resize win would have a phone and a
-// laptop stretching and shrinking each other's terminal indefinitely.
-func TestGeometryFitsTheSmallestViewer(t *testing.T) {
+// One shell, several devices: the shell takes the size of the device you are
+// using. A phone that merely opens the tab shrinks nothing; typing on it gives
+// it the size; touching the laptop takes it back; a hidden device never counts.
+func TestGeometryFollowsTheDeviceInUse(t *testing.T) {
 	st, srv := newStack(t, harness.StackOptions{})
 	c := st.Client(alice)
+	dims := func(cols, rows int, why string) {
+		t.Helper()
+		require.Eventually(t, func() bool {
+			cc, rr := srv.LastDims()
+			return cc == cols && rr == rows
+		}, 5*time.Second, 20*time.Millisecond, why)
+	}
 
 	sess := c.CreateSession("devbox-1", "sizing", 200, 50)
 	laptop := c.DialWS(sess.ID)
 	laptop.WaitForState("connected", 10*time.Second)
 	laptop.Resize(200, 50)
-
-	require.Eventually(t, func() bool {
-		cols, rows := srv.LastDims()
-		return cols == 200 && rows == 50
-	}, 5*time.Second, 20*time.Millisecond, "the only viewer should get the size it asked for")
+	dims(200, 50, "the only viewer gets the size it asked for")
 
 	phone := c.DialWS(sess.ID)
 	phone.WaitForState("connected", 10*time.Second)
 	phone.Resize(45, 20)
+	require.Never(t, func() bool { cc, _ := srv.LastDims(); return cc == 45 }, 1500*time.Millisecond, 100*time.Millisecond,
+		"a phone that only opened the tab must not shrink the laptop")
 
-	require.Eventually(t, func() bool {
-		cols, rows := srv.LastDims()
-		return cols == 45 && rows == 20
-	}, 5*time.Second, 20*time.Millisecond,
-		"with a phone attached the shell must fit the phone")
+	phone.Send([]byte("x"))
+	dims(45, 20, "typing on the phone gives it the size")
 
-	// The laptop asking for its own size again must not win: the phone still
-	// cannot display it.
-	laptop.Resize(200, 50)
-	require.Never(t, func() bool {
-		cols, _ := srv.LastDims()
-		return cols > 45
-	}, 2*time.Second, 100*time.Millisecond,
-		"a larger viewer must not resize the shell beyond what a smaller one can show")
+	laptop.Send([]byte("y"))
+	dims(200, 50, "typing on the laptop takes the size back")
 
-	// When the phone goes away the laptop gets its full terminal back.
+	phone.SendJSON(map[string]any{"type": "presence", "visible": true, "active": true})
+	dims(45, 20, "switching to the tab on the phone is using it")
+	phone.SendJSON(map[string]any{"type": "presence", "visible": false})
+	dims(200, 50, "the phone going to the background gives the laptop its size back")
+
 	phone.Close()
-	require.Eventually(t, func() bool {
-		cols, rows := srv.LastDims()
-		return cols == 200 && rows == 50
-	}, 10*time.Second, 50*time.Millisecond,
-		"the last small viewer leaving must restore the remaining one's size")
+	laptop.Send([]byte("z"))
+	dims(200, 50, "the laptop alone keeps its size")
 }
 
 // One of two devices closing is not a disconnect; the session is only detached

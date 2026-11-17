@@ -621,3 +621,18 @@ html[data-backdrop='on'], html[data-backdrop='on'] body { background-color: var(
   background: linear-gradient(180deg, rgba(255, 170, 100, 0.6), rgba(255, 120, 50, 0.42)) !important;
 }
 html[data-tone='light'] .lg-dockrow .lg-mic { color: #b04a12; }
+
+/* Desktop (a mouse, a wide window): the rows wrap into a grid, so the wheel
+   scrolls the sheet like any list instead of needing a sideways swipe. */
+@media (pointer: fine) and (min-width: 700px) {
+  .tp-row { flex-wrap: wrap; overflow-x: visible; scroll-snap-type: none; row-gap: 16px; }
+  .tp-sheet { width: min(860px, 100%); }
+}
+
+/* The recording pill's cancel button: a small glass circle. */
+.lg-pill-x { flex: none; width: 30px; height: 30px; margin-right: -6px; border-radius: 99px; display: grid; place-items: center;
+  color: #fff; background: rgba(255, 255, 255, 0.14); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2);
+  transition: transform 0.25s cubic-bezier(0.3, 1.6, 0.5, 1), background-color 0.15s; -webkit-tap-highlight-color: transparent; }
+.lg-pill-x:hover { background: rgba(255, 255, 255, 0.24); }
+.lg-pill-x:active { transform: scale(0.85); }
+#recording-pill { pointer-events: auto; }

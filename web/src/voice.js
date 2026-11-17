@@ -220,13 +220,17 @@ export class VoiceRecorder {
 }
 
 // transcribe posts the recording and returns the recognised text.
-export async function transcribe(sessionId, blob, filename) {
+// signal: aborting it cancels the transcription. The server types the text in
+// only after the transcription comes back, so an abort before then means
+// nothing is written.
+export async function transcribe(sessionId, blob, filename, signal) {
   const form = new FormData()
   form.append('file', blob, filename)
 
   const res = await fetch(`/api/transcribe?session=${encodeURIComponent(sessionId)}`, {
     method: 'POST',
     body: form,
+    signal,
   })
 
   if (!res.ok) {

@@ -229,3 +229,102 @@ test('each tab can have its own theme', async ({ page }) => {
     await reset()
   }
 })
+
+// The picker scrolls with a mouse wheel: on a wide desktop the themes wrap into
+// a grid and the wheel scrolls the sheet; in a narrow window the wheel scrolls
+// a row sideways.
+test('the theme picker scrolls with a mouse wheel', async ({ page }) => {
+  await resetSessions(page)
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await page.click('#more')
+  await page.click('#themes-item')
+  const body = page.locator('#theme-picker .tp-body')
+  await expect(page.locator('#theme-picker [data-theme="koi-pond"]')).toBeVisible()
+  // Wide: no row scrolls sideways; everything is reachable by scrolling down.
+  expect(await page.evaluate(() => [...document.querySelectorAll('.tp-row')].every((r) => r.scrollWidth <= r.clientWidth + 1))).toBe(true)
+  await body.hover()
+  await page.mouse.wheel(0, 600)
+  await expect.poll(() => body.evaluate((b) => b.scrollTop)).toBeGreaterThan(0)
+  await page.locator('[data-act="done"]').click()
+
+  // Narrow: the wheel moves the row sideways.
+  await page.setViewportSize({ width: 600, height: 800 })
+  await page.click('#more')
+  await page.click('#themes-item')
+  const row = page.locator('#theme-picker .tp-row').first()
+  await expect(row).toBeVisible()
+  await row.hover()
+  await page.mouse.wheel(0, 300)
+  await expect.poll(() => row.evaluate((r) => r.scrollLeft)).toBeGreaterThan(0)
+})
+
+// Picking a theme plays the reveal; switching to a tab that wears another
+// theme changes the look at once, with no animation.
+test('switching tabs changes the theme instantly, without the reveal', async ({ page }) => {
+  await resetSessions(page)
+  try {
+    const first = await (await newTab(page, { name: 'one' })).getAttribute('data-tab-id')
+    await page.evaluate(() => {
+      window.__reveals = 0
+      const real = document.startViewTransition?.bind(document)
+      if (real) document.startViewTransition = (cb) => { window.__reveals++; return real(cb) }
+    })
+    await page.click('#more')
+    await page.click('#themes-item')
+    await page.locator('#theme-picker [data-theme="synthwave"]').click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'synthwave')
+    await page.locator('#theme-picker [data-act="done"]').click()
+    expect(await page.evaluate(() => window.__reveals)).toBe(1)
+
+    await newTab(page, { name: 'two' })
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'default')
+    await page.locator(`[data-tab-id="${first}"]`).click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'synthwave')
+    await page.locator('[data-tab-id]').last().click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'default')
+    expect(await page.evaluate(() => window.__reveals)).toBe(1)
+  } finally {
+    await page.evaluate(() =>
+      fetch('/api/themes/active', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'default' }) }),
+    )
+  }
+})
+
+// One truth across devices: a second device that missed a tab's theme change
+// (asleep, or offline) shows the right theme as soon as it reconnects.
+test("a device that missed a tab's theme change catches up when it reconnects", async ({ page, browser }) => {
+  await resetSessions(page)
+  const id = await (await newTab(page, { name: 'shared' })).getAttribute('data-tab-id')
+  const phone = await (await browser.newContext()).newPage()
+  try {
+    await phone.goto('/')
+    await expect(phone.locator(`[data-tab-id="${id}"]`)).toBeVisible({ timeout: 10_000 })
+    await phone.locator(`[data-tab-id="${id}"]`).click()
+    await expect(phone.locator('html')).toHaveAttribute('data-theme', 'default')
+    // The phone sleeps through the change: it ignores live theme news for now.
+    await phone.evaluate((id) => {
+      const h = document.querySelector(`.term-host[data-terminal-id="${id}"]`)
+      const t = window.__papaya_tab_for(h.dataset.terminalId)
+      t.__real = t.handleEvent.bind(t)
+      t.handleEvent = (raw) => { if (!String(raw).includes('"type":"theme"')) t.__real(raw) }
+    }, id)
+
+    await page.click('#more')
+    await page.click('#themes-item')
+    await page.locator('#theme-picker [data-theme="night-reef"]').click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'night-reef')
+    await page.waitForTimeout(800)
+    await expect(phone.locator('html')).toHaveAttribute('data-theme', 'default')
+
+    // It wakes up and reconnects: the same theme as the other device.
+    await phone.evaluate((id) => {
+      const h = document.querySelector(`.term-host[data-terminal-id="${id}"]`)
+      const t = window.__papaya_tab_for(h.dataset.terminalId)
+      t.handleEvent = t.__real
+      t.replaceSocket()
+    }, id)
+    await expect(phone.locator('html')).toHaveAttribute('data-theme', 'night-reef', { timeout: 10_000 })
+  } finally {
+    await phone.context().close()
+  }
+})

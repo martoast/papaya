@@ -202,6 +202,8 @@ export class TerminalTab {
     })
 
     this.term.onData((data) => this.send(data))
+    // A tap or click in the terminal is using it on this device.
+    this.el.addEventListener('pointerdown', () => this.claim(), { passive: true })
 
     // A theme was applied: recolour this terminal in place, and pick the
     // renderer that suits it.
@@ -529,7 +531,7 @@ export class TerminalTab {
   // and it is your turn.
 
   noteOutput(now) {
-    if (now - this.connectedAt < 2000) return // scrollback replay
+    if (this.inReplay) return // the scrollback replayed on connect
     if (now - this.lastInputAt < 800) return // echo of what was typed
     const b = Math.floor(now / 400)
     if (this.outBuckets[this.outBuckets.length - 1] !== b) this.outBuckets.push(b)
@@ -672,6 +674,7 @@ export class TerminalTab {
       // what is already on screen it doubled the last lines, so the screen is
       // cleared first and the replay redraws it once.
       if (this.everOpened) this.term.reset()
+      this.awaitingReplay = true
       this.connectedAt = Date.now()
       this.reconnectAttempt = 0
       this.everOpened = true
@@ -684,6 +687,9 @@ export class TerminalTab {
       // The server needs our real geometry before it starts streaming.
       this.fitIfMeasurable()
       this.sendResize()
+      // Present, but not "in use": opening or reconnecting must not take the
+      // terminal's size from a device someone is typing on.
+      this.sendPresence(false)
     }
 
     ws.onmessage = (ev) => {
@@ -691,9 +697,16 @@ export class TerminalTab {
         this.handleEvent(ev.data)
         return
       }
-      // Binary frames are raw PTY output; write them straight through.
-      this.lastOutputAt = Date.now()
-      this.noteOutput(this.lastOutputAt)
+      // Binary frames are raw PTY output; write them straight through. The
+      // first one after connecting is the replayed scrollback, which says
+      // nothing about whether the program is working now.
+      this.inReplay = this.awaitingReplay
+      this.awaitingReplay = false
+      if (!this.inReplay) {
+        this.lastOutputAt = Date.now()
+        this.noteOutput(this.lastOutputAt)
+      }
+      this.inReplay = false
       this.term.write(new Uint8Array(ev.data))
     }
 
@@ -879,6 +892,22 @@ export class TerminalTab {
         this.applyAgentStatus(ev.state, ev.msg)
         break
 
+      case 'activity': {
+        // What the program has been printing, from the server, as this tab
+        // (re)connects: the working spinner is right from the first frame
+        // instead of after a few seconds of fresh output.
+        const now = Date.now()
+        const ages = Array.isArray(ev.ages) ? ev.ages.filter((a) => a >= 0) : []
+        this.outBuckets = [...new Set(ages.map((a) => Math.floor((now - a) / 400)))].sort((a, b) => a - b)
+        if (ev.quietMs >= 0) this.lastOutputAt = now - ev.quietMs
+        if (ages.length) {
+          this.workStart = now - Math.max(...ages)
+          this.lastWorkAt = now - Math.min(...ages)
+        }
+        this.tick(now, this.active && document.visibilityState === 'visible')
+        break
+      }
+
       case 'theme':
         // This tab's theme was changed, here or on another device.
         this.session.theme = ev.theme || ''
@@ -928,6 +957,22 @@ export class TerminalTab {
     if (this.activity === 'done') this.setActivity('idle')
     // Raw keystrokes as a binary frame: no encoding, no parsing server-side.
     this.ws.send(encoder.encode(data))
+  }
+
+  // sendPresence tells the server whether this page is visible and whether
+  // this tab is being used here right now. The terminal takes the size of the
+  // device in use (see clientView in hub/session.go).
+  sendPresence(active) {
+    this.sendJSON({ type: 'presence', visible: document.visibilityState === 'visible', active })
+  }
+
+  // claim marks this device as the one in use for this tab: a tap or click in
+  // the terminal, or the window coming forward. Typing claims it server-side.
+  claim() {
+    const now = Date.now()
+    if (now - (this.claimedAt || 0) < 1000) return
+    this.claimedAt = now
+    this.sendPresence(true)
   }
 
   sendJSON(obj) {

@@ -82,3 +82,20 @@ test('an agent that reports its status is shown exactly, message and all', async
   await expect(agent).toHaveAttribute('data-attention', 'false')
   await expect(agent).toHaveAttribute('data-activity', 'idle')
 })
+
+// Reopening the app while an agent works: the tab shows "working" at once,
+// from the server's record of recent output, not after seconds of new output.
+test('a tab that is working shows it straight away after a reload', async ({ page }) => {
+  const tab = await newTab(page, { name: 'busy' })
+  await page.locator('.term-host[data-active="true"] .xterm').click()
+  await page.keyboard.type('work 12\n')
+  await expect(tab).toHaveAttribute('data-activity', 'working', { timeout: 6000 })
+  await page.reload()
+  const again = page.locator('[data-tab-id]').first()
+  await expect(again).toBeVisible({ timeout: 8000 })
+  const t0 = Date.now()
+  await expect(again).toHaveAttribute('data-activity', 'working', { timeout: 6000 })
+  // Without the server's record this took 3s or more: a 2s replay guard, then
+  // three slots of fresh output.
+  expect(Date.now() - t0).toBeLessThan(1500)
+})

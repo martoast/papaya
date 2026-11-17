@@ -62,6 +62,15 @@ type Session struct {
 	userNamed bool
 	// theme is the tab's own theme name; empty follows the owner's theme.
 	theme string
+
+	// outBuckets are the recent 400 ms slots in which the program printed
+	// (unix ms / 400), not counting the echo of typing; lastOut and lastIn are
+	// the last output and the last keystroke. Sent to a browser as it attaches,
+	// so a tab whose agent is working shows it from the first frame instead of
+	// after a few seconds of fresh output.
+	outBuckets []int64
+	lastOut    time.Time
+	lastIn     time.Time
 	// adopt, when set, is an existing remote workspace this tab is resuming
 	// rather than one to be reserved. It is validated before it reaches here.
 	adopt string
@@ -91,18 +100,31 @@ type Session struct {
 	// tab as a laptop is a second viewer, not a replacement: evicting the first
 	// made both browsers reconnect and evict each other about once a second,
 	// forever.
-	clients   map[*wsConn]clientView
+	clients map[*wsConn]clientView
+	// sizedOnce is set once a viewer's geometry has been applied.
+	sizedOnce bool
 	pty       *sshx.PTY
 	sshClient *ssh.Client
 }
 
-// clientView is one viewer's terminal geometry.
+// clientView is one viewer's terminal geometry and presence.
 //
-// The shell has a single screen, so with several viewers the size has to be the
-// smallest of them — the rule tmux uses. Letting the last resize win would make
-// two devices of different sizes fight, and a phone would repeatedly shrink and
-// stretch a laptop's terminal.
-type clientView struct{ cols, rows int }
+// The shell has a single screen, so with several viewers one size must be
+// chosen. It is the size of the device you are using: the viewer that most
+// recently typed, tapped, focused its window or switched to this tab (tmux's
+// "window-size latest"). A device that is hidden (the app in the background,
+// the phone locked) does not count at all, and when nobody has used the tab
+// yet the biggest visible screen wins. So a phone open on the desk no longer
+// shrinks the laptop you are typing on, and picking the phone up and typing
+// gives it the size until you touch the laptop again.
+//
+// Reconnecting is not "using": a phone that wakes up reattaches every tab, and
+// that alone must not shrink them all.
+type clientView struct {
+	cols, rows int
+	active     time.Time // last real use from this viewer
+	hidden     bool      // its page is not visible
+}
 
 // View is the JSON representation returned by the REST API.
 type View struct {
@@ -555,56 +577,84 @@ func (s *Session) resizeFrom(c *wsConn, cols, rows int) {
 	cols, rows = sshx.ClampDims(cols, rows)
 
 	s.mu.Lock()
-	if c != nil {
-		if _, ok := s.clients[c]; ok {
-			s.clients[c] = clientView{cols: cols, rows: rows}
-		}
+	if c == nil {
+		s.cols, s.rows = cols, rows
+	} else if v, ok := s.clients[c]; ok {
+		v.cols, v.rows = cols, rows
+		s.clients[c] = v
 	}
-	cols, rows = s.smallestLocked(cols, rows)
-	s.cols, s.rows = cols, rows
-	pty := s.pty
 	s.mu.Unlock()
-
-	if pty != nil {
-		if err := pty.Resize(cols, rows); err != nil {
-			log.Printf("session %s: resize: %v", s.ID, err)
-		}
-	}
+	s.applyGeometry()
 }
 
-// smallestLocked returns the largest geometry every viewer can display. The
-// caller holds s.mu.
-func (s *Session) smallestLocked(cols, rows int) (int, int) {
-	for _, v := range s.clients {
-		if v.cols > 0 && v.cols < cols {
-			cols = v.cols
-		}
-		if v.rows > 0 && v.rows < rows {
-			rows = v.rows
-		}
-	}
-	return cols, rows
-}
-
-// applyMinSize recomputes the shell size after the set of viewers changes, so a
-// phone disconnecting gives a laptop its full terminal back.
-func (s *Session) applyMinSize() {
+// presence records whether a viewer's page is visible and whether it is in use
+// right now, then applies the size that follows from it.
+func (s *Session) presence(c *wsConn, visible, active bool) {
 	s.mu.Lock()
-	cols, rows := 0, 0
-	for _, v := range s.clients {
-		if v.cols > cols {
-			cols = v.cols
+	if v, ok := s.clients[c]; ok {
+		v.hidden = !visible
+		if active && visible {
+			v.active = time.Now()
 		}
-		if v.rows > rows {
-			rows = v.rows
-		}
+		s.clients[c] = v
 	}
-	if cols == 0 || rows == 0 {
+	s.mu.Unlock()
+	s.applyGeometry()
+}
+
+// markUsed records real use (typing) from a viewer. Cheap when it is already
+// the viewer in charge: the size only changes when another device takes over.
+func (s *Session) markUsed(c *wsConn) {
+	s.mu.Lock()
+	v, ok := s.clients[c]
+	if !ok {
 		s.mu.Unlock()
 		return
 	}
-	cols, rows = s.smallestLocked(cols, rows)
-	s.cols, s.rows = cols, rows
+	now := time.Now()
+	recent := !v.hidden && now.Sub(v.active) < time.Second
+	v.active, v.hidden = now, false
+	s.clients[c] = v
+	s.mu.Unlock()
+	if !recent {
+		s.applyGeometry()
+	}
+}
+
+// chooseLocked picks the geometry the shell should have (see clientView). The
+// caller holds s.mu; ok is false when no viewer has a size yet.
+func (s *Session) chooseLocked() (cols, rows int, ok bool) {
+	var best clientView
+	found := false
+	for _, v := range s.clients {
+		if v.hidden || v.cols <= 0 || v.rows <= 0 {
+			continue
+		}
+		switch {
+		case !found:
+			best, found = v, true
+		case v.active.After(best.active):
+			best = v
+		case v.active.Equal(best.active) && v.cols*v.rows > best.cols*best.rows:
+			best = v
+		}
+	}
+	if !found {
+		return 0, 0, false
+	}
+	return best.cols, best.rows, true
+}
+
+// applyGeometry resizes the shell to the chosen size, if it changed. Called
+// when a viewer resizes, comes or goes, is used, or is hidden.
+func (s *Session) applyGeometry() {
+	s.mu.Lock()
+	cols, rows, ok := s.chooseLocked()
+	if !ok || (cols == s.cols && rows == s.rows && s.sizedOnce) {
+		s.mu.Unlock()
+		return
+	}
+	s.cols, s.rows, s.sizedOnce = cols, rows, true
 	pty := s.pty
 	s.mu.Unlock()
 
@@ -619,6 +669,7 @@ func (s *Session) applyMinSize() {
 func (s *Session) WriteInput(b []byte) error {
 	s.mu.Lock()
 	pty := s.pty
+	s.lastIn = time.Now()
 	s.mu.Unlock()
 	if pty == nil {
 		return ErrNotConnected
@@ -693,6 +744,43 @@ func sanitizeInjected(s string) string {
 	return strings.TrimSpace(strings.Join(strings.Fields(s), " "))
 }
 
+// noteOutput records when the program printed, in the same 400 ms slots the
+// browser uses to tell "working" from quiet.
+func (s *Session) noteOutput(now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.lastOut = now
+	if now.Sub(s.lastIn) < 800*time.Millisecond {
+		return // the echo of what was typed is not the program working
+	}
+	b := now.UnixMilli() / 400
+	if n := len(s.outBuckets); n == 0 || s.outBuckets[n-1] != b {
+		s.outBuckets = append(s.outBuckets, b)
+		if len(s.outBuckets) > 16 {
+			s.outBuckets = s.outBuckets[len(s.outBuckets)-16:]
+		}
+	}
+}
+
+// activityEvent is the recent output timing, as ages in ms (clock-free), for a
+// browser that is attaching.
+func (s *Session) activityEvent(now time.Time) map[string]any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	nowMs := now.UnixMilli()
+	ages := []int64{}
+	for _, b := range s.outBuckets {
+		if age := nowMs - b*400 - 200; age >= 0 && age < 6400 {
+			ages = append(ages, age)
+		}
+	}
+	quiet := int64(-1)
+	if !s.lastOut.IsZero() {
+		quiet = now.Sub(s.lastOut).Milliseconds()
+	}
+	return map[string]any{"type": "activity", "ages": ages, "quietMs": quiet}
+}
+
 // sessionSink adapts the session to an io.Writer for the PTY's output.
 type sessionSink struct{ s *Session }
 
@@ -705,6 +793,7 @@ func (w sessionSink) Write(p []byte) (int, error) {
 // attached client, if any.
 func (s *Session) emitOutput(p []byte) {
 	s.ring.Write(p)
+	s.noteOutput(time.Now())
 
 	// BEL is how a program asks for attention, and agents ring it when they
 	// finish or need an answer. With several panels streaming at once this is
@@ -792,9 +881,9 @@ func (s *Session) attach(c *wsConn) {
 	if s.clients == nil {
 		s.clients = map[*wsConn]clientView{}
 	}
-	// Adopt the session's current geometry until this client reports its own,
-	// so attaching does not momentarily resize the shell for everyone else.
-	s.clients[c] = clientView{cols: s.cols, rows: s.rows}
+	// No geometry until this client reports its own (and it does not count as
+	// "in use" until it is), so attaching resizes nothing for anyone else.
+	s.clients[c] = clientView{}
 	s.lastSeen = time.Now()
 	st := s.state
 	s.mu.Unlock()
@@ -810,11 +899,18 @@ func (s *Session) attach(c *wsConn) {
 	}
 	s.sendEvent(c, map[string]any{"type": "rename", "name": s.Name()})
 	s.mu.Lock()
-	as, am := s.agentState, s.agentMsg
+	as, am, theme := s.agentState, s.agentMsg, s.theme
 	s.mu.Unlock()
 	if as != "" {
 		s.sendEvent(c, map[string]any{"type": "agent", "state": as, "msg": am})
 	}
+	// The tab's theme, every time a browser attaches: one that was asleep or
+	// offline when it changed on another device catches up here, so every
+	// device shows the same theme for the same tab.
+	s.sendEvent(c, map[string]any{"type": "theme", "theme": theme})
+	// What the program has been doing, so the tab's working/quiet state is
+	// right at once rather than after a few seconds of new output.
+	s.sendEvent(c, s.activityEvent(time.Now()))
 }
 
 // AgentStates are what a program may say about itself with papaya-status.
@@ -850,7 +946,7 @@ func (s *Session) detach(c *wsConn) {
 	// Only the last viewer leaving detaches the session. One of two devices
 	// closing must not tell the other it has been disconnected.
 	if remaining > 0 {
-		s.applyMinSize()
+		s.applyGeometry()
 		return
 	}
 	if !closed {

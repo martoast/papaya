@@ -40,3 +40,22 @@ func TestAgentStatusReachesTheTab(t *testing.T) {
 	resp, _ = c.Do("POST", "/api/status", map[string]any{"tab": "nope", "state": "done"})
 	require.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
+
+// A tab's theme is one truth for every device: a browser that attaches (or
+// reattaches after sleeping through a change) is told the tab's current theme.
+func TestATabsThemeReachesEveryBrowserThatAttaches(t *testing.T) {
+	st, _ := newStack(t, harness.StackOptions{Tmux: true})
+	c := st.Client(alice)
+	sess := c.CreateSession("devbox-1", "themed", 80, 24)
+	hs, err := st.Hub.Get(alice, sess.ID)
+	require.NoError(t, err)
+	hs.SetTheme("koi-pond")
+
+	ws := c.DialWS(sess.ID)
+	ws.WaitForEvent("theme", 5*time.Second, func(ev map[string]any) bool { return ev["theme"] == "koi-pond" })
+
+	// Back to the shared theme: a later browser is told that too.
+	hs.SetTheme("")
+	ws2 := c.DialWS(sess.ID)
+	ws2.WaitForEvent("theme", 5*time.Second, func(ev map[string]any) bool { return ev["theme"] == "" })
+}
