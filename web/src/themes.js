@@ -140,16 +140,23 @@ export function setActiveTab(id) {
 // remote: false when the change came from the server already.
 export async function setTabTheme(id, name, { remote = true } = {}) {
   tabThemes.set(id, name || '')
-  if (remote) {
-    await fetch(`/api/sessions/${encodeURIComponent(id)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ theme: name || '' }),
-    })
-  }
+  // Wear it first, save it alongside: a tap should feel instant.
+  const saved = remote
+    ? fetch(`/api/sessions/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme: name || '' }),
+      })
+    : null
   await ensureView(name)
   if (id === activeId) await applyActive()
   window.dispatchEvent(new Event('papaya:theme'))
+  if (saved) await saved
+}
+
+// prefetch loads themes' views ahead of a tap (the picker calls it on open).
+export function prefetch(names) {
+  return Promise.all(names.map((n) => ensureView(n)))
 }
 
 // tabIds lists the tabs this page knows, for "use on all tabs".
@@ -163,16 +170,25 @@ async function applyActive() {
   wear(view)
 }
 
+const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
 function wear(view) {
+  const first = current === null && !document.documentElement.dataset.theme
   current = view
-  applyColors(view.colors)
-  if (view.opacity) document.documentElement.style.setProperty('--papaya-term-pct', `${Math.round(view.opacity * 100)}%`)
-  else document.documentElement.style.removeProperty('--papaya-term-pct')
-  if (view.sceneUrl) {
-    if (!frame || frame.dataset.version !== view.version) mountScene(view.sceneUrl, view.version)
-  } else unmountScene()
-  document.documentElement.dataset.theme = view.name
-  window.dispatchEvent(new Event('papaya:theme'))
+  const swap = () => {
+    applyColors(view.colors)
+    if (view.opacity) document.documentElement.style.setProperty('--papaya-term-pct', `${Math.round(view.opacity * 100)}%`)
+    else document.documentElement.style.removeProperty('--papaya-term-pct')
+    if (view.sceneUrl) {
+      if (!frame || frame.dataset.version !== view.version) mountScene(view.sceneUrl, view.version)
+    } else unmountScene()
+    document.documentElement.dataset.theme = view.name
+    window.dispatchEvent(new Event('papaya:theme'))
+  }
+  // A quick crossfade of the whole page between the two looks (the View
+  // Transitions API, in Safari and Chrome). The first paint does not animate.
+  if (!first && document.startViewTransition && !reduced()) document.startViewTransition(swap)
+  else swap()
 }
 
 function applyColors(colors) {
@@ -184,8 +200,22 @@ function applyColors(colors) {
   }
 }
 
+// The scene that is fading out while the next one loads behind it.
+let leaving = null
+
+function retire(f) {
+  if (!f) return
+  f.classList.remove('is-in')
+  setTimeout(() => f.remove(), 450)
+}
+
 function mountScene(url, version) {
-  unmountScene()
+  // Keep the old scene up until the new one has drawn, then crossfade: no
+  // blank flash between two backdrops.
+  if (leaving) leaving.remove()
+  leaving = frame
+  frameReady = false
+  queue = []
   frame = document.createElement('iframe')
   frame.id = 'scene'
   frame.title = 'Theme backdrop'
@@ -198,10 +228,24 @@ function mountScene(url, version) {
   frame.src = url
   document.body.prepend(frame)
   document.documentElement.dataset.backdrop = 'on'
+  // If it never says it is ready, show it anyway rather than hide it forever.
+  const f = frame
+  setTimeout(() => f.isConnected && reveal(f), 1500)
+}
+
+function reveal(f) {
+  if (f.classList.contains('is-in')) return
+  f.classList.add('is-in')
+  if (leaving && leaving !== f) {
+    retire(leaving)
+    leaving = null
+  }
 }
 
 function unmountScene() {
-  if (frame) frame.remove()
+  retire(frame)
+  if (leaving) leaving.remove()
+  leaving = null
   frame = null
   frameReady = false
   queue = []
@@ -224,6 +268,7 @@ window.addEventListener('message', (e) => {
   if (m.version !== current?.version) return
   if (m.type === 'ready') {
     frameReady = true
+    requestAnimationFrame(() => reveal(frame))
     frame.contentWindow.postMessage({ papaya: 'host', type: 'init', tabs: [...tabs.values()].map(tabInfo) }, '*')
     const pending = queue
     queue = []

@@ -96,7 +96,9 @@ func SceneError(t *Theme, msg string) string {
 }
 
 // WallpaperScene draws a theme's wallpaper when it has no scene of its own:
-// cover-fit, drifting very slowly, with moments for events.
+// a still, cover-fitted, centred frame. It used to drift and zoom, which made
+// people dizzy on a phone. The picture is drawn once per size; it is only
+// redrawn while an event's moment (a cue, a message, a bell) plays over it.
 const WallpaperScene = `// Papaya's wallpaper scene.
 papaya.scene({
   setup(s) { s.state.flash = 0; s.state.sweep = -1; s.state.glow = 0; s.state.sparks = [] },
@@ -112,13 +114,14 @@ papaya.scene({
     const { ctx, w, h, t, dt } = s
     const img = s.image
     if (!img) return
-    const z = s.reducedMotion ? 1.04 : 1.05 + 0.03 * Math.sin(t / 40)
-    const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight) * z
-    const iw = img.naturalWidth * scale, ih = img.naturalHeight * scale
-    const px = s.reducedMotion ? 0 : Math.sin(t / 55) * (iw - w) * 0.3
-    const py = s.reducedMotion ? 0 : Math.cos(t / 70) * (ih - h) * 0.3
-    ctx.drawImage(img, (w - iw) / 2 + px, (h - ih) / 2 + py, iw, ih)
     const st = s.state
+    const busy = st.sweep >= 0 || st.glow > 0 || st.flash > 0 || st.sparks.length > 0
+    const size = w + 'x' + h
+    if (!busy && st.drawn === size) return
+    st.drawn = size
+    const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight)
+    const iw = img.naturalWidth * scale, ih = img.naturalHeight * scale
+    ctx.drawImage(img, (w - iw) / 2, (h - ih) / 2, iw, ih)
     if (st.sweep >= 0) {
       const x = st.sweep * (w + 600) - 300
       const g = ctx.createLinearGradient(x - 200, 0, x + 200, h)
@@ -143,6 +146,8 @@ papaya.scene({
       return p.life > 0
     })
     ctx.globalAlpha = 1
+    // A moment just ended: one clean redraw of the still picture next frame.
+    if (busy && !(st.sweep >= 0 || st.glow > 0 || st.flash > 0 || st.sparks.length > 0)) st.drawn = ''
   },
 })
 `

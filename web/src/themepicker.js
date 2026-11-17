@@ -6,7 +6,7 @@
 // way for a person with a phone in one hand.
 
 import { api } from './api.js'
-import { tabThemeName, setTabTheme, tabIds } from './themes.js'
+import { tabThemeName, setTabTheme, tabIds, prefetch } from './themes.js'
 
 const DEFAULT = {
   name: 'default',
@@ -52,10 +52,10 @@ export async function showThemePicker({ tab = null } = {}) {
       </div>
       <p class="tp-sub">${tab ? 'Each tab can have its own. Tap to try one.' : 'Tap to try one.'} Ask your agent to make you a new one any time.</p>
       ${tab ? '<button class="tp-all" data-act="all">Use this theme on all tabs</button>' : ''}
-      <div class="tp-grid" data-grid><div class="tp-loading">Loading…</div></div>
+      <div data-grid><div class="tp-loading">Loading…</div></div>
       <div class="tp-section">
-        <h3>From Omarchy</h3>
-        <p>Beautiful themes from <a href="https://github.com/omacom/omarchy" target="_blank" rel="noopener">Omarchy</a>, with their wallpapers. Tap to bring one in.</p>
+        <h3>More wallpapers from Omarchy</h3>
+        <p>Still wallpapers with matching colours, from <a href="https://github.com/omacom/omarchy" target="_blank" rel="noopener">Omarchy</a>. Tap to bring one in.</p>
       </div>
       <div class="tp-grid" data-omarchy><div class="tp-loading">Loading Omarchy's themes…</div></div>
     </div>`
@@ -77,13 +77,22 @@ export async function showThemePicker({ tab = null } = {}) {
   const card = (t, extra = '') => `<button class="tp-card ${t.name === active ? 'is-on' : ''} ${busy === t.name ? 'is-busy' : ''}"
       data-theme="${esc(t.name)}" ${extra} aria-pressed="${t.name === active}" title="${esc(t.description || '')}">
       ${preview(t.colors)}
-      <span class="tp-name">${esc(t.title || pretty(t.name))}${t.hasScene ? '<span class="tp-badge">animated</span>' : ''}${t.hasImage ? '<span class="tp-badge">wallpaper</span>' : ''}</span>
+      <span class="tp-name">${esc(t.title || pretty(t.name))}</span>
       <span class="tp-check" aria-hidden="true">✓</span>
       <span class="tp-spin" aria-hidden="true"></span>
     </button>`
 
+  // Three kinds, kept apart: animated scenes (koi pond…), still wallpapers
+  // (Omarchy's), and plain colours.
+  const kind = (t) => (t.hasImage ? 'wallpaper' : t.hasScene ? 'animated' : 'colours')
+  const group = (title, list) =>
+    list.length ? `<div class="tp-section tp-section-in"><h3>${title}</h3></div><div class="tp-grid">${list.map((t) => card(t)).join('')}</div>` : ''
+
   const paint = () => {
-    grid.innerHTML = all.map((t) => card(t)).join('')
+    grid.innerHTML =
+      group('Animated', all.filter((t) => kind(t) === 'animated')) +
+      group('Wallpapers', all.filter((t) => kind(t) === 'wallpaper')) +
+      group('Colours', all.filter((t) => kind(t) === 'colours'))
     if (omarchy) {
       const have = new Set(all.map((t) => t.name))
       const rest = omarchy.filter((t) => !have.has(t.name))
@@ -101,6 +110,8 @@ export async function showThemePicker({ tab = null } = {}) {
     all = [DEFAULT, ...details]
     active = tab ? tabThemeName(tab.id) : list.active || 'default'
     paint()
+    // Ready before the tap: switching then applies with nothing to fetch.
+    prefetch(details.map((t) => t.name))
   }
 
   try {

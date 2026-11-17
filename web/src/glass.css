@@ -563,3 +563,13 @@ html body .setup-ui {
 /* Toasts sit at the bottom of the terminal, where the recording pill was,
    never over the prompt the text just landed on. */
 .lg-toasts { top: auto; bottom: 14px; flex-direction: column-reverse; }
+
+/* ---- theme switching: quick and smooth ---- */
+#scene { opacity: 0; transition: opacity 0.4s ease; }
+#scene.is-in { opacity: 1; }
+::view-transition-old(root),
+::view-transition-new(root) { animation-duration: 0.22s; animation-timing-function: cubic-bezier(0.2, 0.8, 0.3, 1); }
+.tp-section-in { margin: 4px 2px 10px; }
+.tp-section-in h3 { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(235, 235, 245, 0.55); }
+[data-grid] .tp-grid + .tp-section-in { margin-top: 22px; }
+@media (prefers-reduced-motion: reduce) { #scene { transition: none; } }

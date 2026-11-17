@@ -667,6 +667,11 @@ export class TerminalTab {
     this.ws = ws
 
     ws.onopen = () => {
+      // On a reconnect (the app came back from the background, the network
+      // blinked) the server replays the session's recent output. Written over
+      // what is already on screen it doubled the last lines, so the screen is
+      // cleared first and the replay redraws it once.
+      if (this.everOpened) this.term.reset()
       this.connectedAt = Date.now()
       this.reconnectAttempt = 0
       this.everOpened = true

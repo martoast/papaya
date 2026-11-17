@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { resetSessions, newTab, waitForConnected, runCommand } from './helpers.js'
+import { resetSessions, newTab, waitForConnected, runCommand, termText } from './helpers.js'
 
 // Reopening the app on a phone. iOS suspends the page; when it comes back the
 // sockets are either already closed or, worse, still claiming to be open while
@@ -88,4 +88,23 @@ test('closed sockets reconnect without waiting on the server checks', async ({ p
   await comeBack(page)
   await expect.poll(() => opened.length, { timeout: 2500 }).toBe(2)
   expect(Date.now() - t0).toBeLessThan(2500)
+})
+
+// Coming back from the background reconnects, and the server replays recent
+// output. It used to be written over the screen as it was, so the last lines
+// appeared twice; the replay now redraws the screen once.
+test('a reconnect does not repeat what is on screen', async ({ page }) => {
+  await resetSessions(page)
+  await newTab(page, { name: 'once' })
+  await page.locator('.term-host[data-active="true"] .xterm').click()
+  await page.keyboard.type('echo ONCE-MARK\n')
+  const count = async () => (await termText(page)).split('ONCE-MARK').length - 1
+  await expect.poll(count, { timeout: 10_000 }).toBeGreaterThanOrEqual(2)
+  const before = await count()
+  await page.evaluate(() => {
+    const h = document.querySelector('.term-host[data-active="true"]')
+    window.__papaya_tab_for(h.dataset.terminalId).replaceSocket()
+  })
+  await page.waitForTimeout(2500)
+  await expect.poll(count, { timeout: 10_000 }).toBe(before)
 })
