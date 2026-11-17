@@ -65,6 +65,9 @@ func TestTenTabsTwoHostsTwoDials(t *testing.T) {
 	}
 
 	require.Equal(t, int32(2), d.Dials.Load(), "10 tabs across 2 hosts must dial twice, not ten times")
+	// The servers count a connection just after their side of the handshake
+	// returns, which can be a moment after the client already has it.
+	require.Eventually(t, func() bool { return a.Conns.Load() == 1 && b.Conns.Load() == 1 }, 2*time.Second, 5*time.Millisecond)
 	require.Equal(t, int32(1), a.Conns.Load())
 	require.Equal(t, int32(1), b.Conns.Load())
 }

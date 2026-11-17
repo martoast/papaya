@@ -207,6 +207,12 @@ func (s *Server) sshUserFor(host string) string {
 			return u
 		}
 	}
+	// The account a machine was set up with in the setup screen.
+	if s.setup != nil && s.setup.d.Store != nil {
+		if u := strings.TrimSpace(s.setup.d.Store.UserFor(host)); u != "" {
+			return u
+		}
+	}
 	return s.opts.DefaultSSHUser
 }
 
@@ -343,8 +349,9 @@ func (s *Server) listResumable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targets := make([]hub.Target, 0, len(s.opts.StaticHosts))
-	for _, h := range s.opts.StaticHosts {
+	hosts := s.knownHosts()
+	targets := make([]hub.Target, 0, len(hosts))
+	for _, h := range hosts {
 		// The allow list is the authority on where a session may go, so there is
 		// no point offering to resume somewhere a session could not be created.
 		if s.opts.HostAllowed != nil && !s.opts.HostAllowed(h) {
@@ -361,6 +368,31 @@ func (s *Server) listResumable(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, s.hub.Resumable(r.Context(), user, targets))
+}
+
+// knownHosts is every machine papaya is set up to reach: the configured hosts
+// plus those added in the setup screen, read fresh, so a machine connected
+// after papaya started is scanned for running work without a restart.
+func (s *Server) knownHosts() []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(h string) {
+		k := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(h), "."))
+		if k == "" || seen[k] {
+			return
+		}
+		seen[k] = true
+		out = append(out, h)
+	}
+	for _, h := range s.opts.StaticHosts {
+		add(h)
+	}
+	if s.setup != nil && s.setup.d.Store != nil {
+		for _, h := range s.setup.d.Store.Hosts() {
+			add(h)
+		}
+	}
+	return out
 }
 
 type resumeRequest struct {

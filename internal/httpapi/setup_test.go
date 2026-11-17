@@ -344,3 +344,26 @@ func TestOneLineJoinConnectsTheCallingMachine(t *testing.T) {
 	require.Contains(t, string(known), "laptop ")
 	require.Contains(t, string(known), strings.Fields(pub)[1])
 }
+
+// A machine connected in the setup screen is scanned for running tmux work at
+// once, without restarting papaya, and that work is offered to pick up (this
+// is how sessions move over from another terminal app).
+func TestRunningWorkOnAMachineAddedInSetupIsOffered(t *testing.T) {
+	f := newFixture(t)
+	f.tsHost.SetWorkspaces("tsterm-Henry", "papaya-api")
+
+	var list []map[string]any
+	require.Equal(t, 200, f.call(t, "GET", "/api/resumable", nil, &list))
+	require.Empty(t, list, "nothing is set up yet")
+
+	require.Equal(t, 200, f.call(t, "PUT", "/api/setup/machines", map[string]any{
+		"machines": []map[string]string{{"name": "server", "user": "alex", "method": "tailscale"}},
+	}, nil))
+	require.Equal(t, 200, f.call(t, "GET", "/api/resumable", nil, &list))
+	names := map[string]bool{}
+	for _, w := range list {
+		names[w["name"].(string)] = true
+	}
+	require.True(t, names["tsterm-Henry"], "%v", list)
+	require.True(t, names["papaya-api"], "%v", list)
+}
