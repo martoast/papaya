@@ -27,7 +27,9 @@ let noticeTimer = null
 function notice(msg, kind = 'info') {
   clearTimeout(noticeTimer)
   statusText.textContent = msg
-  statusText.className = kind === 'error' ? 'text-state-err' : 'text-text-lo'
+  // Toggle only the error colour: the element is a glass toast (glass.css),
+  // and replacing its classes left the text bare over the terminal.
+  statusText.classList.toggle('text-state-err', kind === 'error')
   noticeTimer = setTimeout(() => {
     statusText.textContent = ''
   }, 5000)
@@ -441,6 +443,7 @@ const pillHint = el('recording-hint')
 const pillDot = el('recording-dot')
 
 let voiceEnabled = false
+const TOUCH = window.matchMedia('(pointer: coarse)').matches
 let elapsedTimer = null
 let silenceWarned = false
 
@@ -481,7 +484,7 @@ function setMicState(state) {
     recordingStartedAt = Date.now()
     silenceWarned = false
 
-    pillHint.textContent = 'release to send · Esc cancels'
+    pillHint.textContent = TOUCH ? 'tap the mic to send' : 'release to send · Esc cancels'
     pillHint.classList.remove('text-state-err')
     pillDot.classList.add('animate-pulse')
     // The canvas has no size until the pill is displayed.
