@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}canvas{position:fixed;inset:0;width:100%;height:100%;display:block}</style></head><body><canvas id="c"></canvas><script nonce="preview">window.__PAPAYA_THEME__={"colors":{"accent":"#ffcf6a","ansi-black":"#3a3570","ansi-blue":"#8fb3ff","ansi-bright-black":"#5f5aa0","ansi-bright-blue":"#b6ceff","ansi-bright-cyan":"#a8f0f2","ansi-bright-green":"#aaf0cf","ansi-bright-magenta":"#ddc4ff","ansi-bright-red":"#ffa8bc","ansi-bright-white":"#ffffff","ansi-bright-yellow":"#ffe0a0","ansi-cyan":"#7fe3e8","ansi-green":"#7fe3b3","ansi-magenta":"#c9a2ff","ansi-red":"#ff7f9b","ansi-white":"#d9dcf5","ansi-yellow":"#ffcf6a","state-err":"#ff7f9b","state-ok":"#7fe3b3","state-warn":"#ffcf6a","surface-0":"#1b1645","surface-1":"#16123d","surface-2":"#231d56","surface-3":"#352d75","term-bg":"#130f33","term-cursor":"#ffcf6a","term-fg":"#eef0ff","term-sel":"#2c2763","text-hi":"#eef0ff","text-lo":"#a7a3d6"},"name":"snow-pines","poster":false,"version":"f243ebc99b12"};
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}canvas{position:fixed;inset:0;width:100%;height:100%;display:block}</style></head><body><canvas id="c"></canvas><script nonce="preview">window.__PAPAYA_THEME__={"colors":{"accent":"#ffcf6a","ansi-black":"#3a3570","ansi-blue":"#8fb3ff","ansi-bright-black":"#5f5aa0","ansi-bright-blue":"#b6ceff","ansi-bright-cyan":"#a8f0f2","ansi-bright-green":"#aaf0cf","ansi-bright-magenta":"#ddc4ff","ansi-bright-red":"#ffa8bc","ansi-bright-white":"#ffffff","ansi-bright-yellow":"#ffe0a0","ansi-cyan":"#7fe3e8","ansi-green":"#7fe3b3","ansi-magenta":"#c9a2ff","ansi-red":"#ff7f9b","ansi-white":"#d9dcf5","ansi-yellow":"#ffcf6a","state-err":"#ff7f9b","state-ok":"#7fe3b3","state-warn":"#ffcf6a","surface-0":"#1b1645","surface-1":"#16123d","surface-2":"#231d56","surface-3":"#352d75","term-bg":"#130f33","term-cursor":"#ffcf6a","term-fg":"#eef0ff","term-sel":"#2c2763","text-hi":"#eef0ff","text-lo":"#a7a3d6"},"name":"snow-pines","poster":false,"preview":false,"version":"418b98ec7e06"};
 (function () {
   'use strict';
   var THEME = window.__PAPAYA_THEME__ || { colors: {} };
@@ -77,14 +77,40 @@
     try { def[fn](s, arg); } catch (e) { fail(e); }
   }
 
+  // pad is the strip along the bottom that Papaya's controls cover (the dock,
+  // the home indicator). The scene is laid out above it (s.h stops there, so
+  // its ground stays in view) and the strip shows a soft reflection of the
+  // scene's lowest part, so the picture still reaches the bottom of the screen.
+  var pad = 0;
   function resize() {
-    s.dpr = Math.min(window.devicePixelRatio || 1, 2);
-    s.w = window.innerWidth; s.h = window.innerHeight;
+    s.dpr = THEME.preview ? 1 : Math.min(window.devicePixelRatio || 1, 2);
+    s.w = window.innerWidth; s.h = Math.max(1, window.innerHeight - pad);
     canvas.width = Math.max(1, Math.round(s.w * s.dpr));
-    canvas.height = Math.max(1, Math.round(s.h * s.dpr));
+    canvas.height = Math.max(1, Math.round(window.innerHeight * s.dpr));
     if (s.ctx && s.ctx.setTransform) s.ctx.setTransform(s.dpr, 0, 0, s.dpr, 0, 0);
     if (s.ctx && s.ctx.viewport) s.ctx.viewport(0, 0, canvas.width, canvas.height);
     if (started) call('resize');
+  }
+
+  function reflect() {
+    var ctx = s.ctx;
+    if (!pad || !ctx || !ctx.drawImage) return;
+    var d = s.dpr, band = Math.min(pad, s.h);
+    try {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, s.h * d, canvas.width, pad * d);
+      // The band just above the line, mirrored below it.
+      ctx.translate(0, 2 * s.h * d);
+      ctx.scale(1, -1);
+      ctx.drawImage(canvas, 0, (s.h - band) * d, canvas.width, band * d, 0, (s.h - band) * d, canvas.width, band * d);
+      ctx.restore();
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.fillRect(0, s.h * d, canvas.width, pad * d);
+      ctx.restore();
+    } catch (e) { pad = 0; }
   }
 
   function tick(now) {
@@ -92,10 +118,13 @@
     requestAnimationFrame(tick);
     // With reduced motion asked for, a scene still draws, but twice a second.
     if (s.reducedMotion && now - last < 500 && s.frame > 0) return;
+    // A preview card runs at 30 frames a second.
+    if (THEME.preview && now - last < 30 && s.frame > 0) return;
     s.dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
     last = now;
     s.t += s.dt;
     call('draw');
+    reflect();
     s.frame++; frames++;
     // A poster (the picker's preview) holds a frame once the scene has settled.
     if (THEME.poster && s.t > 1.2) { dead = true; return; }
@@ -112,6 +141,11 @@
     if (m.type === 'init') {
       s.tabs = Array.isArray(m.tabs) ? m.tabs : [];
       call('init');
+      return;
+    }
+    if (m.type === 'layout') {
+      var p = Math.max(0, Math.min(400, Math.round(Number(m.bottom) || 0)));
+      if (p !== pad) { pad = p; resize(); }
       return;
     }
     if (m.type === 'event' && m.event && typeof m.event.type === 'string') {
@@ -204,15 +238,18 @@ function backdrop(s) {
   }
   // Far hills, a soft band.
   for (let x = 0; x < W; x++) {
-    const top = Math.round(H * 0.78 + Math.sin(x * 0.07) * 2.5 + Math.sin(x * 0.023 + 1) * 3)
+    const top = Math.round(H * 0.7 + Math.sin(x * 0.07) * 2.5 + Math.sin(x * 0.023 + 1) * 3)
     for (let y = top; y < H; y++) put(x, y, hash(x, y) > 0.85 ? '#3b3478' : '#332d6d')
   }
   // Three rows of pines, far to near.
   const rows = [
-    { y: 0.84, color: '#2a4f63', snow: '#8fa3d8', h: [5, 9], gap: [3, 6] },
-    { y: 0.9, color: '#245a5e', snow: '#b8c6f0', h: [8, 13], gap: [5, 10] },
-    { y: 0.98, color: '#2f7068', snow: '#e8f0ff', h: [11, 18], gap: [9, 18] },
+    { y: 0.8, color: '#2a4f63', snow: '#8fa3d8', h: [6, 10], gap: [3, 6] },
+    { y: 0.88, color: '#245a5e', snow: '#b8c6f0', h: [9, 15], gap: [5, 10] },
+    { y: 0.98, color: '#2f7068', snow: '#e8f0ff', h: [13, 22], gap: [9, 18] },
   ]
+  // Tree heights are fractions of the screen, not fixed tile counts, so a tall
+  // phone gets tall trees too.
+  const S = H / 60
   let seed = 3
   const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647
   for (const row of rows) {
@@ -220,9 +257,9 @@ function backdrop(s) {
     for (let x = -2; x < W + 2;) {
       // Keep the middle of a wide screen open, with trees massed at the sides.
       const mid = W > 120 && x > W * 0.35 && x < W * 0.65
-      const h = Math.round(row.h[0] + r() * (row.h[1] - row.h[0]) * (mid ? 0.55 : 1))
+      const h = Math.round((row.h[0] + r() * (row.h[1] - row.h[0]) * (mid ? 0.55 : 1)) * S)
       tree(put, x, base, h, row.color, row.snow)
-      x += Math.round(row.gap[0] + r() * (row.gap[1] - row.gap[0]) + (mid ? 6 : 0))
+      x += Math.round((row.gap[0] + r() * (row.gap[1] - row.gap[0])) * Math.min(1.6, S) + (mid ? 6 : 0))
     }
   }
   // Snow on the ground.

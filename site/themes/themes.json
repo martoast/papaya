@@ -3,7 +3,7 @@
     "name": "aurora",
     "description": "Pixel aurora curtains ripple over dark mountains and shimmer in the lake below.",
     "builtin": true,
-    "opacity": 0.72,
+    "opacity": 0.58,
     "colors": {
       "accent": "#3df5a5",
       "ansi-black": "#22304f",
@@ -41,7 +41,7 @@
     "name": "departure-board",
     "description": "An amber flip-dot board listing your tabs: on time, working, or boarding when an agent needs you.",
     "builtin": true,
-    "opacity": 0.76,
+    "opacity": 0.68,
     "colors": {
       "accent": "#ffb02e",
       "ansi-black": "#3a2a16",
@@ -79,7 +79,7 @@
     "name": "dither-dunes",
     "description": "Dithered dunes drift under a pulsing sun while a tiny caravan crosses the ridge. A light theme.",
     "builtin": true,
-    "opacity": 0.8,
+    "opacity": 0.62,
     "colors": {
       "accent": "#d9532f",
       "ansi-black": "#5a4632",
@@ -117,7 +117,7 @@
     "name": "ember",
     "description": "A pixel campfire crackles at the bottom of the screen; embers rise, and it flares when an agent rings.",
     "builtin": true,
-    "opacity": 0.74,
+    "opacity": 0.6,
     "colors": {
       "accent": "#ff7a2f",
       "ansi-black": "#3d221a",
@@ -155,7 +155,7 @@
     "name": "honu-lagoon",
     "description": "A mosaic lagoon: sea turtles paddle past swaying kelp; each tab's turtle swims harder while its agent works.",
     "builtin": true,
-    "opacity": 0.72,
+    "opacity": 0.62,
     "colors": {
       "accent": "#ffb347",
       "ansi-black": "#3a6f82",
@@ -231,7 +231,7 @@
     "name": "night-reef",
     "description": "Deep water at night: a glowing manta, a turtle and jellyfish drift through twinkling plankton.",
     "builtin": true,
-    "opacity": 0.72,
+    "opacity": 0.6,
     "colors": {
       "accent": "#38e8d4",
       "ansi-black": "#28376b",
@@ -342,10 +342,48 @@
     }
   },
   {
+    "name": "shark-reef",
+    "description": "Grey reef sharks made of letter tiles circle a pale sea; a hammerhead, a manta, a school of fish and now and then a whale shark. A light theme.",
+    "builtin": true,
+    "opacity": 0.72,
+    "colors": {
+      "accent": "#2d7488",
+      "ansi-black": "#394146",
+      "ansi-blue": "#2a5fa4",
+      "ansi-bright-black": "#5d676d",
+      "ansi-bright-blue": "#3873bd",
+      "ansi-bright-cyan": "#26909c",
+      "ansi-bright-green": "#3a8c56",
+      "ansi-bright-magenta": "#9e59b4",
+      "ansi-bright-red": "#cf4f59",
+      "ansi-bright-white": "#22292d",
+      "ansi-bright-yellow": "#a87800",
+      "ansi-cyan": "#1d7884",
+      "ansi-green": "#2e7a48",
+      "ansi-magenta": "#87479c",
+      "ansi-red": "#bb3a44",
+      "ansi-white": "#7a848a",
+      "ansi-yellow": "#94680a",
+      "state-err": "#bb3a44",
+      "state-ok": "#2e7a48",
+      "state-warn": "#94680a",
+      "surface-0": "#eef1f1",
+      "surface-1": "#e5e9ea",
+      "surface-2": "#dce1e3",
+      "surface-3": "#c3cbcf",
+      "term-bg": "#f3f5f5",
+      "term-cursor": "#2d7488",
+      "term-fg": "#22292d",
+      "term-sel": "#cddde2",
+      "text-hi": "#22292d",
+      "text-lo": "#5f6b72"
+    }
+  },
+  {
     "name": "snow-pines",
     "description": "A pixel pine forest under falling snow; a warm cabin window, a shooting star for every message and fireworks on a cue.",
     "builtin": true,
-    "opacity": 0.74,
+    "opacity": 0.6,
     "colors": {
       "accent": "#ffcf6a",
       "ansi-black": "#3a3570",
@@ -421,7 +459,7 @@
     "name": "teletext-clouds",
     "description": "Chunky pixel clouds drift under a crescent moon; a little bird flies across when agents talk.",
     "builtin": true,
-    "opacity": 0.72,
+    "opacity": 0.62,
     "colors": {
       "accent": "#ffd34d",
       "ansi-black": "#2f3aa0",

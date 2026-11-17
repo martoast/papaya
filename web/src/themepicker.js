@@ -112,7 +112,7 @@ export async function showThemePicker({ tab = null } = {}) {
 
   // Living scenes first: they are what people pick.
   // Koi Pond first: it is the one people love. Then the other mosaic scenes.
-  const ORDER = ['koi-pond', 'honu-lagoon', 'night-reef', 'snow-pines', 'teletext-clouds', 'aurora', 'ember', 'dither-dunes', 'departure-board', 'night-sky', 'orchard', 'synthwave']
+  const ORDER = ['koi-pond', 'honu-lagoon', 'night-reef', 'shark-reef', 'snow-pines', 'teletext-clouds', 'aurora', 'ember', 'dither-dunes', 'departure-board', 'night-sky', 'orchard', 'synthwave']
   const rank = (t) => { const i = ORDER.indexOf(t.name); return i < 0 ? 99 : i }
   const kind = (t) => (t.name === 'default' ? 'colours' : t.hasImage ? 'wallpaper' : t.hasScene ? 'scene' : 'colours')
   const row = (title, list) =>

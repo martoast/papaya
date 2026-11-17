@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}canvas{position:fixed;inset:0;width:100%;height:100%;display:block}</style></head><body><canvas id="c"></canvas><script nonce="preview">window.__PAPAYA_THEME__={"colors":{"accent":"#d9532f","ansi-black":"#5a4632","ansi-blue":"#2f6a96","ansi-bright-black":"#7a6450","ansi-bright-blue":"#3f86b8","ansi-bright-cyan":"#3aa3a1","ansi-bright-green":"#7a9a44","ansi-bright-magenta":"#b867a8","ansi-bright-red":"#de5a3f","ansi-bright-white":"#3a2a1c","ansi-bright-yellow":"#cf951f","ansi-cyan":"#2c8584","ansi-green":"#5f7d32","ansi-magenta":"#9a4e8c","ansi-red":"#c2412b","ansi-white":"#8a7660","ansi-yellow":"#b07a12","state-err":"#c2412b","state-ok":"#5f7d32","state-warn":"#b07a12","surface-0":"#efe2c6","surface-1":"#e8d8b6","surface-2":"#e0cca4","surface-3":"#cdb487","term-bg":"#f3e8d0","term-cursor":"#d9532f","term-fg":"#3a2a1c","term-sel":"#e2cfa4","text-hi":"#3a2a1c","text-lo":"#7a6248"},"name":"dither-dunes","poster":false,"version":"f7aa89e2d7c6"};
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}canvas{position:fixed;inset:0;width:100%;height:100%;display:block}</style></head><body><canvas id="c"></canvas><script nonce="preview">window.__PAPAYA_THEME__={"colors":{"accent":"#d9532f","ansi-black":"#5a4632","ansi-blue":"#2f6a96","ansi-bright-black":"#7a6450","ansi-bright-blue":"#3f86b8","ansi-bright-cyan":"#3aa3a1","ansi-bright-green":"#7a9a44","ansi-bright-magenta":"#b867a8","ansi-bright-red":"#de5a3f","ansi-bright-white":"#3a2a1c","ansi-bright-yellow":"#cf951f","ansi-cyan":"#2c8584","ansi-green":"#5f7d32","ansi-magenta":"#9a4e8c","ansi-red":"#c2412b","ansi-white":"#8a7660","ansi-yellow":"#b07a12","state-err":"#c2412b","state-ok":"#5f7d32","state-warn":"#b07a12","surface-0":"#efe2c6","surface-1":"#e8d8b6","surface-2":"#e0cca4","surface-3":"#cdb487","term-bg":"#f3e8d0","term-cursor":"#d9532f","term-fg":"#3a2a1c","term-sel":"#e2cfa4","text-hi":"#3a2a1c","text-lo":"#7a6248"},"name":"dither-dunes","poster":false,"preview":false,"version":"aec70c56ae4b"};
 (function () {
   'use strict';
   var THEME = window.__PAPAYA_THEME__ || { colors: {} };
@@ -77,14 +77,40 @@
     try { def[fn](s, arg); } catch (e) { fail(e); }
   }
 
+  // pad is the strip along the bottom that Papaya's controls cover (the dock,
+  // the home indicator). The scene is laid out above it (s.h stops there, so
+  // its ground stays in view) and the strip shows a soft reflection of the
+  // scene's lowest part, so the picture still reaches the bottom of the screen.
+  var pad = 0;
   function resize() {
-    s.dpr = Math.min(window.devicePixelRatio || 1, 2);
-    s.w = window.innerWidth; s.h = window.innerHeight;
+    s.dpr = THEME.preview ? 1 : Math.min(window.devicePixelRatio || 1, 2);
+    s.w = window.innerWidth; s.h = Math.max(1, window.innerHeight - pad);
     canvas.width = Math.max(1, Math.round(s.w * s.dpr));
-    canvas.height = Math.max(1, Math.round(s.h * s.dpr));
+    canvas.height = Math.max(1, Math.round(window.innerHeight * s.dpr));
     if (s.ctx && s.ctx.setTransform) s.ctx.setTransform(s.dpr, 0, 0, s.dpr, 0, 0);
     if (s.ctx && s.ctx.viewport) s.ctx.viewport(0, 0, canvas.width, canvas.height);
     if (started) call('resize');
+  }
+
+  function reflect() {
+    var ctx = s.ctx;
+    if (!pad || !ctx || !ctx.drawImage) return;
+    var d = s.dpr, band = Math.min(pad, s.h);
+    try {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, s.h * d, canvas.width, pad * d);
+      // The band just above the line, mirrored below it.
+      ctx.translate(0, 2 * s.h * d);
+      ctx.scale(1, -1);
+      ctx.drawImage(canvas, 0, (s.h - band) * d, canvas.width, band * d, 0, (s.h - band) * d, canvas.width, band * d);
+      ctx.restore();
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.fillRect(0, s.h * d, canvas.width, pad * d);
+      ctx.restore();
+    } catch (e) { pad = 0; }
   }
 
   function tick(now) {
@@ -92,10 +118,13 @@
     requestAnimationFrame(tick);
     // With reduced motion asked for, a scene still draws, but twice a second.
     if (s.reducedMotion && now - last < 500 && s.frame > 0) return;
+    // A preview card runs at 30 frames a second.
+    if (THEME.preview && now - last < 30 && s.frame > 0) return;
     s.dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
     last = now;
     s.t += s.dt;
     call('draw');
+    reflect();
     s.frame++; frames++;
     // A poster (the picker's preview) holds a frame once the scene has settled.
     if (THEME.poster && s.t > 1.2) { dead = true; return; }
@@ -112,6 +141,11 @@
     if (m.type === 'init') {
       s.tabs = Array.isArray(m.tabs) ? m.tabs : [];
       call('init');
+      return;
+    }
+    if (m.type === 'layout') {
+      var p = Math.max(0, Math.min(400, Math.round(Number(m.bottom) || 0)));
+      if (p !== pad) { pad = p; resize(); }
       return;
     }
     if (m.type === 'event' && m.event && typeof m.event.type === 'string') {
@@ -213,10 +247,10 @@ papaya.scene({
     if (!W) return
     const ridge = (k, x) => H * k.base + Math.sin((x + t * k.v) * k.f + k.p) * H * k.a + Math.sin((x - t * k.v * 0.7) * k.f * 2.3 + k.p * 2) * H * k.a * 0.35
     const layers = [
-      { base: 0.62, a: 0.03, f: 0.012, v: 1.2, p: 0.5, ink: [216, 195, 154], dens: 0.45 },
-      { base: 0.7, a: 0.035, f: 0.016, v: 1.8, p: 2.1, ink: [196, 168, 119], dens: 0.55 },
-      { base: 0.8, a: 0.04, f: 0.02, v: 2.6, p: 4.0, ink: [167, 135, 87], dens: 0.65 },
-      { base: 0.9, a: 0.035, f: 0.026, v: 3.4, p: 1.3, ink: [138, 106, 64], dens: 0.75 },
+      { base: 0.5, a: 0.045, f: 0.012, v: 1.2, p: 0.5, ink: [216, 195, 154], dens: 0.45 },
+      { base: 0.61, a: 0.05, f: 0.016, v: 1.8, p: 2.1, ink: [196, 168, 119], dens: 0.55 },
+      { base: 0.73, a: 0.055, f: 0.02, v: 2.6, p: 4.0, ink: [167, 135, 87], dens: 0.65 },
+      { base: 0.86, a: 0.05, f: 0.026, v: 3.4, p: 1.3, ink: [138, 106, 64], dens: 0.75 },
     ]
 
     if (t - st.cachedAt > 0.25 || st.cachedAt < 0) {
@@ -250,7 +284,9 @@ papaya.scene({
 
     // The sun: a dithered disc that breathes.
     st.flare = Math.max(0, st.flare - dt * 0.35)
-    const sx = W * 0.82, sy = H * 0.26, R = Math.min(W, H) * (0.07 + 0.01 * Math.sin(t * 0.6)) * (1 + st.flare * 0.5)
+    const narrow = W < H
+    const sx = W * (narrow ? 0.7 : 0.8), sy = H * (narrow ? 0.3 : 0.24)
+    const R = Math.min(W, H) * (narrow ? 0.14 : 0.09) * (1 + 0.04 * Math.sin(t * 0.6)) * (1 + st.flare * 0.5)
     ctx.fillStyle = '#d9532f'
     for (let y = Math.floor(sy - R * 1.8); y < sy + R * 1.8; y++) for (let x = Math.floor(sx - R * 1.8); x < sx + R * 1.8; x++) {
       const d = Math.hypot(x - sx, y - sy) / R

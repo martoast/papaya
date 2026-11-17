@@ -833,11 +833,11 @@ MSG</div>
     var label = document.getElementById('th-name');
     var themes = [], current = null, ready = false, visible = false, timers = [];
     var TABS = [{ id: 't1', name: 'api', host: 'devbox' }, { id: 't2', name: 'web', host: 'macbook' }, { id: 't3', name: 'qa', host: 'build-box' }];
-    var ORDER = ['koi-pond', 'honu-lagoon', 'night-reef', 'snow-pines', 'teletext-clouds', 'aurora', 'ember', 'dither-dunes', 'departure-board', 'orchard', 'synthwave', 'night-sky'];
+    var ORDER = ['koi-pond', 'honu-lagoon', 'night-reef', 'shark-reef', 'snow-pines', 'teletext-clouds', 'aurora', 'ember', 'dither-dunes', 'departure-board', 'orchard', 'synthwave', 'night-sky'];
     var ASK = { orchard: 'use the orchard theme', 'koi-pond': 'make Papaya a koi pond', synthwave: 'synthwave sunset with pink accents', 'night-sky': 'something calm, like a night sky',
-      'honu-lagoon': 'sea turtles in a lagoon', 'night-reef': 'a glowing reef at night', 'snow-pines': 'a snowy pine forest at night', 'teletext-clouds': 'pixel clouds and a moon',
+      'honu-lagoon': 'sea turtles in a lagoon', 'night-reef': 'a glowing reef at night', 'shark-reef': 'pixel sharks in a pale sea', 'snow-pines': 'a snowy pine forest at night', 'teletext-clouds': 'pixel clouds and a moon',
       aurora: 'northern lights over a lake', ember: 'a cosy pixel campfire', 'dither-dunes': 'a light desert theme', 'departure-board': 'a train station board for my tabs' };
-    var NICE = { orchard: 'Orchard', 'koi-pond': 'Koi Pond', synthwave: 'Synthwave', 'night-sky': 'Night Sky', 'honu-lagoon': 'Honu Lagoon', 'night-reef': 'Night Reef',
+    var NICE = { orchard: 'Orchard', 'koi-pond': 'Koi Pond', synthwave: 'Synthwave', 'night-sky': 'Night Sky', 'honu-lagoon': 'Honu Lagoon', 'night-reef': 'Night Reef', 'shark-reef': 'Shark Reef',
       'snow-pines': 'Snow Pines', 'teletext-clouds': 'Teletext Clouds', aurora: 'Aurora', ember: 'Ember', 'dither-dunes': 'Dither Dunes', 'departure-board': 'Departure Board' };
     function esc(t) { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
     function post(m) { if (ready && frame.contentWindow) frame.contentWindow.postMessage(m, '*'); }

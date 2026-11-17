@@ -419,7 +419,7 @@ animated backdrop drawn behind the terminals) and pushes it with
 ```bash
 papaya-theme new koi-pond        # a starter theme.json + scene.js
 papaya-theme push ./koi-pond     # upload, switch, and report whether it runs
-papaya-theme list                # built-ins: koi-pond, honu-lagoon, night-reef, snow-pines, aurora, ember…
+papaya-theme list                # built-ins: koi-pond, honu-lagoon, night-reef, shark-reef, snow-pines, aurora, ember…
 papaya-theme use default         # back to the plain look
 ```
 

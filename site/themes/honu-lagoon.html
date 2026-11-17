@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}canvas{position:fixed;inset:0;width:100%;height:100%;display:block}</style></head><body><canvas id="c"></canvas><script nonce="preview">window.__PAPAYA_THEME__={"colors":{"accent":"#ffb347","ansi-black":"#3a6f82","ansi-blue":"#7cc4ff","ansi-bright-black":"#6e9fb0","ansi-bright-blue":"#a9d9ff","ansi-bright-cyan":"#9ff6ef","ansi-bright-green":"#a8f3cb","ansi-bright-magenta":"#f1c9ff","ansi-bright-red":"#ffa3ad","ansi-bright-white":"#f6fdff","ansi-bright-yellow":"#ffe5a6","ansi-cyan":"#6ff0e6","ansi-green":"#7ee8b0","ansi-magenta":"#e7a6ff","ansi-red":"#ff7b8a","ansi-white":"#d5eef5","ansi-yellow":"#ffd77a","state-err":"#ff7b8a","state-ok":"#7ee8b0","state-warn":"#ffd77a","surface-0":"#11607e","surface-1":"#0d5470","surface-2":"#16708f","surface-3":"#2a8bab","term-bg":"#0d4a63","term-cursor":"#ffb347","term-fg":"#effbff","term-sel":"#1f6f8c","text-hi":"#effbff","text-lo":"#a9d8e6"},"name":"honu-lagoon","poster":false,"version":"5d1deec7a229"};
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}canvas{position:fixed;inset:0;width:100%;height:100%;display:block}</style></head><body><canvas id="c"></canvas><script nonce="preview">window.__PAPAYA_THEME__={"colors":{"accent":"#ffb347","ansi-black":"#3a6f82","ansi-blue":"#7cc4ff","ansi-bright-black":"#6e9fb0","ansi-bright-blue":"#a9d9ff","ansi-bright-cyan":"#9ff6ef","ansi-bright-green":"#a8f3cb","ansi-bright-magenta":"#f1c9ff","ansi-bright-red":"#ffa3ad","ansi-bright-white":"#f6fdff","ansi-bright-yellow":"#ffe5a6","ansi-cyan":"#6ff0e6","ansi-green":"#7ee8b0","ansi-magenta":"#e7a6ff","ansi-red":"#ff7b8a","ansi-white":"#d5eef5","ansi-yellow":"#ffd77a","state-err":"#ff7b8a","state-ok":"#7ee8b0","state-warn":"#ffd77a","surface-0":"#11607e","surface-1":"#0d5470","surface-2":"#16708f","surface-3":"#2a8bab","term-bg":"#0d4a63","term-cursor":"#ffb347","term-fg":"#effbff","term-sel":"#1f6f8c","text-hi":"#effbff","text-lo":"#a9d8e6"},"name":"honu-lagoon","poster":false,"preview":false,"version":"afa8190dc6ef"};
 (function () {
   'use strict';
   var THEME = window.__PAPAYA_THEME__ || { colors: {} };
@@ -77,14 +77,40 @@
     try { def[fn](s, arg); } catch (e) { fail(e); }
   }
 
+  // pad is the strip along the bottom that Papaya's controls cover (the dock,
+  // the home indicator). The scene is laid out above it (s.h stops there, so
+  // its ground stays in view) and the strip shows a soft reflection of the
+  // scene's lowest part, so the picture still reaches the bottom of the screen.
+  var pad = 0;
   function resize() {
-    s.dpr = Math.min(window.devicePixelRatio || 1, 2);
-    s.w = window.innerWidth; s.h = window.innerHeight;
+    s.dpr = THEME.preview ? 1 : Math.min(window.devicePixelRatio || 1, 2);
+    s.w = window.innerWidth; s.h = Math.max(1, window.innerHeight - pad);
     canvas.width = Math.max(1, Math.round(s.w * s.dpr));
-    canvas.height = Math.max(1, Math.round(s.h * s.dpr));
+    canvas.height = Math.max(1, Math.round(window.innerHeight * s.dpr));
     if (s.ctx && s.ctx.setTransform) s.ctx.setTransform(s.dpr, 0, 0, s.dpr, 0, 0);
     if (s.ctx && s.ctx.viewport) s.ctx.viewport(0, 0, canvas.width, canvas.height);
     if (started) call('resize');
+  }
+
+  function reflect() {
+    var ctx = s.ctx;
+    if (!pad || !ctx || !ctx.drawImage) return;
+    var d = s.dpr, band = Math.min(pad, s.h);
+    try {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, s.h * d, canvas.width, pad * d);
+      // The band just above the line, mirrored below it.
+      ctx.translate(0, 2 * s.h * d);
+      ctx.scale(1, -1);
+      ctx.drawImage(canvas, 0, (s.h - band) * d, canvas.width, band * d, 0, (s.h - band) * d, canvas.width, band * d);
+      ctx.restore();
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.fillRect(0, s.h * d, canvas.width, pad * d);
+      ctx.restore();
+    } catch (e) { pad = 0; }
   }
 
   function tick(now) {
@@ -92,10 +118,13 @@
     requestAnimationFrame(tick);
     // With reduced motion asked for, a scene still draws, but twice a second.
     if (s.reducedMotion && now - last < 500 && s.frame > 0) return;
+    // A preview card runs at 30 frames a second.
+    if (THEME.preview && now - last < 30 && s.frame > 0) return;
     s.dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
     last = now;
     s.t += s.dt;
     call('draw');
+    reflect();
     s.frame++; frames++;
     // A poster (the picker's preview) holds a frame once the scene has settled.
     if (THEME.poster && s.t > 1.2) { dead = true; return; }
@@ -112,6 +141,11 @@
     if (m.type === 'init') {
       s.tabs = Array.isArray(m.tabs) ? m.tabs : [];
       call('init');
+      return;
+    }
+    if (m.type === 'layout') {
+      var p = Math.max(0, Math.min(400, Math.round(Number(m.bottom) || 0)));
+      if (p !== pad) { pad = p; resize(); }
       return;
     }
     if (m.type === 'event' && m.event && typeof m.event.type === 'string') {
