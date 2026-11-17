@@ -10,6 +10,27 @@ import { writeClipboard } from './terminal.js'
 const ADMIN_ACLS = 'https://login.tailscale.com/admin/acls/file'
 const ADMIN_DNS = 'https://login.tailscale.com/admin/dns'
 const DOWNLOAD = 'https://tailscale.com/download'
+const APP_STORE = 'https://apps.apple.com/app/tailscale/id1470499037'
+const PLAY_STORE = 'https://play.google.com/store/apps/details?id=com.tailscale.ipn'
+const REPO = 'https://github.com/martoast/papaya'
+
+// Small line icons for the welcome pages (SF Symbols in spirit).
+const ICON = {
+  machines: '<rect x="3" y="4" width="18" height="12" rx="2.5"/><path d="M8 20h8M12 16v4"/>',
+  bell: '<path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 004 0"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21"/>',
+  home: '<path d="M4 11l8-7 8 7v8.5a1.5 1.5 0 01-1.5 1.5H5.5A1.5 1.5 0 014 19.5z"/><path d="M10 21v-6h4v6"/>',
+  key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l2.5 2.5M14 9l2 2"/>',
+  shield: '<path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z"/><path d="M8.8 12.2l2.2 2.2 4.4-4.6"/>',
+  code: '<path d="M8.5 7L3.5 12l5 5M15.5 7l5 5-5 5M13.5 4.5l-3 15"/>',
+  phone: '<rect x="6.5" y="2.5" width="11" height="19" rx="3"/><path d="M11 18.5h2"/>',
+  laptop: '<rect x="4.5" y="5" width="15" height="10" rx="1.8"/><path d="M2.5 19h19"/>',
+}
+const ico = (name, size = 22) =>
+  `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[name]}</svg>`
+const isIOSDevice = () =>
+  /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+const isAndroid = () => /Android/.test(navigator.userAgent)
 const POLL_MS = 2500
 
 const esc = (s) =>
@@ -72,7 +93,11 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
     overlaysEl.appendChild(root)
 
     let state = initial
-    let step = 'machines' // machines → access → test → done
+    // First run opens on a short welcome: what Papaya is, why it is private,
+    // and how devices reach it. Reopened from the menu, it goes straight to
+    // the machines.
+    let step = reopen ? 'machines' : 'welcome' // welcome → machines → access → done
+    let page = 0 // the welcome's three pages
     // What the person has chosen, by machine name. Kept across refreshes.
     const picks = new Map()
     for (const m of state.machines || []) {
@@ -114,6 +139,7 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
         // every few seconds made it flicker.
         if (JSON.stringify(next) === JSON.stringify(state)) return
         state = next
+        if (step === 'welcome') return // nothing on these pages changes with it
         autoTest()
         render({ keepFocus: true })
       } catch {
@@ -139,11 +165,20 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
         .map((_, i) => `<i class="su-bar ${i < idx ? 'is-done' : i === idx ? 'is-now' : ''}"></i>`)
         .join('')
       const label =
-        step === 'done' ? 'All set' : `Step ${idx + 1} of ${stepNames.length} · ${stepNames[idx][1]}`
+        step === 'done' || step === 'welcome' ? 'All set' : `Step ${idx + 1} of ${stepNames.length} · ${stepNames[idx][1]}`
+      if (step === 'welcome') {
+        return `
+        <header class="su-head su-head-welcome">
+          <div class="su-dots" aria-label="Page ${page + 1} of 3">${[0, 1, 2]
+            .map((i) => `<i class="${i === page ? 'is-now' : ''}"></i>`)
+            .join('')}</div>
+          ${page < 2 ? '<button data-act="skip" class="su-skip">Skip</button>' : ''}
+        </header>`
+      }
       return `
         <header class="su-head">
           <div class="su-brand">
-            ${step === 'machines' && !reopen ? '' : `${papaya(22)}<span>Papaya</span>`}
+            ${papaya(22)}<span>Papaya</span>
             ${reopen ? '<button data-act="close" class="su-x" aria-label="Close">×</button>' : ''}
           </div>
           <div class="su-progress" aria-label="${esc(label)}">${bars}</div>
@@ -181,6 +216,76 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
         </div>`
     }
 
+    // The welcome: three short pages, one idea each.
+    function feature(icon, title, text, tint = '') {
+      return `<div class="su-feat">
+          <span class="su-feat-ico ${tint}">${ico(icon)}</span>
+          <span><b>${title}</b><span>${text}</span></span>
+        </div>`
+    }
+
+    function viewWelcome() {
+      const self = esc(state.self || 'this machine')
+      const pages = [
+        // 1. What it is.
+        `<div class="su-hero"><span class="su-mark">${papaya(76)}</span>
+            <h1>Welcome to Papaya</h1>
+            <p class="su-lede">Your terminals and coding agents, on every machine you own, in your pocket.</p></div>
+          <div class="su-feats">
+            ${feature('machines', 'Every machine, one tap', 'Open a terminal on your laptop, server or desktop from your phone. Your work keeps running when you close it.')}
+            ${feature('bell', 'Know when an agent needs you', 'Each tab shows if Claude Code or Codex is working, done, or waiting on you.', 'is-amber')}
+            ${feature('mic', 'Talk instead of typing', 'Tap the mic and say what you want. It lands in the terminal.', 'is-papaya')}
+          </div>`,
+        // 2. Why it is private.
+        `<div class="su-hero su-hero-sm"><span class="su-glyph is-green">${ico('shield', 44)}</span>
+            <h1>Yours, and only yours</h1>
+            <p class="su-lede">There is no Papaya cloud. Nothing you do here is sent to us.</p></div>
+          <div class="su-feats">
+            ${feature('home', 'It runs on your machine', `Papaya lives on <b>${self}</b>. Your terminals go straight from your devices to your machines, never through anyone else.`, 'is-green')}
+            ${feature('key', 'Your keys stay home', 'The key Papaya logs in with is made here and never leaves this machine. Same for your voice key.', 'is-green')}
+            ${feature('shield', 'A private network', 'Only devices signed in to your own Tailscale account can open Papaya. It is not on the public internet.', 'is-green')}
+            ${feature('code', 'Open source', `Every line is public, so anyone can check. <a href="${REPO}" target="_blank" rel="noopener">See the code ↗</a>`, 'is-green')}
+          </div>`,
+        // 3. How devices reach it.
+        `<div class="su-hero su-hero-sm"><span class="su-glyph is-blue">${tailscaleMark()}</span>
+            <h1>Your devices, connected</h1>
+            <p class="su-lede">Papaya uses <b>Tailscale</b>, a free private network for your own devices.
+              You already have it on this one; that is how this page opened.</p></div>
+          <div class="su-net" aria-hidden="true">
+            <span class="su-node">${ico('phone', 20)}<small>Phone</small></span><i></i>
+            <span class="su-node is-papaya">${papaya(22)}<small>Papaya</small></span><i></i>
+            <span class="su-node">${ico('laptop', 20)}<small>Computers</small></span>
+          </div>
+          <div class="su-card su-tsadd">
+            <p class="su-tsadd-title">To use Papaya on another device</p>
+            <p class="su-tsadd-sub">Install Tailscale there and sign in with the same account${state.owner ? ` (<b>${esc(state.owner)}</b>)` : ''}. Then open this same address.</p>
+            <div class="su-stores">
+              ${isAndroid() ? '' : `<a class="su-store" href="${APP_STORE}" target="_blank" rel="noopener">${ico('phone', 18)}<span><small>Get it for</small>iPhone &amp; iPad</span></a>`}
+              ${isIOSDevice() ? '' : `<a class="su-store" href="${PLAY_STORE}" target="_blank" rel="noopener">${ico('phone', 18)}<span><small>Get it for</small>Android</span></a>`}
+              <a class="su-store" href="${DOWNLOAD}" target="_blank" rel="noopener">${ico('laptop', 18)}<span><small>Get it for</small>Mac, Windows, Linux</span></a>
+            </div>
+            <p class="su-tsadd-sub su-mt">Machines you want to reach need Tailscale too. Add them any time; they appear here by themselves.</p>
+          </div>`,
+      ]
+      return {
+        body: `<div class="su-page" data-page="${page}">${pages[page]}</div>`,
+        foot:
+          page < 2
+            ? `${page > 0 ? '<button data-act="prev" class="su-btn su-btn-ghost">Back</button>' : ''}
+               <button data-act="continue" class="su-btn su-btn-primary ${page > 0 ? 'su-grow' : 'su-wide'}">Continue</button>`
+            : `<button data-act="prev" class="su-btn su-btn-ghost">Back</button>
+               <button data-act="continue" class="su-btn su-btn-primary su-grow">Choose your machines</button>`,
+      }
+    }
+
+    function tailscaleMark() {
+      // Tailscale's nine dots, drawn plainly.
+      const d = [[6, 6, 0.35], [12, 6, 0.35], [18, 6, 0.35], [6, 12, 1], [12, 12, 1], [18, 12, 1], [6, 18, 0.35], [12, 18, 1], [18, 18, 0.35]]
+      return `<svg viewBox="0 0 24 24" width="44" height="44" aria-hidden="true">${d
+        .map(([x, y, o]) => `<circle cx="${x}" cy="${y}" r="2.4" fill="currentColor" opacity="${o}"/>`)
+        .join('')}</svg>`
+    }
+
     function viewMachines() {
       const ms = machines()
       const list = ms.length
@@ -211,8 +316,8 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
 
       const hero = reopen
         ? `<h1>Your machines</h1>`
-        : `<div class="su-hero"><span class="su-mark">${papaya(76)}</span><h1>Welcome to Papaya</h1>
-            <p class="su-lede">Every machine you own, in your pocket. Pick the ones you want to reach.</p></div>`
+        : `<h1>Choose your machines</h1>
+            <p class="su-lede">These are the devices on your Tailscale network. Pick the ones you want to open terminals on.</p>`
       return {
         body: `
           ${hero}
@@ -449,8 +554,8 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
           <div class="su-done">
             <span class="su-mark">${papaya(84)}</span>
             <h1>You're all set</h1>
-            <p class="su-lede">Your machines are one tap away, from any device on your tailnet.
-            Add more later from the ⚙ button.</p>
+            <p class="su-lede">Your machines are one tap away, from any device on your Tailscale network.
+            Add more any time from <b>•••</b> → Machines.</p>
           </div>
           ${httpsNote()}`,
         foot: `<button data-act="open" class="su-btn su-btn-primary su-wide">
@@ -466,10 +571,12 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
       const caret = focusKey ? active.selectionStart : null
       const scroll = root.scrollTop
 
-      const views = { machines: viewMachines, access: viewAccess, test: viewTest, done: viewDone }
+      const views = { welcome: viewWelcome, machines: viewMachines, access: viewAccess, test: viewTest, done: viewDone }
       const v = views[step]()
       const ready = (state.https || {}).on && location.protocol === 'http:' && step !== 'done' ? httpsNote() : ''
-      const entering = root.dataset.step !== step
+      const at = step === 'welcome' ? `welcome-${page}` : step
+      const entering = root.dataset.at !== at
+      root.dataset.at = at
       root.dataset.step = step
       root.classList.toggle('su-enter', entering)
       root.innerHTML = `${header()}
@@ -576,6 +683,17 @@ export function runSetup(overlaysEl, initial, { reopen = false } = {}) {
       switch (t.dataset.act) {
         case 'close':
           return finish(null)
+        case 'continue':
+          if (page < 2) page++
+          else step = 'machines'
+          root.scrollTop = 0
+          return render()
+        case 'prev':
+          if (page > 0) page--
+          return render()
+        case 'skip':
+          step = 'machines'
+          return render()
         case 'back':
           step = step === 'test' ? 'access' : 'machines'
           return render()

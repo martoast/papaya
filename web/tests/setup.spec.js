@@ -37,7 +37,32 @@ async function freshSetup(page) {
   await api(page, 'POST', '/api/setup/complete', { complete: false })
   await page.reload()
   await expect(page.locator('[data-modal="setup"]')).toBeVisible()
+  // First run opens on the welcome; these tests are about what comes after.
+  await page.locator('[data-modal="setup"] [data-act="skip"]').click()
 }
+
+test('first run explains Papaya, its privacy and Tailscale before anything else', async ({ page }) => {
+  await page.goto('/')
+  await api(page, 'PUT', '/api/setup/machines', { machines: [] })
+  await api(page, 'POST', '/api/setup/complete', { complete: false })
+  await page.reload()
+  const setup = page.locator('[data-modal="setup"]')
+  await expect(setup).toHaveAttribute('data-step', 'welcome')
+  await expect(setup).toContainText('Welcome to Papaya')
+  await setup.locator('[data-act="continue"]').click()
+  await expect(setup).toContainText('Nothing you do here is sent to us')
+  await expect(setup).toContainText('Your keys stay home')
+  await expect(setup.locator('a[href*="github.com/martoast/papaya"]')).toHaveCount(1)
+  await setup.locator('[data-act="continue"]').click()
+  await expect(setup).toContainText('Tailscale')
+  await expect(setup.locator('a[href*="tailscale.com/download"]')).toHaveCount(1)
+  await setup.locator('[data-act="prev"]').click()
+  await expect(setup).toContainText('Yours, and only yours')
+  await setup.locator('[data-act="continue"]').click()
+  await setup.locator('[data-act="continue"]').click()
+  await expect(setup).toHaveAttribute('data-step', 'machines')
+  await expect(setup).toContainText('Choose your machines')
+})
 
 test.afterEach(async ({ page }) => {
   await api(page, 'POST', '/api/setup/complete', { complete: true })

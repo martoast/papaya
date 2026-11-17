@@ -191,18 +191,26 @@ while [ $i -lt 600 ]; do
 	a=$(address || true)
 	if [ -n "$a" ]; then
 		remember_url "$a"
-		printf '\n  %sPapaya is ready.%s Open it from any device on your tailnet:\n\n      %s%s%s\n\n' "$B" "$R" "$O" "$a" "$R"
-		note "Next: the setup screen picks your machines. Agent machines:"
+		printf '\n  %sPapaya is ready.%s Now open it on your phone:\n\n' "$B" "$R"
+		printf '    1. Install Tailscale   iPhone   %shttps://apps.apple.com/app/tailscale/id1470499037%s\n' "$O" "$R"
+		printf '                           Android  %shttps://play.google.com/store/apps/details?id=com.tailscale.ipn%s\n' "$O" "$R"
+		printf '    2. Sign in with the same account you just used\n'
+		printf '    3. Open  %s%s%s\n\n' "$O" "$a" "$R"
+		note "The setup screen there walks you through the rest. Computers you want"
+		note "to reach need Tailscale too:  https://tailscale.com/download"
+		note "Nothing goes through us: Papaya runs here, on your own private network."
+		note "Agent tools on other machines:"
 		note "  curl -fsSL https://papaya.fullstacklabs.org/install.sh | sh -s -- --tools --url $a"
-		note "Exact agent status on tabs:  papaya-status --setup"
 		printf '\n'
 		exit 0
 	fi
 	l=$(signin || true)
 	if [ -n "$l" ] && [ "$l" != "$shown" ]; then
 		shown=$l
-		printf '\n  %sSign in with Tailscale%s to add Papaya to your tailnet:\n\n      %s%s%s\n\n' "$B" "$R" "$O" "$l" "$R"
-		note "Approve it in the browser (on your phone is fine). This waits for you."
+		printf '\n  %sSign in with Tailscale%s to put Papaya on your private network:\n\n      %s%s%s\n\n' "$B" "$R" "$O" "$l" "$R"
+		note "Tailscale privately connects your own devices to each other. It's free."
+		note "No account yet? That link creates one (Google, Apple, GitHub or Microsoft)."
+		note "Open it on any device, your phone is fine. This waits for you."
 		printf '\n'
 	fi
 	i=$((i + 1))
