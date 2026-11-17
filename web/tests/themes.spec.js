@@ -184,3 +184,24 @@ test('themes can be switched from the menu', async ({ page }) => {
     )
   }
 })
+
+// Omarchy's library in the picker: tap one and it comes in, with its
+// wallpaper, and is switched on. (The dev server serves a fake Omarchy.)
+test("Omarchy's themes can be brought in from the picker", async ({ page }) => {
+  await page.goto('/')
+  try {
+    await page.click('#more')
+    await page.click('#themes-item')
+    const picker = page.locator('#theme-picker')
+    const om = picker.locator('[data-omarchy] [data-theme="tokyo-night"]')
+    await expect(om).toBeVisible({ timeout: 10_000 })
+    await om.click()
+    await expect(picker.locator('[data-grid] [data-theme="tokyo-night"]')).toHaveAttribute('aria-pressed', 'true', { timeout: 15_000 })
+    await expect(picker.locator('[data-omarchy] [data-theme="tokyo-night"]')).toHaveCount(0)
+  } finally {
+    await page.evaluate(async () => {
+      await fetch('/api/themes/active', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'default' }) })
+      await fetch('/api/themes/tokyo-night', { method: 'DELETE' })
+    })
+  }
+})

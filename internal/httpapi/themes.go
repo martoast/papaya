@@ -41,6 +41,7 @@ func (s *Server) themeRoutes(mux *http.ServeMux) {
 		return
 	}
 	mux.HandleFunc("GET /api/themes", s.listThemes)
+	s.omarchyRoutes(mux)
 	mux.HandleFunc("GET /api/theme", s.activeTheme)
 	mux.HandleFunc("POST /api/themes/active", s.setActiveTheme)
 	mux.HandleFunc("POST /api/themes/cue", s.cueTheme)
@@ -547,6 +548,10 @@ func (s *Server) serveEvents(w http.ResponseWriter, r *http.Request) {
 	if s.events == nil {
 		s.events = newBroker()
 	}
+	// Subscribe before telling the client the stream is open: an event sent
+	// right after it connects must not fall into the gap.
+	ch, cancel := s.events.subscribe(user)
+	defer cancel()
 	rc := http.NewResponseController(w)
 	h := w.Header()
 	h.Set("Content-Type", "text/event-stream")
@@ -557,8 +562,6 @@ func (s *Server) serveEvents(w http.ResponseWriter, r *http.Request) {
 	if err := rc.Flush(); err != nil {
 		return
 	}
-	ch, cancel := s.events.subscribe(user)
-	defer cancel()
 	ping := time.NewTicker(25 * time.Second)
 	defer ping.Stop()
 	for {

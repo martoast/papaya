@@ -49,6 +49,11 @@ export async function showThemePicker() {
       </div>
       <p class="tp-sub">Tap to try one. Ask your agent to make you a new one any time.</p>
       <div class="tp-grid" data-grid><div class="tp-loading">Loading…</div></div>
+      <div class="tp-section">
+        <h3>From Omarchy</h3>
+        <p>Beautiful themes from <a href="https://github.com/omacom/omarchy" target="_blank" rel="noopener">Omarchy</a>, with their wallpapers. Tap to bring one in.</p>
+      </div>
+      <div class="tp-grid" data-omarchy><div class="tp-loading">Loading Omarchy's themes…</div></div>
     </div>`
   const close = () => root.remove()
   root.addEventListener('click', (e) => {
@@ -59,41 +64,79 @@ export async function showThemePicker() {
   root.querySelector('[data-act="done"]').focus()
 
   const grid = root.querySelector('[data-grid]')
-  let list
+  const omGrid = root.querySelector('[data-omarchy]')
+  let all = [DEFAULT]
+  let omarchy = null
+  let active = 'default'
+  let busy = ''
+
+  const card = (t, extra = '') => `<button class="tp-card ${t.name === active ? 'is-on' : ''} ${busy === t.name ? 'is-busy' : ''}"
+      data-theme="${esc(t.name)}" ${extra} aria-pressed="${t.name === active}" title="${esc(t.description || '')}">
+      ${preview(t.colors)}
+      <span class="tp-name">${esc(t.title || pretty(t.name))}${t.hasScene ? '<span class="tp-badge">animated</span>' : ''}${t.hasImage ? '<span class="tp-badge">wallpaper</span>' : ''}</span>
+      <span class="tp-check" aria-hidden="true">✓</span>
+      <span class="tp-spin" aria-hidden="true"></span>
+    </button>`
+
+  const paint = () => {
+    grid.innerHTML = all.map((t) => card(t)).join('')
+    if (omarchy) {
+      const have = new Set(all.map((t) => t.name))
+      const rest = omarchy.filter((t) => !have.has(t.name))
+      omGrid.innerHTML = rest.length
+        ? rest.map((t) => card(t, 'data-omarchy-theme="1"')).join('')
+        : '<p class="tp-loading">All of them are in your themes above.</p>'
+    }
+  }
+
+  async function loadMine() {
+    const list = await api.themes()
+    const details = await Promise.all(
+      list.themes.map((t) => api.theme(t.name).then((d) => ({ ...t, colors: d.colors })).catch(() => t)),
+    )
+    all = [DEFAULT, ...details]
+    active = list.active || 'default'
+    paint()
+  }
+
   try {
-    list = await api.themes()
+    await loadMine()
   } catch (err) {
     grid.innerHTML = `<p class="tp-loading">Couldn't load themes: ${esc(err.message)}</p>`
     return
   }
-  const details = await Promise.all(
-    list.themes.map((t) => api.theme(t.name).then((d) => ({ ...t, colors: d.colors })).catch(() => t)),
-  )
-  const all = [DEFAULT, ...details]
-  let active = list.active || 'default'
+  api
+    .omarchyThemes()
+    .then((d) => {
+      omarchy = d.themes || []
+      paint()
+    })
+    .catch(() => {
+      omGrid.innerHTML = `<p class="tp-loading">Couldn't reach Omarchy's themes right now.</p>`
+    })
 
-  const paint = () => {
-    grid.innerHTML = all
-      .map(
-        (t) => `<button class="tp-card ${t.name === active ? 'is-on' : ''}" data-theme="${esc(t.name)}"
-            aria-pressed="${t.name === active}" title="${esc(t.description || '')}">
-          ${preview(t.colors)}
-          <span class="tp-name">${esc(pretty(t.name))}${t.hasScene ? '<span class="tp-badge">animated</span>' : ''}</span>
-          <span class="tp-check" aria-hidden="true">✓</span>
-        </button>`,
-      )
-      .join('')
-  }
-  paint()
-
-  grid.addEventListener('click', async (e) => {
-    const card = e.target.closest('[data-theme]')
-    if (!card || card.dataset.theme === active) return
+  root.addEventListener('click', async (e) => {
+    const el = e.target.closest('[data-theme]')
+    if (!el || busy || el.dataset.theme === active) return
+    const name = el.dataset.theme
     const prev = active
-    active = card.dataset.theme
+    if (el.dataset.omarchyTheme) {
+      busy = name
+      paint()
+      try {
+        await api.useOmarchy(name)
+        busy = ''
+        await loadMine()
+      } catch {
+        busy = ''
+        paint()
+      }
+      return
+    }
+    active = name
     paint()
     try {
-      await api.useTheme(active)
+      await api.useTheme(name)
     } catch {
       active = prev
       paint()

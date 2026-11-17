@@ -32,6 +32,7 @@ import (
 	"github.com/martoast/papaya/internal/themes"
 	"github.com/martoast/papaya/internal/transcribe"
 	"github.com/martoast/papaya/internal/tsnode"
+	"github.com/martoast/papaya/test/fakeomarchy"
 	"github.com/martoast/papaya/test/harness"
 	"github.com/martoast/papaya/web"
 )
@@ -230,6 +231,11 @@ func run(addr, user string) error {
 		io.WriteString(w, `{"text":"git status --short","languages":[{"code":"en"}]}`)
 	}))
 	defer stub.Close()
+
+	// Omarchy's themes come from a local fake, so tests never need GitHub.
+	om, omRaw, omAPI := fakeomarchy.New()
+	defer om.Close()
+	httpapi.OmarchyRaw, httpapi.OmarchyAPI = omRaw, omAPI
 
 	transcriber := transcribe.New(transcribe.Options{
 		APIKey:  "sk-devserver-stub",
