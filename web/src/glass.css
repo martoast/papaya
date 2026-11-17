@@ -468,30 +468,6 @@ html body .setup-ui {
 /* Put away, what is left sits under the right thumb. */
 .lg-dockrow:has(.lg-dock[data-open='false']) { justify-content: flex-end; }
 
-/* ---- themes picker (themepicker.js) ---- */
-.tp-scrim { position: fixed; inset: 0; z-index: 60; display: grid; place-items: end center; padding: 12px 12px calc(12px + env(safe-area-inset-bottom)); }
-@media (min-width: 700px) { .tp-scrim { place-items: center; } }
-.tp-sheet { width: min(560px, 100%); max-height: min(78vh, 760px); overflow-y: auto; padding: 22px 18px 20px; }
-.tp-head { display: flex; align-items: center; justify-content: space-between; }
-.tp-sub { margin: 6px 2px 16px; font-size: 14px; color: rgba(235, 235, 245, 0.6); }
-.tp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-@media (min-width: 700px) { .tp-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-.tp-loading { grid-column: 1 / -1; padding: 30px 0; text-align: center; color: rgba(235, 235, 245, 0.6); }
-.tp-card {
-  position: relative; display: grid; gap: 8px; padding: 6px 6px 10px; border-radius: 20px; text-align: left;
-  background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.1);
-  transition: transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1), box-shadow 0.25s, background-color 0.2s;
-  -webkit-tap-highlight-color: transparent;
-}
-.tp-card:hover { background: rgba(255, 255, 255, 0.09); }
-.tp-card:active { transform: scale(0.95); }
-.tp-card.is-on { background: rgba(255, 148, 71, 0.12); box-shadow: inset 0 0 0 2px var(--lg-papaya), 0 10px 26px -12px rgba(255, 122, 47, 0.6); }
-.tp-term { height: 78px; border-radius: 15px; padding: 10px 11px; font: 11px/1.55 var(--font-mono); overflow: hidden; white-space: nowrap; box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.08); }
-.tp-cursor { display: inline-block; width: 6px; height: 12px; vertical-align: -2px; border-radius: 1px; }
-.tp-name { display: flex; align-items: center; gap: 6px; padding: 0 6px; font-size: 14px; font-weight: 600; color: #fff; }
-.tp-badge { font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; padding: 2px 7px; border-radius: 99px; background: rgba(255, 255, 255, 0.1); color: rgba(235, 235, 245, 0.7); }
-.tp-check { position: absolute; bottom: 10px; right: 10px; width: 22px; height: 22px; border-radius: 99px; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #1c1206; background: var(--lg-papaya); opacity: 0; transform: scale(0.5); transition: opacity 0.2s, transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1); }
-.tp-card.is-on .tp-check { opacity: 1; transform: scale(1); }
 /* Put away: the toggle is a round button the size of the mic. A fixed size,
    not shrink-to-fit, which Safari collapsed into a sliver. */
 .lg-dock[data-open='false'] { flex: 0 0 56px; width: 56px; padding: 0; justify-content: center; }
@@ -547,19 +523,7 @@ html body .setup-ui {
 .su-store span { display: grid; font-size: 15.5px; font-weight: 600; letter-spacing: -0.01em; }
 .su-store small { font-size: 11px; font-weight: 500; color: rgba(235, 235, 245, 0.6); }
 @media (prefers-reduced-motion: reduce) { .su-net i, .su-page, .su-feat, .su-glyph { animation: none !important; } }
-.tp-section { margin: 26px 2px 12px; }
-.tp-section h3 { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; color: #fff; }
-.tp-section p { margin-top: 4px; font-size: 13.5px; color: rgba(235, 235, 245, 0.6); }
-.tp-section a { color: var(--lg-papaya); text-decoration: none; font-weight: 600; }
-.tp-spin { position: absolute; inset: 6px 6px auto; height: 78px; border-radius: 15px; display: none; place-items: center; background: rgba(0, 0, 0, 0.45); }
-.tp-spin::after { content: ''; width: 24px; height: 24px; border-radius: 99px; border: 2.5px solid rgba(255, 255, 255, 0.25); border-top-color: #fff; animation: tp-spin 0.8s linear infinite; }
-.tp-card.is-busy .tp-spin { display: grid; }
 @keyframes tp-spin { to { transform: rotate(360deg); } }
-.tp-tab { color: var(--lg-papaya); }
-.tp-all { display: block; width: 100%; margin: -4px 0 16px; padding: 11px; border-radius: 14px; font-size: 14.5px; font-weight: 600; color: #fff;
-  background: rgba(255, 255, 255, 0.08); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.14); transition: background-color 0.2s; }
-.tp-all:hover { background: rgba(255, 255, 255, 0.13); }
-.tp-all:disabled { color: #30d158; }
 /* Toasts sit at the bottom of the terminal, where the recording pill was,
    never over the prompt the text just landed on. */
 .lg-toasts { top: auto; bottom: 14px; flex-direction: column-reverse; }
@@ -567,9 +531,55 @@ html body .setup-ui {
 /* ---- theme switching: quick and smooth ---- */
 #scene { opacity: 0; transition: opacity 0.4s ease; }
 #scene.is-in { opacity: 1; }
-::view-transition-old(root),
-::view-transition-new(root) { animation-duration: 0.22s; animation-timing-function: cubic-bezier(0.2, 0.8, 0.3, 1); }
-.tp-section-in { margin: 4px 2px 10px; }
-.tp-section-in h3 { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(235, 235, 245, 0.55); }
-[data-grid] .tp-grid + .tp-section-in { margin-top: 22px; }
+/* Switching themes: the new look grows out of the bottom of the screen in a
+   circle and sweeps up over the old one. */
+::view-transition-old(root) { animation: none; }
+::view-transition-new(root) { animation: papaya-reveal 0.75s cubic-bezier(0.32, 0.72, 0.2, 1) both; }
+@keyframes papaya-reveal {
+  from { clip-path: circle(0 at 50% 100%); }
+  to { clip-path: circle(150vmax at 50% 100%); }
+}
 @media (prefers-reduced-motion: reduce) { #scene { transition: none; } }
+
+/* ---- the theme picker (themepicker.js) ----
+   A bottom sheet over the lower part of the screen; rows of phone-shaped cards
+   that scroll sideways and snap. Fixed card widths: nothing can overflow. */
+.tp-scrim { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; background: rgba(0, 0, 0, 0.18); animation: lg-fade 0.2s ease-out; }
+.tp-sheet { width: min(760px, 100%); max-height: min(64vh, 640px); display: flex; flex-direction: column; border-radius: 32px 32px 0 0; padding: 8px 0 calc(14px + env(safe-area-inset-bottom)); overflow: hidden; animation: tp-up 0.38s cubic-bezier(0.2, 1.1, 0.35, 1); }
+@media (min-width: 800px) { .tp-scrim { align-items: center; } .tp-sheet { border-radius: 32px; max-height: min(78vh, 760px); } }
+@keyframes tp-up { from { transform: translateY(40px); opacity: 0; } }
+.tp-grab { display: block; width: 38px; height: 5px; margin: 0 auto 8px; border-radius: 99px; background: rgba(255, 255, 255, 0.28); }
+.tp-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 4px 20px 0; }
+.tp-head .lg-sheet-title { line-height: 1.2; }
+.tp-tab { color: var(--lg-papaya); }
+.tp-sub { margin-top: 4px; font-size: 13.5px; color: rgba(235, 235, 245, 0.6); }
+.tp-all { margin: 12px 20px 0; padding: 10px; border-radius: 14px; font-size: 14px; font-weight: 600; color: #fff;
+  background: rgba(255, 255, 255, 0.08); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.14); transition: background-color 0.2s; }
+.tp-all:hover { background: rgba(255, 255, 255, 0.13); }
+.tp-all:disabled { color: #30d158; }
+.tp-body { overflow-y: auto; overscroll-behavior: contain; padding: 4px 0 4px; margin-top: 8px; }
+.tp-loading { padding: 40px 20px; text-align: center; color: rgba(235, 235, 245, 0.6); }
+.tp-group h3 { margin: 14px 20px 10px; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(235, 235, 245, 0.55); }
+.tp-row { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding: 0 20px; padding: 2px 20px 8px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.tp-row::-webkit-scrollbar { display: none; }
+.tp-card { flex: 0 0 auto; width: 116px; scroll-snap-align: start; display: grid; gap: 8px; text-align: left; -webkit-tap-highlight-color: transparent; }
+@media (min-width: 800px) { .tp-card { width: 150px; } }
+.tp-screen { position: relative; display: block; width: 100%; aspect-ratio: 9 / 15; border-radius: 22px; overflow: hidden; background: #0b0c10;
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 10px 26px -12px rgba(0, 0, 0, 0.7);
+  transition: transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1), box-shadow 0.25s; }
+.tp-card:active .tp-screen { transform: scale(0.95); }
+.tp-card.is-on .tp-screen { box-shadow: 0 0 0 2.5px var(--lg-papaya), 0 12px 30px -10px rgba(255, 122, 47, 0.6); }
+/* The poster renders at a phone's size and is scaled into the card, so the
+   scene composes as it would on a real screen. */
+.tp-poster { position: absolute; top: 0; left: 0; width: 360px; height: 600px; border: 0; transform-origin: 0 0; transform: scale(calc(116 / 360)); pointer-events: none; background: transparent; }
+@media (min-width: 800px) { .tp-poster { transform: scale(calc(150 / 360)); } }
+.tp-plain { position: absolute; inset: 0; }
+.tp-mini { position: absolute; left: 8px; right: 8px; bottom: 8px; display: grid; gap: 1px; padding: 7px 8px; border-radius: 12px; overflow: hidden;
+  font: 9.5px/1.45 var(--font-mono); white-space: nowrap;
+  background: color-mix(in srgb, var(--mini-bg) 78%, transparent); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.12); }
+.tp-mini > span { overflow: hidden; text-overflow: clip; }
+.tp-mini i { display: inline-block; width: 5px; height: 10px; vertical-align: -2px; border-radius: 1px; }
+.tp-check { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 99px; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #1c1206; background: var(--lg-papaya); opacity: 0; transform: scale(0.5); transition: opacity 0.2s, transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1); }
+.tp-card.is-on .tp-check { opacity: 1; transform: scale(1); }
+.tp-name { padding: 0 4px; font-size: 13.5px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -1,0 +1,287 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}canvas{position:fixed;inset:0;width:100%;height:100%;display:block}</style></head><body><canvas id="c"></canvas><script nonce="preview">window.__PAPAYA_THEME__={"colors":{"accent":"#3df5a5","ansi-black":"#22304f","ansi-blue":"#6fa8ff","ansi-bright-black":"#4b5d82","ansi-bright-blue":"#9fc4ff","ansi-bright-cyan":"#95f6ef","ansi-bright-green":"#7ff9c5","ansi-bright-magenta":"#d9b6ff","ansi-bright-red":"#ffa5be","ansi-bright-white":"#f4fffb","ansi-bright-yellow":"#ffe2a6","ansi-cyan":"#5ff2e6","ansi-green":"#3df5a5","ansi-magenta":"#c08cff","ansi-red":"#ff7a9c","ansi-white":"#cfe6e0","ansi-yellow":"#ffd27a","state-err":"#ff7a9c","state-ok":"#3df5a5","state-warn":"#ffd27a","surface-0":"#08122b","surface-1":"#060e24","surface-2":"#0c1838","surface-3":"#17264f","term-bg":"#050b1e","term-cursor":"#3df5a5","term-fg":"#e8fff6","term-sel":"#14304a","text-hi":"#e8fff6","text-lo":"#94b8b0"},"name":"aurora","poster":false,"version":"696db0956b2f"};
+(function () {
+  'use strict';
+  var THEME = window.__PAPAYA_THEME__ || { colors: {} };
+  var canvas = document.getElementById('c');
+  var def = null, dead = false, started = false, frames = 0, statsSent = false, t0 = 0, last = 0;
+  var colors = {};
+  for (var k in THEME.colors) colors[k] = THEME.colors[k];
+
+  function post(m) { m.papaya = 'scene'; m.version = THEME.version; try { parent.postMessage(m, '*'); } catch (e) {} }
+  function fail(err) {
+    if (dead) return;
+    dead = true;
+    var msg = err && err.stack ? String(err.stack) : String(err);
+    post({ type: 'error', message: msg.slice(0, 2000) });
+  }
+  window.addEventListener('error', function (e) {
+    fail(e.error || (e.message + ' (line ' + e.lineno + ')'));
+  });
+  window.addEventListener('unhandledrejection', function (e) { fail(e.reason); });
+
+  // Deterministic random numbers: s.rand(seed) returns a function giving 0..1.
+  function rand(seed) {
+    var a = (seed === undefined ? Math.random() * 4294967296 : seed) >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  // Smooth 2D value noise, 0..1.
+  var perm = (function () { var r = rand(1337), p = []; for (var i = 0; i < 512; i++) p[i] = Math.floor(r() * 256); return p; })();
+  function hash(x, y) { return perm[(perm[x & 255] + y) & 511] / 255; }
+  function fade(t) { return t * t * (3 - 2 * t); }
+  function noise(x, y) {
+    var xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    var a = hash(xi, yi), b = hash(xi + 1, yi), c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
+    var u = fade(xf), v = fade(yf);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  }
+  // A theme colour (or any CSS colour) with an alpha, as an rgba() string.
+  var probe = document.createElement('canvas').getContext('2d');
+  function color(name, alpha) {
+    var c = colors[name] || name;
+    probe.fillStyle = '#000'; probe.fillStyle = c;
+    var v = probe.fillStyle;
+    if (alpha === undefined) return v;
+    if (v[0] === '#') {
+      var n = parseInt(v.slice(1), 16);
+      return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + alpha + ')';
+    }
+    return v.replace(/rgba?\(([^)]+?)(,\s*[\d.]+)?\)/, 'rgba($1,' + alpha + ')');
+  }
+
+  var IMG = null;
+  if (window.__PAPAYA_IMAGE__) { IMG = new Image(); IMG.src = window.__PAPAYA_IMAGE__; }
+  var s = {
+    image: IMG,
+    canvas: canvas, ctx: null, w: 0, h: 0, dpr: 1, t: 0, dt: 0, frame: 0,
+    theme: THEME.name, colors: colors, tabs: [], state: {},
+    reducedMotion: false,
+    rand: rand, noise: noise, color: color,
+    lerp: function (a, b, t) { return a + (b - a) * t; },
+    clamp: function (v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  };
+  var rm = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+  s.reducedMotion = !!(rm && rm.matches);
+
+  window.papaya = {
+    scene: function (d) { def = d || {}; },
+    version: 1
+  };
+
+  function call(fn, arg) {
+    if (!def || typeof def[fn] !== 'function' || dead) return;
+    try { def[fn](s, arg); } catch (e) { fail(e); }
+  }
+
+  function resize() {
+    s.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    s.w = window.innerWidth; s.h = window.innerHeight;
+    canvas.width = Math.max(1, Math.round(s.w * s.dpr));
+    canvas.height = Math.max(1, Math.round(s.h * s.dpr));
+    if (s.ctx && s.ctx.setTransform) s.ctx.setTransform(s.dpr, 0, 0, s.dpr, 0, 0);
+    if (s.ctx && s.ctx.viewport) s.ctx.viewport(0, 0, canvas.width, canvas.height);
+    if (started) call('resize');
+  }
+
+  function tick(now) {
+    if (dead) return;
+    requestAnimationFrame(tick);
+    // With reduced motion asked for, a scene still draws, but twice a second.
+    if (s.reducedMotion && now - last < 500 && s.frame > 0) return;
+    s.dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
+    last = now;
+    s.t += s.dt;
+    call('draw');
+    s.frame++; frames++;
+    // A poster (the picker's preview) holds a frame once the scene has settled.
+    if (THEME.poster && s.t > 1.2) { dead = true; return; }
+    if (!statsSent && now - t0 > 3000) {
+      statsSent = true;
+      post({ type: 'running', fps: Math.round(frames * 1000 / (now - t0)) });
+    }
+  }
+
+  window.addEventListener('message', function (e) {
+    if (e.source !== parent) return;
+    var m = e.data;
+    if (!m || m.papaya !== 'host') return;
+    if (m.type === 'init') {
+      s.tabs = Array.isArray(m.tabs) ? m.tabs : [];
+      call('init');
+      return;
+    }
+    if (m.type === 'event' && m.event && typeof m.event.type === 'string') {
+      var ev = m.event;
+      if (ev.type === 'tab-open' && !s.tabs.some(function (x) { return x.id === ev.id; })) {
+        s.tabs.push({ id: ev.id, name: ev.tab, host: ev.host });
+      } else if (ev.type === 'tab-close') {
+        s.tabs = s.tabs.filter(function (x) { return x.id !== ev.id; });
+      } else if (ev.type === 'tab-rename') {
+        s.tabs.forEach(function (x) { if (x.id === ev.id) x.name = ev.tab; });
+      }
+      call('on', ev);
+    }
+  });
+  window.addEventListener('resize', resize);
+
+  window.__papayaStart = function () {
+    if (dead) return;
+    // A wallpaper is decoded before the scene starts, so s.image is ready in setup.
+    if (IMG && !IMG.complete) {
+      var go = function () { window.__papayaStart(); };
+      IMG.decode().then(go, function () { fail(new Error('the wallpaper image could not be decoded')); });
+      return;
+    }
+    if (!def) { fail(new Error('scene.js never called papaya.scene({ ... })')); return; }
+    var kind = def.context || '2d';
+    try {
+      s.ctx = canvas.getContext(kind, kind === '2d' ? { alpha: true } : { alpha: true, premultipliedAlpha: true, antialias: true });
+    } catch (e) { fail(e); return; }
+    if (!s.ctx) { fail(new Error('this browser gave no "' + kind + '" canvas context')); return; }
+    resize();
+    call('setup');
+    started = true;
+    call('resize');
+    t0 = performance.now();
+    requestAnimationFrame(tick);
+    post({ type: 'ready' });
+  };
+})();
+</script>
+<script nonce="preview">
+// Aurora — pixel aurora curtains ripple across a night sky over dark mountains,
+// and shimmer in the still lake below. Stars show through where the light is
+// thin.
+//
+// A bell brightens the curtains for a moment; a papaya-say message runs a
+// ripple across the lake; a cue makes the aurora surge and blush pink.
+
+let CELL = 8
+const GAP = 1
+
+function hash(x, y) {
+  let h = (x * 374761393 + y * 668265263) | 0
+  h = (h ^ (h >>> 13)) * 1274126177
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296
+}
+
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16)
+
+papaya.scene({
+  setup(s) {
+    const st = s.state
+    st.bright = 0
+    st.surge = 0
+    st.ripples = []
+  },
+
+  resize(s) {
+    const st = s.state
+    CELL = s.w < 700 ? 6 : 8
+    st.W = Math.ceil(s.w / CELL)
+    st.H = Math.ceil(s.h / CELL)
+    st.horizon = Math.round(st.H * 0.8)
+    // Mountains and the lake's dark water, drawn once.
+    const c = document.createElement('canvas')
+    c.width = Math.ceil(s.w); c.height = Math.ceil(s.h)
+    const g = c.getContext('2d')
+    const grad = g.createLinearGradient(0, 0, 0, s.h)
+    grad.addColorStop(0, '#04081a')
+    grad.addColorStop(0.75, '#0a1430')
+    grad.addColorStop(1, '#050b1e')
+    g.fillStyle = grad
+    g.fillRect(0, 0, s.w, s.h)
+    st.ridge = []
+    for (let x = 0; x < st.W; x++) {
+      const m = Math.abs(Math.sin(x * 0.045 + 1.2)) * 7 + Math.abs(Math.sin(x * 0.11)) * 3 + hash(x, 3) * 1.2
+      st.ridge.push(Math.round(st.horizon - m))
+    }
+    for (let x = 0; x < st.W; x++) {
+      for (let y = st.ridge[x]; y < st.horizon; y++) {
+        g.fillStyle = y < st.ridge[x] + 1 ? '#3a4f80' : y < st.ridge[x] + 3 && hash(x, y) > 0.5 ? '#26365f' : '#18233f'
+        g.fillRect(x * CELL + GAP / 2, y * CELL + GAP / 2, CELL - GAP, CELL - GAP)
+      }
+    }
+    st.base = c
+    st.stars = []
+    for (let y = 0; y < st.horizon - 4; y++) for (let x = 0; x < st.W; x++) {
+      const h = hash(x * 13 + 7, y * 17 + 3)
+      if (h > 0.985) st.stars.push({ x, y, ph: h * 70 })
+    }
+  },
+
+  on(s, ev) {
+    const st = s.state
+    if (ev.type === 'bell') st.bright = 1
+    if (ev.type === 'cue') st.surge = 1
+    if (ev.type === 'say') st.ripples.push({ x: st.W * (0.2 + Math.random() * 0.6), t: 0 })
+  },
+
+  draw(s) {
+    const st = s.state, ctx = s.ctx, dt = s.dt, t = s.t
+    const W = st.W, H = st.H, hz = st.horizon
+    if (!W || !st.base) return
+    ctx.drawImage(st.base, 0, 0)
+    st.bright = Math.max(0, st.bright - dt * 0.5)
+    st.surge = Math.max(0, st.surge - dt * 0.2)
+    const put = (x, y, color, a) => {
+      ctx.globalAlpha = a
+      ctx.fillStyle = color
+      ctx.fillRect(x * CELL + GAP / 2, y * CELL + GAP / 2, CELL - GAP, CELL - GAP)
+    }
+
+    for (const p of st.stars) put(p.x, p.y, '#e8f0ff', 0.3 + 0.5 * Math.max(0, Math.sin(t * 0.7 + p.ph)))
+
+    // The curtain: for each column a wavering centre line; brightness falls off
+    // above and below it, and is dithered into pixels. Greens at the bottom
+    // edge, teal in the middle, violet at the top.
+    const gain = 0.8 + st.bright * 0.5 + st.surge * 0.6
+    const field = new Float32Array(W * hz)
+    for (let x = 0; x < W; x++) {
+      const c = hz * 0.32 + s.noise(x * 0.035, t * 0.06) * hz * 0.22 + Math.sin(x * 0.08 + t * 0.3) * 2
+      // Curtains are made of vertical rays: a fast-varying brightness per
+      // column on top of the slow swell of the band.
+      const swell = Math.max(0, s.noise(x * 0.03 + 10, t * 0.05) - 0.12) * 1.4
+      const rays = 0.45 + 0.55 * s.noise(x * 0.45, t * 0.25)
+      const strength = swell * rays * gain
+      if (strength <= 0.02) continue
+      for (let y = 0; y < hz; y++) {
+        const d = y - c
+        // A sharp lower edge and a long, thin fade upwards, like real curtains.
+        const v = d > 0 ? Math.exp(-(d * d) / 5) : Math.exp(-(d * d) / 420) * 0.85
+        field[y * W + x] = v * strength
+      }
+    }
+    for (let y = 0; y < hz; y++) for (let x = 0; x < W; x++) {
+      const v = field[y * W + x]
+      if (v < 0.06) continue
+      if (BAYER[(x & 3) + (y & 3) * 4] > v * 1.4) continue
+      const c = field[Math.min(hz - 1, y + 3) * W + x] > v ? (y < hz * 0.25 ? '#b07cff' : '#5ff2e6') : '#3df5a5'
+      put(x, y, st.surge > 0.3 && y < hz * 0.3 ? '#ff7ab8' : c, Math.min(0.9, 0.35 + v * 0.6))
+    }
+
+    // The lake: the curtain mirrored, broken up by a gentle shimmer and any
+    // ripples travelling across.
+    for (let y = hz; y < H; y++) {
+      const my = hz - (y - hz) * 2 - 1
+      if (my < 0) continue
+      for (let x = 0; x < W; x++) {
+        let shift = Math.round(Math.sin(y * 0.9 + t * 1.5) * 1.2)
+        for (const r of st.ripples) shift += Math.round(Math.sin((x - r.x) * 0.5 - r.t * 6) * Math.max(0, 2 - Math.abs(x - r.x - r.t * 10) * 0.08) * Math.max(0, 1 - r.t / 4))
+        const sx = Math.min(W - 1, Math.max(0, x + shift))
+        const v = field[my * W + sx] * 0.7
+        if (v < 0.06 || BAYER[(x & 3) + (y & 3) * 4] > v * 1.5) continue
+        put(x, y, '#3df5a5', Math.min(0.75, 0.25 + v * 0.7))
+      }
+    }
+    st.ripples = st.ripples.filter((r) => (r.t += dt) < 4)
+    ctx.globalAlpha = 1
+  },
+})
+
+</script>
+<script nonce="preview">window.__papayaStart()</script></body></html>

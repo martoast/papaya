@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}canvas{position:fixed;inset:0;width:100%;height:100%;display:block}</style></head><body><canvas id="c"></canvas><script nonce="preview">window.__PAPAYA_THEME__={"colors":{"accent":"#ff8f2e","ansi-black":"#335c57","ansi-blue":"#86c2ff","ansi-bright-black":"#6a938c","ansi-bright-blue":"#b0d7ff","ansi-bright-cyan":"#9ef0e7","ansi-bright-green":"#a6f0c4","ansi-bright-magenta":"#f0c9ff","ansi-bright-red":"#ffb0a5","ansi-bright-white":"#f5fffc","ansi-bright-yellow":"#ffe2a3","ansi-cyan":"#6fe3d6","ansi-green":"#7ee2a8","ansi-magenta":"#e6a8ff","ansi-red":"#ff8a7a","ansi-white":"#cfe9e2","ansi-yellow":"#ffd37a","state-err":"#ff8a7a","state-ok":"#7ee2a8","state-warn":"#ffd37a","surface-0":"#0e4a47","surface-1":"#0b3d3b","surface-2":"#11504c","surface-3":"#1f6b65","term-bg":"#082f2d","term-cursor":"#ff8f2e","term-fg":"#e6fbf5","term-sel":"#1f5e58","text-hi":"#eafff9","text-lo":"#9cc9bf"},"name":"koi-pond","version":"ca63a4dbd92a"};
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}canvas{position:fixed;inset:0;width:100%;height:100%;display:block}</style></head><body><canvas id="c"></canvas><script nonce="preview">window.__PAPAYA_THEME__={"colors":{"accent":"#ff8f2e","ansi-black":"#335c57","ansi-blue":"#86c2ff","ansi-bright-black":"#6a938c","ansi-bright-blue":"#b0d7ff","ansi-bright-cyan":"#9ef0e7","ansi-bright-green":"#a6f0c4","ansi-bright-magenta":"#f0c9ff","ansi-bright-red":"#ffb0a5","ansi-bright-white":"#f5fffc","ansi-bright-yellow":"#ffe2a3","ansi-cyan":"#6fe3d6","ansi-green":"#7ee2a8","ansi-magenta":"#e6a8ff","ansi-red":"#ff8a7a","ansi-white":"#cfe9e2","ansi-yellow":"#ffd37a","state-err":"#ff8a7a","state-ok":"#7ee2a8","state-warn":"#ffd37a","surface-0":"#0e4a47","surface-1":"#0b3d3b","surface-2":"#11504c","surface-3":"#1f6b65","term-bg":"#082f2d","term-cursor":"#ff8f2e","term-fg":"#e6fbf5","term-sel":"#1f5e58","text-hi":"#eafff9","text-lo":"#9cc9bf"},"name":"koi-pond","poster":false,"version":"4690f924950b"};
 (function () {
   'use strict';
   var THEME = window.__PAPAYA_THEME__ || { colors: {} };
@@ -97,6 +97,8 @@
     s.t += s.dt;
     call('draw');
     s.frame++; frames++;
+    // A poster (the picker's preview) holds a frame once the scene has settled.
+    if (THEME.poster && s.t > 1.2) { dead = true; return; }
     if (!statsSent && now - t0 > 3000) {
       statsSent = true;
       post({ type: 'running', fps: Math.round(frames * 1000 / (now - t0)) });
@@ -161,7 +163,8 @@
 // every opaque pixel is laid as a square tile with a gap, so the pond reads as
 // mosaic. Water is a cached gradient with faint tile lines and moving caustics.
 
-const CELL = 10
+// Tile size: smaller on a phone, so koi keep their proportions on a narrow screen.
+let CELL = 10
 const GAP = 1.5
 
 // Body colours from head to tail.
@@ -293,6 +296,7 @@ papaya.scene({
 
   resize(s) {
     const st = s.state
+    CELL = s.w < 700 ? 7 : 10
     st.W = Math.ceil(s.w / CELL)
     st.H = Math.ceil(s.h / CELL)
     st.low.width = st.W

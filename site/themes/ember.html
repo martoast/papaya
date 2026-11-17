@@ -1,0 +1,290 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}canvas{position:fixed;inset:0;width:100%;height:100%;display:block}</style></head><body><canvas id="c"></canvas><script nonce="preview">window.__PAPAYA_THEME__={"colors":{"accent":"#ff7a2f","ansi-black":"#3d221a","ansi-blue":"#7fb0ff","ansi-bright-black":"#6e4637","ansi-bright-blue":"#a9cbff","ansi-bright-cyan":"#9ef0e3","ansi-bright-green":"#ccf097","ansi-bright-magenta":"#efb8ff","ansi-bright-red":"#ff8a7a","ansi-bright-white":"#fff6f0","ansi-bright-yellow":"#ffd681","ansi-cyan":"#6fe0d0","ansi-green":"#b6e36a","ansi-magenta":"#e48cff","ansi-red":"#ff5c4a","ansi-white":"#ecd6cb","ansi-yellow":"#ffbf47","state-err":"#ff5c4a","state-ok":"#b6e36a","state-warn":"#ffbf47","surface-0":"#1e0c08","surface-1":"#170906","surface-2":"#28110b","surface-3":"#3d1b12","term-bg":"#140806","term-cursor":"#ff7a2f","term-fg":"#ffeee0","term-sel":"#4a2014","text-hi":"#ffeee0","text-lo":"#c79a86"},"name":"ember","poster":false,"version":"9458f58c3cba"};
+(function () {
+  'use strict';
+  var THEME = window.__PAPAYA_THEME__ || { colors: {} };
+  var canvas = document.getElementById('c');
+  var def = null, dead = false, started = false, frames = 0, statsSent = false, t0 = 0, last = 0;
+  var colors = {};
+  for (var k in THEME.colors) colors[k] = THEME.colors[k];
+
+  function post(m) { m.papaya = 'scene'; m.version = THEME.version; try { parent.postMessage(m, '*'); } catch (e) {} }
+  function fail(err) {
+    if (dead) return;
+    dead = true;
+    var msg = err && err.stack ? String(err.stack) : String(err);
+    post({ type: 'error', message: msg.slice(0, 2000) });
+  }
+  window.addEventListener('error', function (e) {
+    fail(e.error || (e.message + ' (line ' + e.lineno + ')'));
+  });
+  window.addEventListener('unhandledrejection', function (e) { fail(e.reason); });
+
+  // Deterministic random numbers: s.rand(seed) returns a function giving 0..1.
+  function rand(seed) {
+    var a = (seed === undefined ? Math.random() * 4294967296 : seed) >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  // Smooth 2D value noise, 0..1.
+  var perm = (function () { var r = rand(1337), p = []; for (var i = 0; i < 512; i++) p[i] = Math.floor(r() * 256); return p; })();
+  function hash(x, y) { return perm[(perm[x & 255] + y) & 511] / 255; }
+  function fade(t) { return t * t * (3 - 2 * t); }
+  function noise(x, y) {
+    var xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    var a = hash(xi, yi), b = hash(xi + 1, yi), c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
+    var u = fade(xf), v = fade(yf);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  }
+  // A theme colour (or any CSS colour) with an alpha, as an rgba() string.
+  var probe = document.createElement('canvas').getContext('2d');
+  function color(name, alpha) {
+    var c = colors[name] || name;
+    probe.fillStyle = '#000'; probe.fillStyle = c;
+    var v = probe.fillStyle;
+    if (alpha === undefined) return v;
+    if (v[0] === '#') {
+      var n = parseInt(v.slice(1), 16);
+      return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + alpha + ')';
+    }
+    return v.replace(/rgba?\(([^)]+?)(,\s*[\d.]+)?\)/, 'rgba($1,' + alpha + ')');
+  }
+
+  var IMG = null;
+  if (window.__PAPAYA_IMAGE__) { IMG = new Image(); IMG.src = window.__PAPAYA_IMAGE__; }
+  var s = {
+    image: IMG,
+    canvas: canvas, ctx: null, w: 0, h: 0, dpr: 1, t: 0, dt: 0, frame: 0,
+    theme: THEME.name, colors: colors, tabs: [], state: {},
+    reducedMotion: false,
+    rand: rand, noise: noise, color: color,
+    lerp: function (a, b, t) { return a + (b - a) * t; },
+    clamp: function (v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  };
+  var rm = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+  s.reducedMotion = !!(rm && rm.matches);
+
+  window.papaya = {
+    scene: function (d) { def = d || {}; },
+    version: 1
+  };
+
+  function call(fn, arg) {
+    if (!def || typeof def[fn] !== 'function' || dead) return;
+    try { def[fn](s, arg); } catch (e) { fail(e); }
+  }
+
+  function resize() {
+    s.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    s.w = window.innerWidth; s.h = window.innerHeight;
+    canvas.width = Math.max(1, Math.round(s.w * s.dpr));
+    canvas.height = Math.max(1, Math.round(s.h * s.dpr));
+    if (s.ctx && s.ctx.setTransform) s.ctx.setTransform(s.dpr, 0, 0, s.dpr, 0, 0);
+    if (s.ctx && s.ctx.viewport) s.ctx.viewport(0, 0, canvas.width, canvas.height);
+    if (started) call('resize');
+  }
+
+  function tick(now) {
+    if (dead) return;
+    requestAnimationFrame(tick);
+    // With reduced motion asked for, a scene still draws, but twice a second.
+    if (s.reducedMotion && now - last < 500 && s.frame > 0) return;
+    s.dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
+    last = now;
+    s.t += s.dt;
+    call('draw');
+    s.frame++; frames++;
+    // A poster (the picker's preview) holds a frame once the scene has settled.
+    if (THEME.poster && s.t > 1.2) { dead = true; return; }
+    if (!statsSent && now - t0 > 3000) {
+      statsSent = true;
+      post({ type: 'running', fps: Math.round(frames * 1000 / (now - t0)) });
+    }
+  }
+
+  window.addEventListener('message', function (e) {
+    if (e.source !== parent) return;
+    var m = e.data;
+    if (!m || m.papaya !== 'host') return;
+    if (m.type === 'init') {
+      s.tabs = Array.isArray(m.tabs) ? m.tabs : [];
+      call('init');
+      return;
+    }
+    if (m.type === 'event' && m.event && typeof m.event.type === 'string') {
+      var ev = m.event;
+      if (ev.type === 'tab-open' && !s.tabs.some(function (x) { return x.id === ev.id; })) {
+        s.tabs.push({ id: ev.id, name: ev.tab, host: ev.host });
+      } else if (ev.type === 'tab-close') {
+        s.tabs = s.tabs.filter(function (x) { return x.id !== ev.id; });
+      } else if (ev.type === 'tab-rename') {
+        s.tabs.forEach(function (x) { if (x.id === ev.id) x.name = ev.tab; });
+      }
+      call('on', ev);
+    }
+  });
+  window.addEventListener('resize', resize);
+
+  window.__papayaStart = function () {
+    if (dead) return;
+    // A wallpaper is decoded before the scene starts, so s.image is ready in setup.
+    if (IMG && !IMG.complete) {
+      var go = function () { window.__papayaStart(); };
+      IMG.decode().then(go, function () { fail(new Error('the wallpaper image could not be decoded')); });
+      return;
+    }
+    if (!def) { fail(new Error('scene.js never called papaya.scene({ ... })')); return; }
+    var kind = def.context || '2d';
+    try {
+      s.ctx = canvas.getContext(kind, kind === '2d' ? { alpha: true } : { alpha: true, premultipliedAlpha: true, antialias: true });
+    } catch (e) { fail(e); return; }
+    if (!s.ctx) { fail(new Error('this browser gave no "' + kind + '" canvas context')); return; }
+    resize();
+    call('setup');
+    started = true;
+    call('resize');
+    t0 = performance.now();
+    requestAnimationFrame(tick);
+    post({ type: 'ready' });
+  };
+})();
+</script>
+<script nonce="preview">
+// Ember — a pixel campfire along the bottom of the screen, made with the
+// classic demoscene fire: heat rises from a burning bottom row, cooling and
+// drifting as it goes, and is coloured from black through red and orange to
+// yellow-white. Embers float up and wink out.
+//
+// An agent printing feeds the fire a little; a bell makes it flare up; a cue
+// throws a burst of sparks into the air.
+
+let CELL = 8
+const GAP = 1
+
+// Black, deep red, red, orange, yellow, white.
+const PALETTE = (() => {
+  const stops = [[0, [20, 8, 6]], [0.18, [70, 12, 8]], [0.38, [170, 30, 12]], [0.58, [235, 90, 20]], [0.78, [255, 170, 50]], [1, [255, 240, 190]]]
+  const out = []
+  for (let i = 0; i < 37; i++) {
+    const f = i / 36
+    let k = 0
+    while (k < stops.length - 2 && stops[k + 1][0] < f) k++
+    const [f0, c0] = stops[k], [f1, c1] = stops[k + 1]
+    const q = (f - f0) / (f1 - f0)
+    out.push(`rgb(${c0.map((v, j) => Math.round(v + (c1[j] - v) * q)).join(',')})`)
+  }
+  return out
+})()
+
+papaya.scene({
+  setup(s) {
+    const st = s.state
+    st.rnd = s.rand(53)
+    st.embers = []
+    st.heat = 0
+    st.flare = 0
+    st.acc = 0
+  },
+
+  resize(s) {
+    const st = s.state
+    CELL = s.w < 700 ? 6 : 8
+    st.W = Math.ceil(s.w / CELL)
+    st.H = Math.ceil(s.h / CELL)
+    // The fire lives in a band at the bottom: about a fifth of the screen.
+    st.FH = Math.max(18, Math.round(st.H * 0.3))
+    st.fire = new Uint8Array(st.W * st.FH)
+    const bg = document.createElement('canvas')
+    bg.width = Math.ceil(s.w); bg.height = Math.ceil(s.h)
+    const g = bg.getContext('2d')
+    const grad = g.createLinearGradient(0, 0, 0, s.h)
+    grad.addColorStop(0, '#120705')
+    grad.addColorStop(0.7, '#1c0a07')
+    grad.addColorStop(1, '#2e0f09')
+    g.fillStyle = grad
+    g.fillRect(0, 0, s.w, s.h)
+    const glow = g.createRadialGradient(s.w * 0.5, s.h * 1.05, 0, s.w * 0.5, s.h * 1.05, s.h * 0.7)
+    glow.addColorStop(0, 'rgba(255,90,30,0.28)')
+    glow.addColorStop(1, 'rgba(0,0,0,0)')
+    g.fillStyle = glow
+    g.fillRect(0, 0, s.w, s.h)
+    st.bg = bg
+  },
+
+  on(s, ev) {
+    const st = s.state
+    if (ev.type === 'activity') st.heat = Math.min(1, st.heat + 0.15)
+    if (ev.type === 'bell' || ev.type === 'say') st.flare = 1
+    if (ev.type === 'cue') {
+      st.flare = 1
+      for (let i = 0; i < 80; i++) st.embers.push({ x: st.rnd() * st.W, y: st.H - st.FH * 0.6, vx: (st.rnd() - 0.5) * 6, vy: -(8 + st.rnd() * 14), life: 1.5 + st.rnd() * 2 })
+    }
+  },
+
+  draw(s) {
+    const st = s.state, ctx = s.ctx, dt = s.dt, t = s.t
+    const W = st.W, H = st.H, FH = st.FH, fire = st.fire
+    if (!W || !st.bg) return
+    ctx.drawImage(st.bg, 0, 0)
+
+    st.heat = Math.max(0, st.heat - dt * 0.05)
+    st.flare = Math.max(0, st.flare - dt * 0.4)
+    // Step the fire at a steady 20 per second, whatever the frame rate.
+    st.acc += dt
+    while (st.acc > 0.05) {
+      st.acc -= 0.05
+      // The burning row: hotter in clumps that wander, so flames gather into
+      // campfire-like tongues instead of a flat wall.
+      for (let x = 0; x < W; x++) {
+        const clump = s.noise(x * 0.07, t * 0.18)
+        const lit = clump > 0.5 - st.heat * 0.12 - st.flare * 0.25
+        fire[(FH - 1) * W + x] = lit ? Math.min(36, 22 + Math.round(clump * 12 + st.flare * 8)) : 0
+      }
+      for (let y = 1; y < FH; y++) {
+        for (let x = 0; x < W; x++) {
+          const src = y * W + x
+          const v = fire[src]
+          if (v === 0) { fire[src - W] = 0; continue }
+          const r = (Math.random() * 3) | 0
+          // Cooling sets how tall flames get: on average they die out well
+          // before the top of the band, a little higher during a flare.
+          const cool = (Math.random() * (st.flare > 0.2 ? 2.6 : 3.4)) | 0
+          const dst = src - W - r + 1
+          fire[dst < 0 ? 0 : dst] = Math.max(0, v - cool)
+        }
+      }
+    }
+    const top = H - FH
+    for (let y = 0; y < FH; y++) for (let x = 0; x < W; x++) {
+      const v = fire[y * W + x]
+      if (v < 2) continue
+      ctx.globalAlpha = Math.min(1, v / 10)
+      ctx.fillStyle = PALETTE[v]
+      ctx.fillRect(x * CELL + GAP / 2, (top + y) * CELL + GAP / 2, CELL - GAP, CELL - GAP)
+    }
+
+    // Embers.
+    if (st.rnd() < dt * (3 + st.flare * 12 + st.heat * 4)) {
+      st.embers.push({ x: st.rnd() * W, y: H - FH * 0.5, vx: (st.rnd() - 0.5) * 2, vy: -(3 + st.rnd() * 5), life: 2 + st.rnd() * 3 })
+    }
+    st.embers = st.embers.filter((e) => {
+      e.x += (e.vx + Math.sin(t * 2 + e.life * 3) * 0.8) * dt
+      e.y += e.vy * dt
+      e.vy *= 1 - dt * 0.15
+      e.life -= dt
+      const a = Math.max(0, Math.min(1, e.life * 0.6)) * (0.6 + 0.4 * Math.sin(t * 12 + e.x))
+      ctx.globalAlpha = a
+      ctx.fillStyle = e.life > 1.2 ? '#ffd27a' : '#ff7a2f'
+      ctx.fillRect(Math.round(e.x) * CELL + GAP, Math.round(e.y) * CELL + GAP, CELL - GAP * 2, CELL - GAP * 2)
+      return e.life > 0 && e.y > 0
+    })
+    if (st.embers.length > 220) st.embers.splice(0, st.embers.length - 220)
+    ctx.globalAlpha = 1
+  },
+})
+
+</script>
+<script nonce="preview">window.__papayaStart()</script></body></html>

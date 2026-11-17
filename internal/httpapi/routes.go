@@ -69,8 +69,6 @@ type Server struct {
 	setup *setupAPI
 	// themes is the theme library; nil where it is not wired.
 	themes *themes.Store
-	// omarchy caches Omarchy's theme list for the picker.
-	omarchy omarchyCache
 	// events fans theme changes, cues and papaya-say messages out to browsers.
 	events *broker
 	// sceneStatus is what browsers last reported about each scene they ran.

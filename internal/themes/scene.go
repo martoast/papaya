@@ -41,7 +41,18 @@ func NewNonce() string {
 // sequences that would end the <script> element. Theme data goes in as JSON,
 // which encoding/json escapes for HTML (<, > and & become < and so on).
 func SceneDocument(t *Theme, nonce string, image []byte) []byte {
-	head := sceneHead(t, nonce, image)
+	return sceneDocument(t, nonce, image, false)
+}
+
+// PosterDocument is the scene drawn for about a second and then held still:
+// the theme picker's preview of an animated theme, without twenty animations
+// running at once on a phone.
+func PosterDocument(t *Theme, nonce string, image []byte) []byte {
+	return sceneDocument(t, nonce, image, true)
+}
+
+func sceneDocument(t *Theme, nonce string, image []byte, poster bool) []byte {
+	head := sceneHead(t, nonce, image, poster)
 	scene := t.Scene
 	if scene == "" && len(image) > 0 {
 		scene = WallpaperScene
@@ -54,11 +65,12 @@ func SceneDocument(t *Theme, nonce string, image []byte) []byte {
 }
 
 // sceneHead is everything in the document before the scene's first line.
-func sceneHead(t *Theme, nonce string, image []byte) string {
+func sceneHead(t *Theme, nonce string, image []byte, poster bool) string {
 	meta, _ := json.Marshal(map[string]any{
 		"name":    t.Name,
 		"version": t.Version(),
 		"colors":  t.Colors,
+		"poster":  poster,
 	})
 	var b strings.Builder
 	b.WriteString(`<!doctype html><html><head><meta charset="utf-8">` +
@@ -83,7 +95,7 @@ var stackLineRE = regexp.MustCompile(`/theme/scene/[^\s:)]+:(\d+):(\d+)`)
 // SceneError rewrites a browser's error message so line numbers point into
 // scene.js rather than into the frame document, which the agent never sees.
 func SceneError(t *Theme, msg string) string {
-	offset := strings.Count(sceneHead(t, "x", nil), "\n")
+	offset := strings.Count(sceneHead(t, "x", nil, false), "\n")
 	lines := strings.Count(t.Scene, "\n") + 1
 	return stackLineRE.ReplaceAllStringFunc(msg, func(m string) string {
 		sub := stackLineRE.FindStringSubmatch(m)
@@ -252,6 +264,8 @@ const runtimeJS = `(function () {
     s.t += s.dt;
     call('draw');
     s.frame++; frames++;
+    // A poster (the picker's preview) holds a frame once the scene has settled.
+    if (THEME.poster && s.t > 1.2) { dead = true; return; }
     if (!statsSent && now - t0 > 3000) {
       statsSent = true;
       post({ type: 'running', fps: Math.round(frames * 1000 / (now - t0)) });

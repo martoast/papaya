@@ -171,22 +171,33 @@ async function applyActive() {
 }
 
 const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+let wearing = 0
 
-function wear(view) {
+async function wear(view) {
   const first = current === null && !document.documentElement.dataset.theme
   current = view
+  const token = ++wearing
+  // Load the new backdrop first, hidden, so the reveal shows the real scene,
+  // not just its colours with the scene popping in later. Never wait long.
+  let fresh = null
+  if (view.sceneUrl && (!frame || frame.dataset.version !== view.version)) {
+    fresh = mountScene(view.sceneUrl, view.version)
+    if (!first) await Promise.race([fresh.ready, new Promise((r) => setTimeout(r, 700))])
+    if (token !== wearing) return // another theme was picked meanwhile
+  }
   const swap = () => {
     applyColors(view.colors)
     if (view.opacity) document.documentElement.style.setProperty('--papaya-term-pct', `${Math.round(view.opacity * 100)}%`)
     else document.documentElement.style.removeProperty('--papaya-term-pct')
     if (view.sceneUrl) {
-      if (!frame || frame.dataset.version !== view.version) mountScene(view.sceneUrl, view.version)
-    } else unmountScene()
+      if (fresh) showNow(fresh)
+    } else unmountScene({ now: true })
     document.documentElement.dataset.theme = view.name
     window.dispatchEvent(new Event('papaya:theme'))
   }
-  // A quick crossfade of the whole page between the two looks (the View
-  // Transitions API, in Safari and Chrome). The first paint does not animate.
+  // The new theme takes over in a circle that grows from the bottom of the
+  // screen (glass.css, View Transitions in Safari and Chrome). The first
+  // paint does not animate.
   if (!first && document.startViewTransition && !reduced()) document.startViewTransition(swap)
   else swap()
 }
@@ -200,7 +211,7 @@ function applyColors(colors) {
   }
 }
 
-// The scene that is fading out while the next one loads behind it.
+// The scene being replaced, kept up until the new one is shown.
 let leaving = null
 
 function retire(f) {
@@ -209,41 +220,49 @@ function retire(f) {
   setTimeout(() => f.remove(), 450)
 }
 
+// mountScene starts loading a scene behind the current one and returns its
+// frame; frame.ready resolves once it has drawn.
 function mountScene(url, version) {
-  // Keep the old scene up until the new one has drawn, then crossfade: no
-  // blank flash between two backdrops.
   if (leaving) leaving.remove()
   leaving = frame
   frameReady = false
   queue = []
-  frame = document.createElement('iframe')
-  frame.id = 'scene'
-  frame.title = 'Theme backdrop'
-  frame.setAttribute('sandbox', 'allow-scripts')
-  frame.setAttribute('aria-hidden', 'true')
-  frame.setAttribute('tabindex', '-1')
-  frame.setAttribute('inert', '')
-  frame.setAttribute('referrerpolicy', 'no-referrer')
-  frame.dataset.version = version
-  frame.src = url
-  document.body.prepend(frame)
-  document.documentElement.dataset.backdrop = 'on'
+  const f = document.createElement('iframe')
+  f.id = 'scene'
+  f.title = 'Theme backdrop'
+  f.setAttribute('sandbox', 'allow-scripts')
+  f.setAttribute('aria-hidden', 'true')
+  f.setAttribute('tabindex', '-1')
+  f.setAttribute('inert', '')
+  f.setAttribute('referrerpolicy', 'no-referrer')
+  f.dataset.version = version
+  f.ready = new Promise((resolve) => { f.onReady = resolve })
+  f.src = url
+  document.body.prepend(f)
+  frame = f
   // If it never says it is ready, show it anyway rather than hide it forever.
-  const f = frame
-  setTimeout(() => f.isConnected && reveal(f), 1500)
+  setTimeout(() => f.isConnected && f === frame && showNow(f), 2500)
+  return f
 }
 
-function reveal(f) {
-  if (f.classList.contains('is-in')) return
+// showNow puts a loaded scene up at once (inside the reveal, which animates
+// it) and drops the one it replaces.
+function showNow(f) {
+  if (!f.isConnected) return
+  f.style.transition = 'none'
   f.classList.add('is-in')
+  void f.offsetWidth
+  f.style.transition = ''
+  document.documentElement.dataset.backdrop = 'on'
   if (leaving && leaving !== f) {
-    retire(leaving)
+    leaving.remove()
     leaving = null
   }
 }
 
-function unmountScene() {
-  retire(frame)
+function unmountScene({ now = false } = {}) {
+  if (now && frame) frame.remove()
+  else retire(frame)
   if (leaving) leaving.remove()
   leaving = null
   frame = null
@@ -268,7 +287,7 @@ window.addEventListener('message', (e) => {
   if (m.version !== current?.version) return
   if (m.type === 'ready') {
     frameReady = true
-    requestAnimationFrame(() => reveal(frame))
+    frame.onReady?.()
     frame.contentWindow.postMessage({ papaya: 'host', type: 'init', tabs: [...tabs.values()].map(tabInfo) }, '*')
     const pending = queue
     queue = []

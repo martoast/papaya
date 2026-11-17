@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}canvas{position:fixed;inset:0;width:100%;height:100%;display:block}</style></head><body><canvas id="c"></canvas><script nonce="preview">window.__PAPAYA_THEME__={"colors":{"accent":"#ff8a3d","ansi-black":"#4a3f38","ansi-blue":"#7fb4ff","ansi-bright-black":"#7d7068","ansi-bright-blue":"#a5cbff","ansi-bright-cyan":"#8de8dd","ansi-bright-green":"#86e39a","ansi-bright-magenta":"#e8bcff","ansi-bright-red":"#ff9e9e","ansi-bright-white":"#fffaf5","ansi-bright-yellow":"#ffd27a","ansi-cyan":"#5fd4c6","ansi-green":"#63d07a","ansi-magenta":"#d89cf6","ansi-red":"#f07a7a","ansi-white":"#cfc4bb","ansi-yellow":"#e7b44a","state-err":"#f07a7a","state-ok":"#63d07a","state-warn":"#e7b44a","surface-0":"#0f0b08","surface-1":"#17110d","surface-2":"#221a14","surface-3":"#33281f","term-bg":"#0f0b08","term-cursor":"#ff8a3d","term-fg":"#f2e9e1","term-sel":"#5a3418","text-hi":"#f5ede6","text-lo":"#a99c92"},"name":"orchard","version":"6d04910d5a83"};
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}canvas{position:fixed;inset:0;width:100%;height:100%;display:block}</style></head><body><canvas id="c"></canvas><script nonce="preview">window.__PAPAYA_THEME__={"colors":{"accent":"#ff8a3d","ansi-black":"#4a3f38","ansi-blue":"#7fb4ff","ansi-bright-black":"#7d7068","ansi-bright-blue":"#a5cbff","ansi-bright-cyan":"#8de8dd","ansi-bright-green":"#86e39a","ansi-bright-magenta":"#e8bcff","ansi-bright-red":"#ff9e9e","ansi-bright-white":"#fffaf5","ansi-bright-yellow":"#ffd27a","ansi-cyan":"#5fd4c6","ansi-green":"#63d07a","ansi-magenta":"#d89cf6","ansi-red":"#f07a7a","ansi-white":"#cfc4bb","ansi-yellow":"#e7b44a","state-err":"#f07a7a","state-ok":"#63d07a","state-warn":"#e7b44a","surface-0":"#0f0b08","surface-1":"#17110d","surface-2":"#221a14","surface-3":"#33281f","term-bg":"#0f0b08","term-cursor":"#ff8a3d","term-fg":"#f2e9e1","term-sel":"#5a3418","text-hi":"#f5ede6","text-lo":"#a99c92"},"name":"orchard","poster":false,"version":"6d04910d5a83"};
 (function () {
   'use strict';
   var THEME = window.__PAPAYA_THEME__ || { colors: {} };
@@ -97,6 +97,8 @@
     s.t += s.dt;
     call('draw');
     s.frame++; frames++;
+    // A poster (the picker's preview) holds a frame once the scene has settled.
+    if (THEME.poster && s.t > 1.2) { dead = true; return; }
     if (!statsSent && now - t0 > 3000) {
       statsSent = true;
       post({ type: 'running', fps: Math.round(frames * 1000 / (now - t0)) });

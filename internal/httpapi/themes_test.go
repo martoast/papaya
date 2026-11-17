@@ -198,10 +198,9 @@ func TestThemeWritesAreCSRFGuarded(t *testing.T) {
 	require.Equal(t, 403, res.StatusCode)
 }
 
-func TestOmarchyImportAndWallpaper(t *testing.T) {
+func TestWallpaperThemes(t *testing.T) {
 	url := newThemeServer(t)
-	toml := "mode = \"dark\"\naccent = \"#ff9f0a\"\nbackground = \"#1c1c1e\"\nforeground = \"#f5f5f7\"\nred = \"#ff5f4a\"\nyellow = \"#ffc27a\"\ngreen = \"#ff9f0a\"\ncyan = \"#a6dcef\"\nblue = \"#8fb8de\"\nmagenta = \"#ff8fa3\"\n"
-	code, body, _ := do(t, "POST", url+"/api/themes/starship/omarchy?title=Starship", "text/plain", toml)
+	code, body, _ := do(t, "PUT", url+"/api/themes/starship", "application/json", `{"name":"starship","colors":{"accent":"#ff9f0a","term-bg":"#1c1c1e"}}`)
 	require.Equal(t, 200, code, body)
 
 	jpeg := "\xff\xd8\xff\xe0" + strings.Repeat("x", 64)
@@ -221,10 +220,7 @@ func TestOmarchyImportAndWallpaper(t *testing.T) {
 	_, _, h = do(t, "GET", url+"/theme/scene/starship", "", "")
 	require.Equal(t, "no-store", h.Get("Cache-Control"))
 
-	// Re-importing the palette keeps the wallpaper; theme.json cannot fake one.
-	do(t, "POST", url+"/api/themes/starship/omarchy", "text/plain", toml)
-	_, body, _ = do(t, "GET", url+"/api/themes/starship", "", "")
-	require.Contains(t, body, `"imageType":"image/jpeg"`)
+	// theme.json cannot fake a wallpaper.
 	do(t, "PUT", url+"/api/themes/fake", "application/json", `{"name":"fake","imageType":"image/png","imageSum":"abc"}`)
 	_, body, _ = do(t, "GET", url+"/api/themes/fake", "", "")
 	require.NotContains(t, body, "imageType")

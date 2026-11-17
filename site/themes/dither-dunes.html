@@ -1,0 +1,298 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}canvas{position:fixed;inset:0;width:100%;height:100%;display:block}</style></head><body><canvas id="c"></canvas><script nonce="preview">window.__PAPAYA_THEME__={"colors":{"accent":"#d9532f","ansi-black":"#5a4632","ansi-blue":"#2f6a96","ansi-bright-black":"#7a6450","ansi-bright-blue":"#3f86b8","ansi-bright-cyan":"#3aa3a1","ansi-bright-green":"#7a9a44","ansi-bright-magenta":"#b867a8","ansi-bright-red":"#de5a3f","ansi-bright-white":"#3a2a1c","ansi-bright-yellow":"#cf951f","ansi-cyan":"#2c8584","ansi-green":"#5f7d32","ansi-magenta":"#9a4e8c","ansi-red":"#c2412b","ansi-white":"#8a7660","ansi-yellow":"#b07a12","state-err":"#c2412b","state-ok":"#5f7d32","state-warn":"#b07a12","surface-0":"#efe2c6","surface-1":"#e8d8b6","surface-2":"#e0cca4","surface-3":"#cdb487","term-bg":"#f3e8d0","term-cursor":"#d9532f","term-fg":"#3a2a1c","term-sel":"#e2cfa4","text-hi":"#3a2a1c","text-lo":"#7a6248"},"name":"dither-dunes","poster":false,"version":"f7aa89e2d7c6"};
+(function () {
+  'use strict';
+  var THEME = window.__PAPAYA_THEME__ || { colors: {} };
+  var canvas = document.getElementById('c');
+  var def = null, dead = false, started = false, frames = 0, statsSent = false, t0 = 0, last = 0;
+  var colors = {};
+  for (var k in THEME.colors) colors[k] = THEME.colors[k];
+
+  function post(m) { m.papaya = 'scene'; m.version = THEME.version; try { parent.postMessage(m, '*'); } catch (e) {} }
+  function fail(err) {
+    if (dead) return;
+    dead = true;
+    var msg = err && err.stack ? String(err.stack) : String(err);
+    post({ type: 'error', message: msg.slice(0, 2000) });
+  }
+  window.addEventListener('error', function (e) {
+    fail(e.error || (e.message + ' (line ' + e.lineno + ')'));
+  });
+  window.addEventListener('unhandledrejection', function (e) { fail(e.reason); });
+
+  // Deterministic random numbers: s.rand(seed) returns a function giving 0..1.
+  function rand(seed) {
+    var a = (seed === undefined ? Math.random() * 4294967296 : seed) >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  // Smooth 2D value noise, 0..1.
+  var perm = (function () { var r = rand(1337), p = []; for (var i = 0; i < 512; i++) p[i] = Math.floor(r() * 256); return p; })();
+  function hash(x, y) { return perm[(perm[x & 255] + y) & 511] / 255; }
+  function fade(t) { return t * t * (3 - 2 * t); }
+  function noise(x, y) {
+    var xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    var a = hash(xi, yi), b = hash(xi + 1, yi), c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
+    var u = fade(xf), v = fade(yf);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  }
+  // A theme colour (or any CSS colour) with an alpha, as an rgba() string.
+  var probe = document.createElement('canvas').getContext('2d');
+  function color(name, alpha) {
+    var c = colors[name] || name;
+    probe.fillStyle = '#000'; probe.fillStyle = c;
+    var v = probe.fillStyle;
+    if (alpha === undefined) return v;
+    if (v[0] === '#') {
+      var n = parseInt(v.slice(1), 16);
+      return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + alpha + ')';
+    }
+    return v.replace(/rgba?\(([^)]+?)(,\s*[\d.]+)?\)/, 'rgba($1,' + alpha + ')');
+  }
+
+  var IMG = null;
+  if (window.__PAPAYA_IMAGE__) { IMG = new Image(); IMG.src = window.__PAPAYA_IMAGE__; }
+  var s = {
+    image: IMG,
+    canvas: canvas, ctx: null, w: 0, h: 0, dpr: 1, t: 0, dt: 0, frame: 0,
+    theme: THEME.name, colors: colors, tabs: [], state: {},
+    reducedMotion: false,
+    rand: rand, noise: noise, color: color,
+    lerp: function (a, b, t) { return a + (b - a) * t; },
+    clamp: function (v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  };
+  var rm = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+  s.reducedMotion = !!(rm && rm.matches);
+
+  window.papaya = {
+    scene: function (d) { def = d || {}; },
+    version: 1
+  };
+
+  function call(fn, arg) {
+    if (!def || typeof def[fn] !== 'function' || dead) return;
+    try { def[fn](s, arg); } catch (e) { fail(e); }
+  }
+
+  function resize() {
+    s.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    s.w = window.innerWidth; s.h = window.innerHeight;
+    canvas.width = Math.max(1, Math.round(s.w * s.dpr));
+    canvas.height = Math.max(1, Math.round(s.h * s.dpr));
+    if (s.ctx && s.ctx.setTransform) s.ctx.setTransform(s.dpr, 0, 0, s.dpr, 0, 0);
+    if (s.ctx && s.ctx.viewport) s.ctx.viewport(0, 0, canvas.width, canvas.height);
+    if (started) call('resize');
+  }
+
+  function tick(now) {
+    if (dead) return;
+    requestAnimationFrame(tick);
+    // With reduced motion asked for, a scene still draws, but twice a second.
+    if (s.reducedMotion && now - last < 500 && s.frame > 0) return;
+    s.dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
+    last = now;
+    s.t += s.dt;
+    call('draw');
+    s.frame++; frames++;
+    // A poster (the picker's preview) holds a frame once the scene has settled.
+    if (THEME.poster && s.t > 1.2) { dead = true; return; }
+    if (!statsSent && now - t0 > 3000) {
+      statsSent = true;
+      post({ type: 'running', fps: Math.round(frames * 1000 / (now - t0)) });
+    }
+  }
+
+  window.addEventListener('message', function (e) {
+    if (e.source !== parent) return;
+    var m = e.data;
+    if (!m || m.papaya !== 'host') return;
+    if (m.type === 'init') {
+      s.tabs = Array.isArray(m.tabs) ? m.tabs : [];
+      call('init');
+      return;
+    }
+    if (m.type === 'event' && m.event && typeof m.event.type === 'string') {
+      var ev = m.event;
+      if (ev.type === 'tab-open' && !s.tabs.some(function (x) { return x.id === ev.id; })) {
+        s.tabs.push({ id: ev.id, name: ev.tab, host: ev.host });
+      } else if (ev.type === 'tab-close') {
+        s.tabs = s.tabs.filter(function (x) { return x.id !== ev.id; });
+      } else if (ev.type === 'tab-rename') {
+        s.tabs.forEach(function (x) { if (x.id === ev.id) x.name = ev.tab; });
+      }
+      call('on', ev);
+    }
+  });
+  window.addEventListener('resize', resize);
+
+  window.__papayaStart = function () {
+    if (dead) return;
+    // A wallpaper is decoded before the scene starts, so s.image is ready in setup.
+    if (IMG && !IMG.complete) {
+      var go = function () { window.__papayaStart(); };
+      IMG.decode().then(go, function () { fail(new Error('the wallpaper image could not be decoded')); });
+      return;
+    }
+    if (!def) { fail(new Error('scene.js never called papaya.scene({ ... })')); return; }
+    var kind = def.context || '2d';
+    try {
+      s.ctx = canvas.getContext(kind, kind === '2d' ? { alpha: true } : { alpha: true, premultipliedAlpha: true, antialias: true });
+    } catch (e) { fail(e); return; }
+    if (!s.ctx) { fail(new Error('this browser gave no "' + kind + '" canvas context')); return; }
+    resize();
+    call('setup');
+    started = true;
+    call('resize');
+    t0 = performance.now();
+    requestAnimationFrame(tick);
+    post({ type: 'ready' });
+  };
+})();
+</script>
+<script nonce="preview">
+// Dither Dunes — warm paper, a dithered sun, and dunes drawn in ordered
+// dithering that drift very slowly. A small caravan of camels walks the front
+// ridge. A light theme: the scene stays pale so dark text reads cleanly.
+//
+// A bell blows a puff of sand off the ridge; a papaya-say message sends a
+// gust across the dunes; a cue makes the sun flare.
+
+let DOT = 4
+
+// 4x4 Bayer matrix, for ordered dithering.
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16)
+
+const CAMEL = [
+  '....##......',
+  '...####..#..',
+  '..######.##.',
+  '.##########.',
+  '.#.......#..',
+  '.#.......#..',
+]
+
+papaya.scene({
+  setup(s) {
+    const st = s.state
+    st.rnd = s.rand(29)
+    st.flare = 0
+    st.gusts = []
+    st.puffs = []
+    st.walk = 0
+  },
+
+  resize(s) {
+    const st = s.state
+    DOT = s.w < 700 ? 3 : 4
+    st.W = Math.ceil(s.w / DOT)
+    st.H = Math.ceil(s.h / DOT)
+    // The dunes are drawn into a cache at most a few times a second: they move
+    // so slowly that redrawing them every frame would only burn battery.
+    st.cache = document.createElement('canvas')
+    st.cache.width = Math.ceil(s.w); st.cache.height = Math.ceil(s.h)
+    st.cachedAt = -1
+    // The caravan starts partway across, so it is there from the first look.
+    if (!st.walk) st.walk = 20 + st.W * 0.45
+  },
+
+  on(s, ev) {
+    const st = s.state
+    if (ev.type === 'cue') st.flare = 1
+    if (ev.type === 'say') st.gusts.push({ x: -10, t: 0 })
+    if (ev.type === 'bell') {
+      for (let i = 0; i < 30; i++) st.puffs.push({ x: st.W * (0.55 + st.rnd() * 0.35), y: st.H * 0.84, vx: 8 + st.rnd() * 14, vy: -4 - st.rnd() * 6, life: 1.5 + st.rnd() })
+    }
+  },
+
+  draw(s) {
+    const st = s.state, ctx = s.ctx, dt = s.dt, t = s.t
+    const W = st.W, H = st.H
+    if (!W) return
+    const ridge = (k, x) => H * k.base + Math.sin((x + t * k.v) * k.f + k.p) * H * k.a + Math.sin((x - t * k.v * 0.7) * k.f * 2.3 + k.p * 2) * H * k.a * 0.35
+    const layers = [
+      { base: 0.62, a: 0.03, f: 0.012, v: 1.2, p: 0.5, ink: [216, 195, 154], dens: 0.45 },
+      { base: 0.7, a: 0.035, f: 0.016, v: 1.8, p: 2.1, ink: [196, 168, 119], dens: 0.55 },
+      { base: 0.8, a: 0.04, f: 0.02, v: 2.6, p: 4.0, ink: [167, 135, 87], dens: 0.65 },
+      { base: 0.9, a: 0.035, f: 0.026, v: 3.4, p: 1.3, ink: [138, 106, 64], dens: 0.75 },
+    ]
+
+    if (t - st.cachedAt > 0.25 || st.cachedAt < 0) {
+      st.cachedAt = t
+      const g = st.cache.getContext('2d')
+      g.fillStyle = '#f2e6cc'
+      g.fillRect(0, 0, s.w, s.h)
+      // Paper grain.
+      for (let y = 0; y < H; y += 2) for (let x = (y * 3) % 5; x < W; x += 5) {
+        if (BAYER[(x & 3) + (y & 3) * 4] > 0.93) { g.fillStyle = 'rgba(160,130,90,0.12)'; g.fillRect(x * DOT, y * DOT, DOT - 1, DOT - 1) }
+      }
+      for (const k of layers) {
+        g.fillStyle = `rgb(${k.ink.join(',')})`
+        for (let x = 0; x < W; x++) {
+          const top = Math.round(ridge(k, x))
+          for (let y = top; y < H; y++) {
+            // Denser just under the crest, fading down the slope: the dither
+            // threshold does the shading.
+            const depth = (y - top) / (H * 0.12)
+            const shade = y === top ? 1 : k.dens * Math.max(0.25, 1 - depth * 0.5)
+            if (BAYER[(x & 3) + (y & 3) * 4] < shade) g.fillRect(x * DOT, y * DOT, DOT - 1, DOT - 1)
+          }
+        }
+      }
+      // The red ridge line on the front dune, as in a print.
+      g.fillStyle = '#d9532f'
+      const front = layers[2]
+      for (let x = Math.round(W * 0.7); x < W; x++) g.fillRect(x * DOT, Math.round(ridge(front, x)) * DOT - DOT, DOT - 1, DOT - 1)
+    }
+    ctx.drawImage(st.cache, 0, 0)
+
+    // The sun: a dithered disc that breathes.
+    st.flare = Math.max(0, st.flare - dt * 0.35)
+    const sx = W * 0.82, sy = H * 0.26, R = Math.min(W, H) * (0.07 + 0.01 * Math.sin(t * 0.6)) * (1 + st.flare * 0.5)
+    ctx.fillStyle = '#d9532f'
+    for (let y = Math.floor(sy - R * 1.8); y < sy + R * 1.8; y++) for (let x = Math.floor(sx - R * 1.8); x < sx + R * 1.8; x++) {
+      const d = Math.hypot(x - sx, y - sy) / R
+      const v = d < 1 ? 1 : Math.max(0, 1 - (d - 1) * 1.4) * 0.5
+      if (v > 0 && BAYER[(x & 3) + (y & 3) * 4] < v) ctx.fillRect(x * DOT, y * DOT, DOT - 1, DOT - 1)
+    }
+
+    // The caravan walks the front ridge from right to left, and comes round again.
+    st.walk += dt * 2.2
+    const lead = W + 20 - (st.walk % (W + 80))
+    const front = layers[3]
+    ctx.fillStyle = '#5a3e22'
+    for (let c = 0; c < 3; c++) {
+      const cx = Math.round(lead + c * 16)
+      const step = Math.floor(t * 4 + c) % 2
+      const cy = Math.round(ridge(front, cx + 6)) - CAMEL.length
+      CAMEL.forEach((row, y) => [...row].forEach((ch, x) => {
+        if (ch !== '#') return
+        // Legs alternate: a two-frame walk.
+        if (y >= 4 && ((x < 4) === (step === 0))) return
+        ctx.fillRect((cx + (11 - x)) * DOT, (cy + y) * DOT, DOT - 1, DOT - 1)
+      }))
+    }
+
+    // A gust: a band of loose sand racing across.
+    st.gusts = st.gusts.filter((gu) => {
+      gu.t += dt; gu.x += dt * W * 0.45
+      ctx.fillStyle = 'rgba(167,135,87,0.55)'
+      for (let i = 0; i < 60; i++) {
+        const x = Math.round(gu.x - i * 3 - (i % 7) * 2), y = Math.round(H * (0.66 + ((i * 37) % 30) / 100) + Math.sin(i + t * 4) * 2)
+        ctx.fillRect(x * DOT, y * DOT, DOT - 1, DOT - 1)
+      }
+      return gu.x < W + 200
+    })
+    st.puffs = st.puffs.filter((p) => {
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 6 * dt; p.life -= dt
+      ctx.fillStyle = `rgba(138,106,64,${Math.max(0, p.life) * 0.5})`
+      ctx.fillRect(Math.round(p.x) * DOT, Math.round(p.y) * DOT, DOT - 1, DOT - 1)
+      return p.life > 0
+    })
+  },
+})
+
+</script>
+<script nonce="preview">window.__papayaStart()</script></body></html>

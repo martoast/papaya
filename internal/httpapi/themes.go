@@ -41,7 +41,6 @@ func (s *Server) themeRoutes(mux *http.ServeMux) {
 		return
 	}
 	mux.HandleFunc("GET /api/themes", s.listThemes)
-	s.omarchyRoutes(mux)
 	mux.HandleFunc("GET /api/theme", s.activeTheme)
 	mux.HandleFunc("POST /api/themes/active", s.setActiveTheme)
 	mux.HandleFunc("POST /api/themes/cue", s.cueTheme)
@@ -49,7 +48,6 @@ func (s *Server) themeRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/themes/{name}", s.putTheme)
 	mux.HandleFunc("PUT /api/themes/{name}/scene", s.putScene)
 	mux.HandleFunc("PUT /api/themes/{name}/image", s.putImage)
-	mux.HandleFunc("POST /api/themes/{name}/omarchy", s.importOmarchy)
 	mux.HandleFunc("DELETE /api/themes/{name}", s.deleteTheme)
 	mux.HandleFunc("GET /api/themes/{name}/status", s.themeStatus)
 	mux.HandleFunc("POST /api/themes/{name}/status", s.reportThemeStatus)
@@ -339,6 +337,11 @@ func (s *Server) sceneDocument(w http.ResponseWriter, r *http.Request) {
 	} else {
 		h.Set("Cache-Control", "no-store")
 	}
+	// ?poster=1: drawn for a moment and held still, for the picker's preview.
+	if r.URL.Query().Get("poster") == "1" {
+		w.Write(themes.PosterDocument(t, nonce, image))
+		return
+	}
 	w.Write(themes.SceneDocument(t, nonce, image))
 }
 
@@ -360,35 +363,6 @@ func (s *Server) putImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.themeChanged(user, t.Name)
-	writeJSON(w, http.StatusOK, t.Summary())
-}
-
-// importOmarchy turns an Omarchy colors.toml (the request body) into the
-// theme's colours. A wallpaper and scene already saved for it are kept.
-func (s *Server) importOmarchy(w http.ResponseWriter, r *http.Request) {
-	user, ok := owner(w, r)
-	if !ok {
-		return
-	}
-	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))
-	if err != nil {
-		writeError(w, http.StatusRequestEntityTooLarge, "colors.toml is too large")
-		return
-	}
-	name := r.PathValue("name")
-	t, err := themes.FromOmarchy(name, cleanLabel(r.URL.Query().Get("title"), 60), body)
-	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	if old, err := s.themes.Get(name); err == nil && !old.Builtin {
-		t.Scene, t.ImageType, t.ImageSum, t.Opacity = old.Scene, old.ImageType, old.ImageSum, old.Opacity
-	}
-	if err := s.themes.Put(t); err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	s.themeChanged(user, name)
 	writeJSON(w, http.StatusOK, t.Summary())
 }
 

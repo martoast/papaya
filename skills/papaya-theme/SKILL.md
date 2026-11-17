@@ -31,26 +31,16 @@ Other commands:
 
 ```bash
 papaya-theme list                    # all themes, * marks the one on
-papaya-theme use synthwave           # switch (built-ins: orchard, night-sky, synthwave)
+papaya-theme use honu-lagoon         # switch (papaya-theme list shows all the built-ins)
 papaya-theme use default             # back to Papaya's plain look
 papaya-theme pull orchard ./mine     # copy any theme (built-ins too) to start from
 papaya-theme cue merged              # fire a moment the scene can react to
 papaya-theme rm koi-pond
-papaya-theme omarchy                 # list Omarchy's themes
-papaya-theme omarchy tokyo-night     # import one: its palette + its first wallpaper
-papaya-theme omarchy starship --wallpaper 2   # pick another wallpaper; --no-wallpaper for colours only
 ```
 
-**Omarchy** (github.com/omacom/omarchy) has a few dozen loved themes:
-Tokyo Night, Catppuccin, Gruvbox, Nord, Rose Pine, Kanagawa, Everforest,
-Starship and more. When your person names one, or wants "something like X"
-that Omarchy has, import it instead of writing a palette by hand. It downloads
-on this machine, so it needs internet here. A local Omarchy theme folder works
-too: `papaya-theme omarchy ~/.config/omarchy/themes/<name>`.
-
 **Wallpapers.** Put `background.webp` (or .png/.jpg, up to 8 MB) next to
-theme.json and `push` uploads it. With no scene.js, Papaya draws it slowly
-drifting, with a light sweep on `say`, an edge glow on `bell` and sparks on
+theme.json and `push` uploads it. With no scene.js, Papaya draws it as a
+still, cover-fitted frame, with a light sweep on `say`, an edge glow on `bell` and sparks on
 `cue`. A scene can draw it itself through `s.image` (an `<img>`, already
 decoded).
 

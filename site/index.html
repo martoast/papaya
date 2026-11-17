@@ -611,8 +611,8 @@ MSG</div>
       </div>
     </div>
     <div class="th-foot">
-      <span>These are the real scenes, running in the same sandbox Papaya uses: no network, no access to your terminals. Press the buttons to see what a backdrop does when your agents work and talk. Love an <a href="https://github.com/omacom/omarchy" style="color:var(--papaya-2)">Omarchy</a> theme? One command brings its palette and wallpaper: Tokyo Night, Catppuccin, Gruvbox, Starship and the rest.</span>
-      <code>papaya-theme omarchy tokyo-night</code>
+      <span>These are the real scenes, running in the same sandbox Papaya uses: no network, no access to your terminals. Press the buttons to see what a backdrop does when your agents work and talk. Or tell your agent what you want and it builds one live.</span>
+      <code>papaya-theme use koi-pond</code>
     </div>
   </div>
 </section>
@@ -833,9 +833,12 @@ MSG</div>
     var label = document.getElementById('th-name');
     var themes = [], current = null, ready = false, visible = false, timers = [];
     var TABS = [{ id: 't1', name: 'api', host: 'devbox' }, { id: 't2', name: 'web', host: 'macbook' }, { id: 't3', name: 'qa', host: 'build-box' }];
-    var ORDER = ['koi-pond', 'orchard', 'synthwave', 'night-sky'];
-    var ASK = { orchard: 'use the orchard theme', 'koi-pond': 'make Papaya a koi pond', synthwave: 'synthwave sunset with pink accents', 'night-sky': 'something calm, like a night sky' };
-    var NICE = { orchard: 'Orchard', 'koi-pond': 'Koi Pond', synthwave: 'Synthwave', 'night-sky': 'Night Sky' };
+    var ORDER = ['koi-pond', 'honu-lagoon', 'night-reef', 'snow-pines', 'teletext-clouds', 'aurora', 'ember', 'dither-dunes', 'departure-board', 'orchard', 'synthwave', 'night-sky'];
+    var ASK = { orchard: 'use the orchard theme', 'koi-pond': 'make Papaya a koi pond', synthwave: 'synthwave sunset with pink accents', 'night-sky': 'something calm, like a night sky',
+      'honu-lagoon': 'sea turtles in a lagoon', 'night-reef': 'a glowing reef at night', 'snow-pines': 'a snowy pine forest at night', 'teletext-clouds': 'pixel clouds and a moon',
+      aurora: 'northern lights over a lake', ember: 'a cosy pixel campfire', 'dither-dunes': 'a light desert theme', 'departure-board': 'a train station board for my tabs' };
+    var NICE = { orchard: 'Orchard', 'koi-pond': 'Koi Pond', synthwave: 'Synthwave', 'night-sky': 'Night Sky', 'honu-lagoon': 'Honu Lagoon', 'night-reef': 'Night Reef',
+      'snow-pines': 'Snow Pines', 'teletext-clouds': 'Teletext Clouds', aurora: 'Aurora', ember: 'Ember', 'dither-dunes': 'Dither Dunes', 'departure-board': 'Departure Board' };
     function esc(t) { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
     function post(m) { if (ready && frame.contentWindow) frame.contentWindow.postMessage(m, '*'); }
     function ev(e) { post({ papaya: 'host', type: 'event', event: e }); }

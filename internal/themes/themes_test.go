@@ -107,7 +107,7 @@ func TestBuiltinsAreReadOnly(t *testing.T) {
 // only knows its scene.js.
 func TestSceneErrorPointsIntoSceneJS(t *testing.T) {
 	th := &Theme{Name: "koi", Scene: "papaya.scene({\n  draw(s) {\n    boom()\n  }\n})"}
-	head := strings.Count(sceneHead(th, "x", nil), "\n")
+	head := strings.Count(sceneHead(th, "x", nil, false), "\n")
 	msg := "ReferenceError: boom is not defined\n    at Object.draw (https://papaya.ts.net/theme/scene/koi?v=abc:" +
 		strconv.Itoa(head+3) + ":5)\n    at call (https://papaya.ts.net/theme/scene/koi?v=abc:40:12)"
 	out := SceneError(th, msg)
@@ -125,44 +125,6 @@ func TestSceneDocumentIsSelfContained(t *testing.T) {
 	for _, want := range []string{"default-src 'none'", "connect-src 'none'", "script-src 'nonce-NONCE'", "frame-ancestors 'self'"} {
 		require.Contains(t, csp, want)
 	}
-}
-
-const tokyo = `mode = "dark"
-accent = "#7aa2f7"
-selection = "#292e42"
-muted = "#414868"
-background = "#1a1b26"
-dark_background = "#13141c"
-lighter_background = "#24283b"
-foreground = "#a9b1d6"
-dark_foreground = "#565f89"
-light_foreground = "#b4bee6"
-bright_foreground = "#c0caf5"
-red = "#f7768e"   # comment
-yellow = "#e0af68"
-green = "#9ece6a"
-cyan = "#449dab"
-blue = "#7aa2f7"
-magenta = "#ad8ee6"
-bright_red = "#ff7a93"
-`
-
-func TestOmarchyPalettesMapOntoPapaya(t *testing.T) {
-	th, err := FromOmarchy("tokyo-night", "Tokyo Night", []byte(tokyo))
-	require.NoError(t, err)
-	require.Equal(t, "#1a1b26", th.Colors["surface-0"])
-	require.Equal(t, "#1a1b26", th.Colors["term-bg"])
-	require.Equal(t, "#a9b1d6", th.Colors["term-fg"])
-	require.Equal(t, "#7aa2f7", th.Colors["accent"])
-	require.Equal(t, "#f7768e", th.Colors["ansi-red"], "trailing comments are ignored")
-	require.Equal(t, "#ff7a93", th.Colors["ansi-bright-red"])
-	require.Equal(t, "#9ece6a", th.Colors["ansi-bright-green"], "a missing bright colour falls back to the normal one")
-	require.Contains(t, th.Description, "Omarchy")
-
-	_, err = FromOmarchy("x", "", []byte(`background = "#000"`))
-	require.ErrorContains(t, err, "Omarchy theme")
-	_, err = FromOmarchy("x", "", []byte(strings.Replace(tokyo, "#f7768e", "url(x)", 1)))
-	require.Error(t, err, "values are still validated")
 }
 
 func TestWallpapers(t *testing.T) {
@@ -185,7 +147,7 @@ func TestWallpapers(t *testing.T) {
 	doc := string(SceneDocument(th, "N", png))
 	require.Contains(t, doc, `window.__PAPAYA_IMAGE__="data:image/png;base64,`)
 	require.Contains(t, doc, "Papaya's wallpaper scene", "a wallpaper without a scene gets the default one")
-	require.Equal(t, strings.Count(sceneHead(th, "N", png), "\n"), strings.Count(sceneHead(th, "N", nil), "\n"),
+	require.Equal(t, strings.Count(sceneHead(th, "N", png, false), "\n"), strings.Count(sceneHead(th, "N", nil, false), "\n"),
 		"the wallpaper must not move scene line numbers")
 
 	png2 := append(png, 1)
@@ -198,4 +160,10 @@ func TestWallpapers(t *testing.T) {
 	require.False(t, th.HasBackdrop())
 	_, err = s.Image("koi")
 	require.Error(t, err)
+}
+
+func TestPosterHoldsAFrame(t *testing.T) {
+	th := &Theme{Name: "p", Scene: "papaya.scene({})", Colors: map[string]string{}}
+	require.Contains(t, string(PosterDocument(th, "n", nil)), `"poster":true`)
+	require.Contains(t, string(SceneDocument(th, "n", nil)), `"poster":false`)
 }

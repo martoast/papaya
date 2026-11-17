@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}canvas{position:fixed;inset:0;width:100%;height:100%;display:block}</style></head><body><canvas id="c"></canvas><script nonce="preview">window.__PAPAYA_THEME__={"colors":{"accent":"#ff3cbe","ansi-black":"#3d2a5c","ansi-blue":"#7aa2ff","ansi-bright-black":"#6b5390","ansi-bright-blue":"#a8c1ff","ansi-bright-cyan":"#b5fcff","ansi-bright-green":"#9affd9","ansi-bright-magenta":"#ff8ad9","ansi-bright-red":"#ff8fb0","ansi-bright-white":"#fff7ff","ansi-bright-yellow":"#ffe29a","ansi-cyan":"#7ff9ff","ansi-green":"#5ff5c0","ansi-magenta":"#ff3cbe","ansi-red":"#ff5c8a","ansi-white":"#d9c7ea","ansi-yellow":"#ffd166","state-err":"#ff5c8a","state-ok":"#5ff5c0","state-warn":"#ffd166","surface-0":"#0b0420","surface-1":"#150830","surface-2":"#220d45","surface-3":"#371663","term-bg":"#0b0420","term-cursor":"#7ff9ff","term-fg":"#f8e6ff","term-sel":"#4b1d73","text-hi":"#fdeaff","text-lo":"#b493cf"},"name":"synthwave","version":"dfaeea9e338e"};
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}canvas{position:fixed;inset:0;width:100%;height:100%;display:block}</style></head><body><canvas id="c"></canvas><script nonce="preview">window.__PAPAYA_THEME__={"colors":{"accent":"#ff3cbe","ansi-black":"#3d2a5c","ansi-blue":"#7aa2ff","ansi-bright-black":"#6b5390","ansi-bright-blue":"#a8c1ff","ansi-bright-cyan":"#b5fcff","ansi-bright-green":"#9affd9","ansi-bright-magenta":"#ff8ad9","ansi-bright-red":"#ff8fb0","ansi-bright-white":"#fff7ff","ansi-bright-yellow":"#ffe29a","ansi-cyan":"#7ff9ff","ansi-green":"#5ff5c0","ansi-magenta":"#ff3cbe","ansi-red":"#ff5c8a","ansi-white":"#d9c7ea","ansi-yellow":"#ffd166","state-err":"#ff5c8a","state-ok":"#5ff5c0","state-warn":"#ffd166","surface-0":"#0b0420","surface-1":"#150830","surface-2":"#220d45","surface-3":"#371663","term-bg":"#0b0420","term-cursor":"#7ff9ff","term-fg":"#f8e6ff","term-sel":"#4b1d73","text-hi":"#fdeaff","text-lo":"#b493cf"},"name":"synthwave","poster":false,"version":"dfaeea9e338e"};
 (function () {
   'use strict';
   var THEME = window.__PAPAYA_THEME__ || { colors: {} };
@@ -97,6 +97,8 @@
     s.t += s.dt;
     call('draw');
     s.frame++; frames++;
+    // A poster (the picker's preview) holds a frame once the scene has settled.
+    if (THEME.poster && s.t > 1.2) { dead = true; return; }
     if (!statsSent && now - t0 > 3000) {
       statsSent = true;
       post({ type: 'running', fps: Math.round(frames * 1000 / (now - t0)) });
