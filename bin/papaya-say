@@ -51,8 +51,13 @@ json_str() { # escape for a JSON string; papaya strips any other control charact
 me() {
 	if [ -n "${PAPAYA_FROM:-}" ]; then printf '%s' "$PAPAYA_FROM"; return; fi
 	if [ -n "${TMUX:-}" ]; then
-		local s; s=$(tmux display-message -p '#S' 2>/dev/null || true)
-		if [ -n "$s" ]; then printf '%s' "${s#papaya-}"; return; fi
+		local s n; s=$(tmux display-message -p '#S' 2>/dev/null || true)
+		if [ -n "$s" ]; then
+			# The tab's name as shown in Papaya (it may have been renamed).
+			n=$(curl -fsS --max-time 3 "$URL/api/say/me?workspace=$s" 2>/dev/null || true)
+			if [ -n "$n" ]; then printf '%s' "$n"; else printf '%s' "${s#papaya-}"; fi
+			return
+		fi
 	fi
 	hostname -s 2>/dev/null || hostname
 }

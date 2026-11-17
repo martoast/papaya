@@ -112,6 +112,7 @@ func (s *Server) Handler() http.Handler {
 	protected.HandleFunc("DELETE /api/sessions/{id}", s.deleteSession)
 	protected.HandleFunc("POST /api/sessions/{id}/seen", s.markSeen)
 	protected.HandleFunc("GET /api/say/tabs", s.sayTabs)
+	protected.HandleFunc("GET /api/say/me", s.sayMe)
 	protected.HandleFunc("POST /api/say", s.say)
 	protected.HandleFunc("GET /api/say/screen", s.screen)
 	protected.HandleFunc("POST /api/status", s.agentStatus)

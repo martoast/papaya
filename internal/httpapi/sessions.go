@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/netip"
@@ -491,6 +492,27 @@ func findTab(sessions []*hub.Session, name string) (*hub.Session, error) {
 		}
 		return nil, errors.New(name + " could mean " + strings.Join(names, ", ") + "; use the full name")
 	}
+}
+
+// sayMe tells a program which tab it is running in: given its tmux session
+// name (?workspace=), the tab's current name, as plain text. So papaya-say
+// signs with the name shown in the tab bar even after the tab was renamed
+// (or was picked up from another terminal app under that app's tmux name).
+func (s *Server) sayMe(w http.ResponseWriter, r *http.Request) {
+	user, ok := owner(w, r)
+	if !ok {
+		return
+	}
+	ws := strings.TrimSpace(r.URL.Query().Get("workspace"))
+	for _, sess := range s.hub.List(user) {
+		v := sess.View()
+		if ws != "" && strings.EqualFold(v.Workspace, ws) {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			io.WriteString(w, v.Name)
+			return
+		}
+	}
+	writeError(w, http.StatusNotFound, "no open tab uses that tmux session")
 }
 
 // sayTabs lists the open tabs as plain text, one per line, so a shell script

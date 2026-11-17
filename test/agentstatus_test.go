@@ -59,3 +59,33 @@ func TestATabsThemeReachesEveryBrowserThatAttaches(t *testing.T) {
 	ws2 := c.DialWS(sess.ID)
 	ws2.WaitForEvent("theme", 5*time.Second, func(ev map[string]any) bool { return ev["theme"] == "" })
 }
+
+// A program asks which tab it runs in by its tmux session, and gets the tab's
+// current name, also after a rename; status and messages still reach it by
+// either name.
+func TestATabKnowsItsCurrentName(t *testing.T) {
+	st, _ := newStack(t, harness.StackOptions{Tmux: true})
+	c := st.Client(alice)
+	sess := c.CreateSession("devbox-1", "worker", 80, 24)
+	var ws string
+	require.Eventually(t, func() bool {
+		for _, s := range c.ListSessions() {
+			if s.ID == sess.ID && s.Workspace != "" {
+				ws = s.Workspace
+				return true
+			}
+		}
+		return false
+	}, 10*time.Second, 50*time.Millisecond)
+
+	resp, _ := c.Do("PATCH", "/api/sessions/"+sess.ID, map[string]any{"name": "Henry"})
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	resp, body := c.Do("GET", "/api/say/me?workspace="+ws, nil)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, "Henry", string(body))
+
+	resp, body = c.Do("POST", "/api/status", map[string]any{"tab": ws, "state": "working"})
+	require.Equal(t, http.StatusNoContent, resp.StatusCode, "status by tmux name still finds the renamed tab: %s", body)
+	resp, _ = c.Do("GET", "/api/say/me?workspace=nope", nil)
+	require.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
