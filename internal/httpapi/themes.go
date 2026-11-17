@@ -127,6 +127,20 @@ func (s *Server) activeTheme(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// ?name= asks for a particular theme (a tab's own); default is the plain look.
+	if name := r.URL.Query().Get("name"); name != "" {
+		if name == "default" {
+			writeJSON(w, http.StatusOK, viewOf(nil))
+			return
+		}
+		t, err := s.themes.Get(name)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "no theme called "+name)
+			return
+		}
+		writeJSON(w, http.StatusOK, viewOf(t))
+		return
+	}
 	writeJSON(w, http.StatusOK, viewOf(s.themes.Active(user)))
 }
 
@@ -249,13 +263,24 @@ func (s *Server) setActiveTheme(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, err.Error())
 		return
 	}
+	s.clearSceneStatus(user, strings.TrimSpace(req.Name))
 	s.events.publish(user, map[string]any{"type": "theme"})
 	writeJSON(w, http.StatusOK, viewOf(s.themes.Active(user)))
+}
+
+// clearSceneStatus forgets what browsers said about a theme's scene. Pushing
+// or switching to it starts over: a re-push of the same version must not be
+// answered with the error from the last time it ran.
+func (s *Server) clearSceneStatus(user, name string) {
+	s.statusMu.Lock()
+	delete(s.sceneStatus, user+"\x00"+name)
+	s.statusMu.Unlock()
 }
 
 // themeChanged tells browsers to reload a theme that was just saved, if it is
 // the one this person has on.
 func (s *Server) themeChanged(user, name string) {
+	s.clearSceneStatus(user, name)
 	if t := s.themes.Active(user); t != nil && t.Name == name {
 		s.events.publish(user, map[string]any{"type": "theme"})
 	}

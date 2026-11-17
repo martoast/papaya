@@ -1040,4 +1040,7 @@ if (window.matchMedia('(pointer: coarse)').matches) {
   el('dock').appendChild(el('mic'))
 }
 
-el('themes-item').addEventListener('click', () => showThemePicker())
+el('themes-item').addEventListener('click', () => {
+  const t = tabs.active
+  showThemePicker({ tab: t ? { id: t.id, name: t.session.name || t.session.host } : null })
+})

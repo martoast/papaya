@@ -38,7 +38,7 @@ func TestOmarchyThemesFromTheApp(t *testing.T) {
 	require.Equal(t, "#1a1b26", list.Themes[1].Colors["term-bg"])
 	require.False(t, list.Themes[1].Installed)
 
-	code, body, _ = do(t, "POST", srv+"/api/omarchy/../etc", "", "")
+	code, _, _ = do(t, "POST", srv+"/api/omarchy/../etc", "", "")
 	require.NotEqual(t, 200, code)
 
 	code, body, _ = do(t, "POST", srv+"/api/omarchy/tokyo-night", "", "")

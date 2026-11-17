@@ -50,7 +50,7 @@ export const api = {
   theme: (name) => request('GET', `/api/themes/${encodeURIComponent(name)}`),
   useTheme: (name) => request('POST', '/api/themes/active', { name }),
   omarchyThemes: () => request('GET', '/api/omarchy'),
-  useOmarchy: (name) => request('POST', `/api/omarchy/${encodeURIComponent(name)}`),
+  useOmarchy: (name, switchAll = true) => request('POST', `/api/omarchy/${encodeURIComponent(name)}${switchAll ? '' : '?switch=0'}`),
   deleteVoiceKey: () => request('DELETE', '/api/voice/key'),
 
   // First-run setup: connect machines, test them, finish.

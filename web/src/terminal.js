@@ -6,7 +6,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebglAddon } from '@xterm/addon-webgl'
 
 import { xtermTheme, monoFont } from './theme.js'
-import { sceneEvent, themeState } from './themes.js'
+import { sceneEvent, themeState, colorsForTab, setTabTheme } from './themes.js'
 import { api } from './api.js'
 import { reachability } from './connectivity.js'
 
@@ -146,7 +146,7 @@ export class TerminalTab {
       fontSize: 13,
       lineHeight: 1.2,
       scrollback: 10000,
-      theme: xtermTheme(),
+      theme: xtermTheme(colorsForTab(session.id)),
       // Lets a theme's scene show through the terminal background.
       allowTransparency: true,
       screenReaderMode: false,
@@ -207,8 +207,12 @@ export class TerminalTab {
     // renderer that suits it.
     this.onTheme = () => {
       this.useWebgl(!themeState().backdrop)
-      this.term.options.theme = xtermTheme()
+      const tokens = colorsForTab(this.id)
+      this.term.options.theme = xtermTheme(tokens)
+      // The host's tint behind the text (backdrop on) is this tab's too.
+      if (tokens['term-bg']) this.el.style.setProperty('--color-term-bg', tokens['term-bg'])
     }
+    this.onTheme()
     window.addEventListener('papaya:theme', this.onTheme)
 
     // Shells emit OSC 0/2 title sequences; use them to auto-title the tab.
@@ -868,6 +872,12 @@ export class TerminalTab {
 
       case 'agent':
         this.applyAgentStatus(ev.state, ev.msg)
+        break
+
+      case 'theme':
+        // This tab's theme was changed, here or on another device.
+        this.session.theme = ev.theme || ''
+        setTabTheme(this.id, this.session.theme, { remote: false })
         break
 
       case 'bell':

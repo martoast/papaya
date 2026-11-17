@@ -6,6 +6,7 @@
 // way for a person with a phone in one hand.
 
 import { api } from './api.js'
+import { tabThemeName, setTabTheme, tabIds } from './themes.js'
 
 const DEFAULT = {
   name: 'default',
@@ -34,7 +35,9 @@ function preview(c = {}) {
     </div>`
 }
 
-export async function showThemePicker() {
+// tab: { id, name } of the tab in front; its theme is what the picker sets.
+// Without one (no tabs open) it sets the theme every tab follows.
+export async function showThemePicker({ tab = null } = {}) {
   if (document.getElementById('theme-picker')) return
   const root = document.createElement('div')
   root.id = 'theme-picker'
@@ -44,10 +47,11 @@ export async function showThemePicker() {
   root.innerHTML = `
     <div class="lg-sheet tp-sheet">
       <div class="tp-head">
-        <h2 class="lg-sheet-title">Themes</h2>
+        <h2 class="lg-sheet-title">${tab ? `Theme for <span class="tp-tab">${esc(tab.name)}</span>` : 'Themes'}</h2>
         <button class="tp-done lg-pill-btn" data-act="done">Done</button>
       </div>
-      <p class="tp-sub">Tap to try one. Ask your agent to make you a new one any time.</p>
+      <p class="tp-sub">${tab ? 'Each tab can have its own. Tap to try one.' : 'Tap to try one.'} Ask your agent to make you a new one any time.</p>
+      ${tab ? '<button class="tp-all" data-act="all">Use this theme on all tabs</button>' : ''}
       <div class="tp-grid" data-grid><div class="tp-loading">Loading…</div></div>
       <div class="tp-section">
         <h3>From Omarchy</h3>
@@ -95,7 +99,7 @@ export async function showThemePicker() {
       list.themes.map((t) => api.theme(t.name).then((d) => ({ ...t, colors: d.colors })).catch(() => t)),
     )
     all = [DEFAULT, ...details]
-    active = list.active || 'default'
+    active = tab ? tabThemeName(tab.id) : list.active || 'default'
     paint()
   }
 
@@ -115,7 +119,22 @@ export async function showThemePicker() {
       omGrid.innerHTML = `<p class="tp-loading">Couldn't reach Omarchy's themes right now.</p>`
     })
 
+  // pick puts a theme on the tab (or, with no tab, on everything).
+  const pick = (name) => (tab ? setTabTheme(tab.id, name) : api.useTheme(name))
+
   root.addEventListener('click', async (e) => {
+    if (e.target.closest('[data-act="all"]')) {
+      const btn = e.target.closest('[data-act="all"]')
+      btn.disabled = true
+      try {
+        await api.useTheme(active)
+        await Promise.all(tabIds().map((id) => setTabTheme(id, '')))
+        btn.textContent = '✓ On all tabs'
+      } catch {
+        btn.disabled = false
+      }
+      return
+    }
     const el = e.target.closest('[data-theme]')
     if (!el || busy || el.dataset.theme === active) return
     const name = el.dataset.theme
@@ -124,7 +143,8 @@ export async function showThemePicker() {
       busy = name
       paint()
       try {
-        await api.useOmarchy(name)
+        await api.useOmarchy(name, !tab)
+        if (tab) await setTabTheme(tab.id, name)
         busy = ''
         await loadMine()
       } catch {
@@ -136,7 +156,7 @@ export async function showThemePicker() {
     active = name
     paint()
     try {
-      await api.useTheme(name)
+      await pick(name)
     } catch {
       active = prev
       paint()

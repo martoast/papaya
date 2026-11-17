@@ -212,6 +212,12 @@ func (s *Server) useOmarchy(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	// ?switch=0 only brings it in (the app then gives it to one tab).
+	if r.URL.Query().Get("switch") == "0" {
+		t, _ := s.themes.Get(name)
+		writeJSON(w, http.StatusOK, viewOf(t))
+		return
+	}
 	if err := s.themes.SetActive(user, name); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

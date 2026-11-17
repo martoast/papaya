@@ -1,6 +1,6 @@
 import { api } from './api.js'
 import { TerminalTab } from './terminal.js'
-import { sceneEvent } from './themes.js'
+import { sceneEvent, registerTab, forgetTab, setActiveTab } from './themes.js'
 
 import { onLongPress } from './longpress.js'
 
@@ -127,6 +127,7 @@ export class TabManager {
   add(session, { activate = true } = {}) {
     if (this.tabs.has(session.id)) return this.tabs.get(session.id).tab
 
+    registerTab(session.id, session.theme)
     const tab = new TerminalTab(session, {
       onStateChange: (t, state) => this.updateState(t.id, state),
       onRename: (t, name) => this.updateName(t.id, name),
@@ -201,6 +202,8 @@ export class TabManager {
     const entry = this.tabs.get(id)
     if (!entry) return
     sceneEvent({ type: 'focus', id, tab: entry.tab.session.name || entry.tab.session.host })
+    // The page wears the theme of the tab in front.
+    setActiveTab(id)
 
     // While the grid owns the terminals, only the bookkeeping applies; showing
     // and hiding is the grid's job.
@@ -267,6 +270,7 @@ export class TabManager {
     entry.tab.dispose()
     entry.el.remove()
     this.tabs.delete(id)
+    forgetTab(id)
     sceneEvent({ type: 'tab-close', id })
     this.refreshTitle()
 
@@ -274,6 +278,7 @@ export class TabManager {
       this.activeId = null
       const next = [...this.tabs.keys()].pop()
       if (next) this.activate(next)
+      else setActiveTab(null)
     }
     this.refreshChrome()
     return true

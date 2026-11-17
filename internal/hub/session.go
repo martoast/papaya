@@ -60,6 +60,8 @@ type Session struct {
 	mu        sync.Mutex
 	name      string
 	userNamed bool
+	// theme is the tab's own theme name; empty follows the owner's theme.
+	theme string
 	// adopt, when set, is an existing remote workspace this tab is resuming
 	// rather than one to be reserved. It is validated before it reaches here.
 	adopt string
@@ -122,6 +124,8 @@ type View struct {
 	// browser that remembers this can put a tab back on the same running shell
 	// after a restart, which an id could never do.
 	Workspace string `json:"workspace"`
+	// Theme is the tab's own theme; empty means it follows the owner's.
+	Theme string `json:"theme,omitempty"`
 }
 
 func (s *Session) View() View {
@@ -137,6 +141,7 @@ func (s *Session) View() View {
 		CreatedAt: s.CreatedAt,
 		Attention: s.attention,
 		Workspace: s.tmuxName,
+		Theme:     s.theme,
 	}
 }
 
@@ -488,6 +493,19 @@ func (s *Session) setState(st State, msg string) {
 	s.emitEvent(map[string]any{
 		"type": "status", "state": st, "msg": msg, "workspace": workspace,
 	})
+}
+
+// SetTheme gives the tab its own theme ("" goes back to the owner's) and
+// tells every attached browser.
+func (s *Session) SetTheme(name string) {
+	s.mu.Lock()
+	if s.theme == name {
+		s.mu.Unlock()
+		return
+	}
+	s.theme = name
+	s.mu.Unlock()
+	s.emitEvent(map[string]any{"type": "theme", "theme": name})
 }
 
 // SetName updates the label. auto marks the change as coming from a terminal

@@ -105,6 +105,8 @@ type patchRequest struct {
 	Name  *string `json:"name"`
 	Order *int    `json:"order"`
 	Auto  bool    `json:"auto"`
+	// Theme gives the tab its own theme; "" follows the owner's theme.
+	Theme *string `json:"theme"`
 }
 
 func (s *Server) patchSession(w http.ResponseWriter, r *http.Request) {
@@ -132,6 +134,20 @@ func (s *Server) patchSession(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Order != nil {
 		sess.SetOrder(*req.Order)
+	}
+	if req.Theme != nil {
+		name := strings.TrimSpace(*req.Theme)
+		if name != "" && name != "default" {
+			if s.themes == nil {
+				writeError(w, http.StatusNotFound, "themes are not available")
+				return
+			}
+			if _, err := s.themes.Get(name); err != nil {
+				writeError(w, http.StatusNotFound, "no theme called "+name)
+				return
+			}
+		}
+		sess.SetTheme(name)
 	}
 
 	writeJSON(w, http.StatusOK, sess.View())

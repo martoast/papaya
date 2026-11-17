@@ -162,7 +162,7 @@ test('list, pull and the built-ins', async ({ page }) => {
 // A person switches themes from the app: ••• → Themes → tap. It changes at
 // once, the card shows it is on, and the sheet stays for the next try.
 test('themes can be switched from the menu', async ({ page }) => {
-  await page.goto('/')
+  await resetSessions(page) // no tabs: the picker sets the theme every tab follows
   try {
     await page.click('#more')
     await page.click('#themes-item')
@@ -188,7 +188,7 @@ test('themes can be switched from the menu', async ({ page }) => {
 // Omarchy's library in the picker: tap one and it comes in, with its
 // wallpaper, and is switched on. (The dev server serves a fake Omarchy.)
 test("Omarchy's themes can be brought in from the picker", async ({ page }) => {
-  await page.goto('/')
+  await resetSessions(page)
   try {
     await page.click('#more')
     await page.click('#themes-item')
@@ -203,5 +203,50 @@ test("Omarchy's themes can be brought in from the picker", async ({ page }) => {
       await fetch('/api/themes/active', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'default' }) })
       await fetch('/api/themes/tokyo-night', { method: 'DELETE' })
     })
+  }
+})
+
+// Each tab wears its own theme: picking one changes only the tab in front, the
+// page follows whichever tab is in front, and "all tabs" puts one on every tab.
+test('each tab can have its own theme', async ({ page }) => {
+  await resetSessions(page)
+  const reset = () =>
+    page.evaluate(() =>
+      fetch('/api/themes/active', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'default' }) }),
+    )
+  try {
+    const first = await (await newTab(page, { name: 'neon' })).getAttribute('data-tab-id')
+    await page.click('#more')
+    await page.click('#themes-item')
+    const picker = page.locator('#theme-picker')
+    await expect(picker).toContainText('Theme for neon')
+    await picker.locator('[data-theme="synthwave"]').click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'synthwave')
+    await picker.locator('[data-act="done"]').click()
+    const sessionTheme = (id) =>
+      page.evaluate(async (id) => (await (await fetch('/api/sessions')).json()).find((s) => s.id === id)?.theme || '', id)
+    await expect.poll(() => sessionTheme(first)).toBe('synthwave')
+    expect(await page.evaluate(async () => (await (await fetch('/api/theme')).json()).name)).toBe('default')
+
+    // A second tab keeps the look every tab follows.
+    await newTab(page, { name: 'plain' })
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'default')
+    // Back to the first: its theme again.
+    await page.locator(`[data-tab-id="${first}"]`).click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'synthwave')
+
+    // One theme on every tab.
+    await page.click('#more')
+    await page.click('#themes-item')
+    await picker.locator('[data-theme="night-sky"]').click()
+    await picker.locator('[data-act="all"]').click()
+    await expect(picker.locator('[data-act="all"]')).toContainText('On all tabs')
+    await expect.poll(() => sessionTheme(first)).toBe('')
+    expect(await page.evaluate(async () => (await (await fetch('/api/theme')).json()).name)).toBe('night-sky')
+    await picker.locator('[data-act="done"]').click()
+    await page.locator('[data-tab-id]').last().click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'night-sky')
+  } finally {
+    await reset()
   }
 })

@@ -20,7 +20,15 @@ const TOKENS = [
   'ansi-bright-blue', 'ansi-bright-magenta', 'ansi-bright-cyan', 'ansi-bright-white',
 ]
 
-let current = null
+// Each tab can have its own theme. The page (chrome, accents, the backdrop)
+// wears the theme of the tab in front; each terminal wears its own, so grid
+// panels can differ. A tab with no theme of its own follows the owner's.
+let current = null // the view the page is wearing
+let globalView = null // the owner's theme
+let activeId = null
+const tabThemes = new Map() // tab id -> theme name ('' follows the owner's)
+const views = new Map() // theme name -> view (colours, scene url, version)
+let base = null // the stylesheet's own tokens, before any theme
 let frame = null
 let frameReady = false
 let queue = []
@@ -70,6 +78,101 @@ function toFrame(msg) {
   // The frame's origin is opaque, so there is no origin to name; '*' is the
   // only target that reaches it. Nothing sensitive is ever in these messages.
   frame.contentWindow?.postMessage(msg, '*')
+}
+
+function readBase() {
+  if (base) return
+  const cs = getComputedStyle(document.documentElement)
+  base = {}
+  for (const t of TOKENS) base[t] = cs.getPropertyValue(`--color-${t}`).trim()
+}
+
+async function ensureView(name) {
+  if (!name || name === 'default') return { name: 'default' }
+  if (views.has(name)) return views.get(name)
+  try {
+    const res = await fetch(`/api/theme?name=${encodeURIComponent(name)}`)
+    if (!res.ok) return globalView || { name: 'default' }
+    const v = await res.json()
+    views.set(name, v)
+    return v
+  } catch {
+    return globalView || { name: 'default' }
+  }
+}
+
+const effectiveName = (id) => (id && tabThemes.get(id)) || globalView?.name || 'default'
+
+// tabThemeName is what the picker marks as on for a tab.
+export function tabThemeName(id) {
+  return effectiveName(id)
+}
+
+export function activeTabId() {
+  return activeId
+}
+
+// colorsForTab is every colour token for one tab's terminal: the stylesheet's
+// own, overlaid with the tab's theme.
+export function colorsForTab(id) {
+  readBase()
+  const v = views.get(effectiveName(id)) || (effectiveName(id) === 'default' ? null : globalView)
+  return { ...base, ...(v?.colors || {}) }
+}
+
+// registerTab records a tab's own theme as the server has it.
+export function registerTab(id, name) {
+  tabThemes.set(id, name || '')
+  if (name) ensureView(name).then(() => window.dispatchEvent(new Event('papaya:theme')))
+}
+
+export function forgetTab(id) {
+  tabThemes.delete(id)
+}
+
+export function setActiveTab(id) {
+  if (activeId === id) return
+  activeId = id
+  applyActive()
+}
+
+// setTabTheme gives one tab its own theme ('' to follow the owner's again).
+// remote: false when the change came from the server already.
+export async function setTabTheme(id, name, { remote = true } = {}) {
+  tabThemes.set(id, name || '')
+  if (remote) {
+    await fetch(`/api/sessions/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ theme: name || '' }),
+    })
+  }
+  await ensureView(name)
+  if (id === activeId) await applyActive()
+  window.dispatchEvent(new Event('papaya:theme'))
+}
+
+// tabIds lists the tabs this page knows, for "use on all tabs".
+export function tabIds() {
+  return [...tabThemes.keys()]
+}
+
+async function applyActive() {
+  const view = await ensureView(effectiveName(activeId))
+  if (current && view.name === current.name && view.version === current.version) return
+  wear(view)
+}
+
+function wear(view) {
+  current = view
+  applyColors(view.colors)
+  if (view.opacity) document.documentElement.style.setProperty('--papaya-term-pct', `${Math.round(view.opacity * 100)}%`)
+  else document.documentElement.style.removeProperty('--papaya-term-pct')
+  if (view.sceneUrl) {
+    if (!frame || frame.dataset.version !== view.version) mountScene(view.sceneUrl, view.version)
+  } else unmountScene()
+  document.documentElement.dataset.theme = view.name
+  window.dispatchEvent(new Event('papaya:theme'))
 }
 
 function applyColors(colors) {
@@ -137,6 +240,7 @@ window.addEventListener('message', (e) => {
 })
 
 async function load() {
+  readBase()
   let view
   try {
     const res = await fetch('/api/theme')
@@ -145,14 +249,15 @@ async function load() {
   } catch {
     return
   }
-  if (current && view.name === current.name && view.version === current.version) return
-  current = view
-  applyColors(view.colors)
-  if (view.opacity) document.documentElement.style.setProperty('--papaya-term-pct', `${Math.round(view.opacity * 100)}%`)
-  else document.documentElement.style.removeProperty('--papaya-term-pct')
-  if (view.sceneUrl) mountScene(view.sceneUrl, view.version)
-  else unmountScene()
-  document.documentElement.dataset.theme = view.name
+  // A theme may have been edited: forget every cached view, then fetch what
+  // the open tabs wear before repainting, so each terminal gets its own.
+  views.clear()
+  globalView = view
+  if (view.name !== 'default') views.set(view.name, view)
+  const names = new Set([...tabThemes.values()].filter(Boolean))
+  await Promise.all([...names].map(ensureView))
+  current = null
+  await applyActive()
   window.dispatchEvent(new Event('papaya:theme'))
 }
 

@@ -41,6 +41,7 @@ type savedSession struct {
 	Cols      int       `json:"cols"`
 	Rows      int       `json:"rows"`
 	CreatedAt time.Time `json:"createdAt"`
+	Theme     string    `json:"theme,omitempty"`
 }
 
 // snapshot lists the tabs worth restoring: open, with a tmux workspace.
@@ -59,7 +60,7 @@ func (h *Hub) snapshot() []savedSession {
 			out = append(out, savedSession{
 				ID: s.ID, Owner: s.Owner, Host: s.Host, User: s.User,
 				Name: s.name, UserNamed: s.userNamed, Order: s.order,
-				Workspace: s.tmuxName, Cols: s.cols, Rows: s.rows, CreatedAt: s.CreatedAt,
+				Workspace: s.tmuxName, Cols: s.cols, Rows: s.rows, CreatedAt: s.CreatedAt, Theme: s.theme,
 			})
 		}
 		s.mu.Unlock()
@@ -187,6 +188,7 @@ func (h *Hub) restore(sv savedSession) bool {
 		cancel:    cancel,
 		name:      name,
 		userNamed: sv.UserNamed,
+		theme:     sv.Theme,
 		order:     sv.Order,
 		state:     StateConnecting,
 		lastSeen:  time.Now(),

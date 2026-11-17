@@ -5,7 +5,7 @@
 // back here at runtime. Changing a token in style.css changes both the chrome
 // and the terminal.
 
-const v = (name) =>
+const page = (name) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 
 // While a theme's scene runs behind the terminals, xterm paints no background
@@ -16,8 +16,7 @@ const v = (name) =>
 // xterm answers programs that ask for the background colour (OSC 11) with it:
 // a light theme must say "light", or CLI tools pick dark-mode colours.
 const probe = document.createElement('canvas').getContext('2d')
-function termBackground() {
-  const bg = v('--color-term-bg')
+function termBackground(bg) {
   if (document.documentElement.dataset.backdrop !== 'on') return bg
   probe.fillStyle = '#000'
   probe.fillStyle = bg
@@ -29,9 +28,12 @@ function termBackground() {
   return 'rgba(0, 0, 0, 0)'
 }
 
-export function xtermTheme() {
+// xtermTheme builds a terminal's palette from tokens (a tab's own theme, see
+// colorsForTab); a missing token falls back to the page's.
+export function xtermTheme(tokens = {}) {
+  const v = (name) => tokens[name.replace(/^--color-/, '')] || page(name)
   return {
-    background: termBackground(),
+    background: termBackground(v('--color-term-bg')),
     foreground: v('--color-term-fg'),
     cursor: v('--color-term-cursor'),
     cursorAccent: v('--color-term-bg'),
@@ -58,5 +60,5 @@ export function xtermTheme() {
 }
 
 export function monoFont() {
-  return v('--font-mono') || 'monospace'
+  return page('--font-mono') || 'monospace'
 }

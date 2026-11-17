@@ -30,6 +30,11 @@ func TestTabsComeBackAfterARestart(t *testing.T) {
 		return false
 	}, 10*time.Second, 50*time.Millisecond)
 
+	// The tab has its own theme, which must come back with it.
+	hs, err := st.Hub.Get(alice, sess.ID)
+	require.NoError(t, err)
+	hs.SetTheme("koi-pond")
+
 	path := filepath.Join(t.TempDir(), "sessions.json")
 	require.NoError(t, st.Hub.SaveSessions(path))
 
@@ -55,6 +60,9 @@ func TestTabsComeBackAfterARestart(t *testing.T) {
 		}
 		return false
 	}, 10*time.Second, 50*time.Millisecond, "the tab is back with its id, name and workspace")
+	back, err := st2.Hub.Get(alice, sess.ID)
+	require.NoError(t, err)
+	require.Equal(t, "koi-pond", back.View().Theme, "and its theme")
 }
 
 func TestWithoutTmuxNothingIsRestored(t *testing.T) {
