@@ -564,8 +564,9 @@ async function stopVoiceAndTranscribe() {
     } else if (res.injected === false) {
       notice(`transcribed but not inserted: ${res.text}`, 'error')
     } else {
-      // The words are already in the terminal: no bubble repeating them.
-      tab.focus()
+      // The words are already in the terminal: no bubble repeating them. On a
+      // phone, don't raise the keyboard: you were talking, not typing.
+      tab.focusIfDesktop()
     }
   } catch (err) {
     if (ctl.signal.aborted) return // cancelled: cancelVoice said so already

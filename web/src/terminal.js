@@ -7,6 +7,9 @@ import { WebglAddon } from '@xterm/addon-webgl'
 
 import { xtermTheme, monoFont } from './theme.js'
 import { sceneEvent, themeState, colorsForTab, setTabTheme } from './themes.js'
+
+// A touch screen: focusing a terminal there raises the on-screen keyboard.
+const TOUCH = window.matchMedia?.('(pointer: coarse)').matches ?? false
 import { api } from './api.js'
 import { reachability } from './connectivity.js'
 
@@ -641,7 +644,20 @@ export class TerminalTab {
     // sync the remote to whatever the window did while this tab was hidden.
     this.fitIfMeasurable()
     this.sendResize()
-    this.term.focus()
+    // Repaint what it already holds: it was off-screen, and a renderer can show
+    // stale fragments until the next output otherwise.
+    this.term.refresh(0, this.term.rows - 1)
+    // On a phone, focusing raises the keyboard, which shrinks the screen and
+    // makes tmux redraw at a new size (and again when it is dismissed): switching
+    // tabs is looking, not typing. The keyboard comes up when the terminal is
+    // tapped. A computer has no on-screen keyboard, so it focuses as before.
+    if (!TOUCH) this.term.focus()
+  }
+
+  // focusIfDesktop focuses the terminal only where that cannot raise an
+  // on-screen keyboard.
+  focusIfDesktop() {
+    if (!TOUCH) this.term.focus()
   }
 
   deactivate() {

@@ -96,3 +96,24 @@ test('a finger swipe scrolls the terminal scrollback', async ({ browser }) => {
 
   await ctx.close()
 })
+
+// On a phone, switching tabs is looking, not typing: no terminal takes focus,
+// so the keyboard stays down and nothing resizes. Tapping the terminal is what
+// brings the keyboard up.
+test('switching tabs on a phone does not raise the keyboard', async ({ browser }) => {
+  const ctx = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 780 } })
+  const page = await ctx.newPage()
+  await resetSessions(page)
+  const first = await newTab(page, { name: 'one' })
+  await newTab(page, { name: 'two' })
+  await page.evaluate(() => document.activeElement?.blur())
+  const typingTarget = () => page.evaluate(() => document.activeElement?.classList.contains('xterm-helper-textarea') || false)
+  await first.tap()
+  await expect(first).toHaveAttribute('data-active', 'true')
+  await page.waitForTimeout(300)
+  expect(await typingTarget()).toBe(false)
+  await page.locator('[data-tab-id]').last().tap()
+  await page.waitForTimeout(300)
+  expect(await typingTarget()).toBe(false)
+  await ctx.close()
+})
