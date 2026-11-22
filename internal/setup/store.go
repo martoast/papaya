@@ -335,13 +335,19 @@ func (st *Store) MachineFor(allowed []string, host string) (string, bool) {
 	isIP := net.ParseIP(h) != nil
 	for _, name := range allowed {
 		n := norm(name)
+		// Only a machine that is still set up in papaya counts: one the admin
+		// removed is gone for its member too.
+		mc, ok := find(machines, name)
+		if !ok || norm(mc.Name) != n {
+			continue
+		}
 		if h == n {
 			return name, true
 		}
 		if isIP {
 			continue
 		}
-		if mc, ok := find(machines, name); ok && norm(mc.Name) == n && mc.FQDN != "" && h == norm(mc.FQDN) {
+		if mc.FQDN != "" && h == norm(mc.FQDN) {
 			return name, true
 		}
 		if !strings.Contains(h, ".") && net.ParseIP(n) == nil && h == firstLabel(n) {
@@ -349,4 +355,18 @@ func (st *Store) MachineFor(allowed []string, host string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// PruneTeam drops from every member any machine that is no longer set up, so
+// removing a machine in setup removes it from its teammate as well.
+func PruneTeam(s *Settings) {
+	for i := range s.Team {
+		var keep []string
+		for _, name := range s.Team[i].Machines {
+			if mc, ok := find(s.Machines, name); ok && norm(mc.Name) == norm(name) {
+				keep = append(keep, name)
+			}
+		}
+		s.Team[i].Machines = keep
+	}
 }

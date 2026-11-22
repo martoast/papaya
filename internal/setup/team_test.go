@@ -88,3 +88,16 @@ func TestSetTeamRefusesWhatItCannotHonour(t *testing.T) {
 	}
 	require.Empty(t, st.Team())
 }
+
+func TestRemovingAMachineFromSetupRemovesItFromItsTeammate(t *testing.T) {
+	st := teamStore(t)
+	require.NoError(t, st.SetTeam([]Member{{Login: "a@example.com", Machines: []string{"ariosto-box"}}}, nil))
+
+	require.NoError(t, st.Update(func(s *Settings) {
+		s.Machines = s.Machines[1:] // ariosto-box taken out of setup
+		PruneTeam(s)
+	}))
+	require.Empty(t, st.MemberMachines("a@example.com"))
+	_, ok := st.MachineFor([]string{"ariosto-box"}, "ariosto-box")
+	require.False(t, ok, "a machine no longer set up is never reachable, list or no list")
+}

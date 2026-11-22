@@ -294,6 +294,7 @@ func (s *Server) putSetupMachines(w http.ResponseWriter, r *http.Request) {
 			st.Machines = append(st.Machines, m)
 		}
 		st.Seen = mergeSeen(st.Seen, peers)
+		setup.PruneTeam(st)
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not save: "+err.Error())
