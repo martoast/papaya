@@ -410,6 +410,15 @@ tmux workspace as a bracketed paste, and presses Enter. It refuses when a
 person has unsent text in that tab's input box. Full reference, including the
 API and how to install it on a machine: [docs/AGENT-MESSAGING.md](docs/AGENT-MESSAGING.md).
 
+## Teams
+
+Give a teammate their own machine and nothing else. In the ⋯ menu → **Team**,
+add them by Tailscale login and tick the machines they may use. They see only
+their own tabs on those machines and none of the settings; you keep full access,
+including their tabs. The server enforces it on every request. Pair it with
+Tailscale sharing so their machine cannot reach your others at all:
+[docs/teams.md](docs/teams.md).
+
 ## Themes
 
 Tell your agent the look you want. It writes a theme (colours, plus an optional
