@@ -45,10 +45,13 @@ func (s *Server) themeRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/themes/active", s.setActiveTheme)
 	mux.HandleFunc("POST /api/themes/cue", s.cueTheme)
 	mux.HandleFunc("GET /api/themes/{name}", s.getTheme)
-	mux.HandleFunc("PUT /api/themes/{name}", s.putTheme)
-	mux.HandleFunc("PUT /api/themes/{name}/scene", s.putScene)
-	mux.HandleFunc("PUT /api/themes/{name}/image", s.putImage)
-	mux.HandleFunc("DELETE /api/themes/{name}", s.deleteTheme)
+	// The theme library is shared, and a scene is code that runs in every
+	// browser that uses it, so only an admin may add to it or change it. A
+	// member still picks their own theme from it.
+	mux.HandleFunc("PUT /api/themes/{name}", s.adminOnly(s.putTheme))
+	mux.HandleFunc("PUT /api/themes/{name}/scene", s.adminOnly(s.putScene))
+	mux.HandleFunc("PUT /api/themes/{name}/image", s.adminOnly(s.putImage))
+	mux.HandleFunc("DELETE /api/themes/{name}", s.adminOnly(s.deleteTheme))
 	mux.HandleFunc("GET /api/themes/{name}/status", s.themeStatus)
 	mux.HandleFunc("POST /api/themes/{name}/status", s.reportThemeStatus)
 	mux.HandleFunc("GET /theme/scene/{name}", s.sceneDocument)

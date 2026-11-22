@@ -17,12 +17,12 @@ import (
 // latter buffers the whole upload to disk before the handler sees any of it,
 // which defeats both the size limit and streaming.
 func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
-	user, ok := owner(w, r)
+	sc, ok := s.scopeOf(w, r)
 	if !ok {
 		return
 	}
 
-	sess, err := s.hub.Get(user, r.URL.Query().Get("session"))
+	sess, err := s.sessionFor(sc, r.URL.Query().Get("session"))
 	if err != nil {
 		writeError(w, http.StatusNotFound, "session not found")
 		return

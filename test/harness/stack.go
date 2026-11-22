@@ -25,7 +25,9 @@ import (
 	"github.com/martoast/papaya/internal/config"
 	"github.com/martoast/papaya/internal/httpapi"
 	"github.com/martoast/papaya/internal/hub"
+	"github.com/martoast/papaya/internal/setup"
 	"github.com/martoast/papaya/internal/sshx"
+	"github.com/martoast/papaya/internal/themes"
 	"github.com/martoast/papaya/internal/transcribe"
 	"github.com/martoast/papaya/internal/tsnode"
 )
@@ -37,14 +39,20 @@ type fixedWhoIs struct {
 	login string
 	tags  []string
 	err   error
+	// node is the MagicDNS name of the machine the request comes from.
+	node string
 }
 
 func (f fixedWhoIs) WhoIs(context.Context, string) (*apitype.WhoIsResponse, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
+	n := &tailcfg.Node{Tags: f.tags}
+	if f.node != "" {
+		n.Name = f.node + ".tailnet.ts.net."
+	}
 	return &apitype.WhoIsResponse{
-		Node:        &tailcfg.Node{Tags: f.tags},
+		Node:        n,
 		UserProfile: &tailcfg.UserProfile{LoginName: f.login},
 	}, nil
 }
@@ -76,6 +84,12 @@ type StackOptions struct {
 
 	// Tmux runs remote shells inside a named tmux session.
 	Tmux bool
+
+	// Machines and Team turn on the settings store with these machines chosen
+	// and these teammates, as an admin would in the setup screen and the Team
+	// panel. Nil Machines leaves setup off, as before.
+	Machines []setup.Machine
+	Team     []setup.Member
 }
 
 // Stack is a full papaya server wired to in-process SSH, with tsnet replaced by
@@ -90,6 +104,10 @@ type Stack struct {
 	mu      sync.Mutex
 	servers map[string]*httptest.Server
 	allowed map[string]bool
+
+	// Store is the settings store when Machines was set; nil otherwise.
+	Store *setup.Store
+	nodes map[string]string
 }
 
 // NewStack builds a server around the given SSH servers.
@@ -168,7 +186,7 @@ func newStack(t *testing.T, pool *sshx.Pool, d *CountingDialer, opts StackOption
 		allowed[u] = true
 	}
 
-	return &Stack{
+	st := &Stack{
 		T:       t,
 		Hub:     h,
 		Pool:    pool,
@@ -177,6 +195,31 @@ func newStack(t *testing.T, pool *sshx.Pool, d *CountingDialer, opts StackOption
 		servers: map[string]*httptest.Server{},
 		allowed: allowed,
 	}
+	if opts.Machines != nil {
+		store, err := setup.Open(filepath.Join(t.TempDir(), "settings.json"))
+		require.NoError(t, err)
+		require.NoError(t, store.Update(func(s *setup.Settings) {
+			s.Complete = true
+			s.Machines = append([]setup.Machine(nil), opts.Machines...)
+		}))
+		if opts.Team != nil {
+			require.NoError(t, store.SetTeam(opts.Team, func(l string) bool { return allowed[l] }))
+		}
+		st.Store = store
+	}
+	return st
+}
+
+// wire gives an API the settings store and team, when the stack has them.
+func (s *Stack) wire(auth *tsnode.Auth, api *httpapi.Server) {
+	if s.Store == nil {
+		return
+	}
+	auth.SetMembers(s.Store.MemberOf)
+	api.EnableSetup(httpapi.SetupDeps{Store: s.Store, PublicKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest papaya"})
+	ts, err := themes.Open(filepath.Join(s.T.TempDir(), "themes"))
+	require.NoError(s.T, err)
+	api.EnableThemes(ts)
 }
 
 // serverFor returns the HTTP server bound to a given identity.
@@ -188,8 +231,9 @@ func (s *Stack) serverFor(login string) *httptest.Server {
 		return srv
 	}
 
+	auth := tsnode.NewAuth(fixedWhoIs{login: login, node: s.callerNode(login)}, s.allowed, map[string]bool{"tag:ci": true})
 	api := httpapi.NewWithTranscriber(s.Hub,
-		tsnode.NewAuth(fixedWhoIs{login: login}, s.allowed, map[string]bool{"tag:ci": true}),
+		auth,
 		nil, nil, s.transcriber(),
 		httpapi.Options{
 			DefaultSSHUser: s.Opts.DefaultSSHUser,
@@ -201,11 +245,47 @@ func (s *Stack) serverFor(login string) *httptest.Server {
 			HostAllowed:    s.hostAllowed,
 			SSHUserAllowed: s.sshUserAllowed,
 		})
+	s.wire(auth, api)
 
 	srv := httptest.NewServer(api.Handler())
 	s.T.Cleanup(srv.Close)
 	s.servers[login] = srv
 	return srv
+}
+
+// SetCallerMachine makes requests from login appear to come from machine, for
+// tests of machine-originated calls (the join line, papaya-say).
+func (s *Stack) SetCallerMachine(login, machine string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.nodes == nil {
+		s.nodes = map[string]string{}
+	}
+	s.nodes[login] = machine
+	delete(s.servers, login)
+}
+
+// callerNode is the machine login's requests come from. Called with s.mu held.
+func (s *Stack) callerNode(login string) string { return s.nodes[login] }
+
+// TaggedMemberClient is a client for a tagged machine (no login), with team
+// members enabled, to check a tag can be a member and nothing more.
+func (s *Stack) TaggedMemberClient(tag string) *Client {
+	s.mu.Lock()
+	key := "tagm!" + tag
+	srv, ok := s.servers[key]
+	if !ok {
+		auth := tsnode.NewAuth(fixedWhoIs{login: "tagged-devices", tags: []string{tag}}, s.allowed, map[string]bool{"tag:ci": true})
+		api := httpapi.New(s.Hub, auth, nil, nil,
+			httpapi.Options{DefaultSSHUser: s.Opts.DefaultSSHUser, StaticHosts: s.hostNames(), MaxUploadBytes: s.Opts.MaxUploadBytes,
+				MaxAudioBytes: s.Opts.MaxAudioBytes, MaxSessions: s.Opts.MaxSessions, Hostname: "papaya"})
+		s.wire(auth, api)
+		srv = httptest.NewServer(api.Handler())
+		s.T.Cleanup(srv.Close)
+		s.servers[key] = srv
+	}
+	s.mu.Unlock()
+	return &Client{t: s.T, srv: srv, login: tag}
 }
 
 // Client returns a REST/WebSocket client acting as the given tailnet identity.
@@ -281,6 +361,7 @@ type Session struct {
 	Order     int       `json:"order"`
 	Workspace string    `json:"workspace"`
 	CreatedAt time.Time `json:"createdAt"`
+	Owner     string    `json:"owner"`
 }
 
 func (c *Client) do(method, path string, body any) (*http.Response, []byte) {

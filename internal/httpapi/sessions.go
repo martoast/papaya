@@ -29,15 +29,15 @@ func owner(w http.ResponseWriter, r *http.Request) (string, bool) {
 }
 
 func (s *Server) listSessions(w http.ResponseWriter, r *http.Request) {
-	user, ok := owner(w, r)
+	sc, ok := s.scopeOf(w, r)
 	if !ok {
 		return
 	}
 
-	sessions := s.hub.List(user)
+	sessions := s.sessionsFor(sc)
 	views := make([]hub.View, 0, len(sessions))
 	for _, sess := range sessions {
-		views = append(views, sess.View())
+		views = append(views, viewFor(sc, sess))
 	}
 	writeJSON(w, http.StatusOK, views)
 }
@@ -51,10 +51,11 @@ type createRequest struct {
 }
 
 func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
-	user, ok := owner(w, r)
+	sc, ok := s.scopeOf(w, r)
 	if !ok {
 		return
 	}
+	user := sc.user
 
 	var req createRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10)).Decode(&req); err != nil {
@@ -66,6 +67,15 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 	if req.Host == "" {
 		writeError(w, http.StatusBadRequest, "host is required")
 		return
+	}
+	// A member may open a tab only on their own machines, as the account that
+	// machine is set up with. The host they named is replaced by the machine's
+	// own name, which is what is dialled.
+	if host, acct, msg, ok := s.memberTarget(sc, req.Host, strings.TrimSpace(req.User)); !ok {
+		writeError(w, http.StatusForbidden, msg)
+		return
+	} else if sc.member {
+		req.Host, req.User = host, acct
 	}
 	if req.User = strings.TrimSpace(req.User); req.User == "" {
 		req.User = s.sshUserFor(req.Host)
@@ -111,12 +121,12 @@ type patchRequest struct {
 }
 
 func (s *Server) patchSession(w http.ResponseWriter, r *http.Request) {
-	user, ok := owner(w, r)
+	sc, ok := s.scopeOf(w, r)
 	if !ok {
 		return
 	}
 
-	sess, err := s.hub.Get(user, r.PathValue("id"))
+	sess, err := s.sessionFor(sc, r.PathValue("id"))
 	if err != nil {
 		writeError(w, http.StatusNotFound, "session not found")
 		return
@@ -151,31 +161,33 @@ func (s *Server) patchSession(w http.ResponseWriter, r *http.Request) {
 		sess.SetTheme(name)
 	}
 
-	writeJSON(w, http.StatusOK, sess.View())
+	writeJSON(w, http.StatusOK, viewFor(sc, sess))
 }
 
 func (s *Server) deleteSession(w http.ResponseWriter, r *http.Request) {
-	user, ok := owner(w, r)
+	sc, ok := s.scopeOf(w, r)
 	if !ok {
 		return
 	}
 
-	if err := s.hub.Delete(user, r.PathValue("id")); err != nil {
+	sess, err := s.sessionFor(sc, r.PathValue("id"))
+	if err != nil {
 		writeError(w, http.StatusNotFound, "session not found")
 		return
 	}
+	s.hub.Remove(sess)
 	w.WriteHeader(http.StatusNoContent)
 }
 
 // markSeen clears a session's attention flag, so a reload does not show a badge
 // for something the user has already dealt with.
 func (s *Server) markSeen(w http.ResponseWriter, r *http.Request) {
-	user, ok := owner(w, r)
+	sc, ok := s.scopeOf(w, r)
 	if !ok {
 		return
 	}
 
-	sess, err := s.hub.Get(user, r.PathValue("id"))
+	sess, err := s.sessionFor(sc, r.PathValue("id"))
 	if err != nil {
 		writeError(w, http.StatusNotFound, "session not found")
 		return
@@ -185,12 +197,12 @@ func (s *Server) markSeen(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
-	user, ok := owner(w, r)
+	sc, ok := s.scopeOf(w, r)
 	if !ok {
 		return
 	}
 
-	sess, err := s.hub.Get(user, r.URL.Query().Get("session"))
+	sess, err := s.sessionFor(sc, r.URL.Query().Get("session"))
 	if err != nil {
 		// Another owner's session must be indistinguishable from a missing one.
 		http.Error(w, "not found", http.StatusNotFound)
@@ -235,7 +247,8 @@ type Host struct {
 // listHosts derives the picker from live tailnet peers, merged with any
 // statically configured hosts.
 func (s *Server) listHosts(w http.ResponseWriter, r *http.Request) {
-	if _, ok := owner(w, r); !ok {
+	sc, ok := s.scopeOf(w, r)
+	if !ok {
 		return
 	}
 
@@ -299,6 +312,15 @@ func (s *Server) listHosts(w http.ResponseWriter, r *http.Request) {
 		if s.opts.HostAllowed != nil && !s.opts.HostAllowed(h.Name) && !s.opts.HostAllowed(h.FQDN) {
 			continue
 		}
+		// A member is shown their own machines and nothing else: not even the
+		// names of the others.
+		if sc.member {
+			canon, ok := s.machine(sc, h.Name)
+			if !ok {
+				continue
+			}
+			h.Name = canon
+		}
 		// Resolved here rather than where the entry was built, so a peer and a
 		// statically configured host get the account by the same rule whichever
 		// spelling it was configured under.
@@ -345,12 +367,16 @@ func shortName(fqdn, fallback string) string {
 // which the user had to remember — including the "-2" a second unnamed tab was
 // silently given.
 func (s *Server) listResumable(w http.ResponseWriter, r *http.Request) {
-	user, ok := owner(w, r)
+	sc, ok := s.scopeOf(w, r)
 	if !ok {
 		return
 	}
+	user := sc.user
 
 	hosts := s.knownHosts()
+	if sc.member {
+		hosts = sc.machines
+	}
 	targets := make([]hub.Target, 0, len(hosts))
 	for _, h := range hosts {
 		// The allow list is the authority on where a session may go, so there is
@@ -407,10 +433,11 @@ type resumeRequest struct {
 
 // resumeSession opens a tab attached to an existing remote workspace.
 func (s *Server) resumeSession(w http.ResponseWriter, r *http.Request) {
-	user, ok := owner(w, r)
+	sc, ok := s.scopeOf(w, r)
 	if !ok {
 		return
 	}
+	user := sc.user
 
 	var req resumeRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10)).Decode(&req); err != nil {
@@ -423,6 +450,12 @@ func (s *Server) resumeSession(w http.ResponseWriter, r *http.Request) {
 	if req.Host == "" || req.Workspace == "" {
 		writeError(w, http.StatusBadRequest, "host and workspace are required")
 		return
+	}
+	if host, acct, msg, ok := s.memberTarget(sc, req.Host, strings.TrimSpace(req.User)); !ok {
+		writeError(w, http.StatusForbidden, msg)
+		return
+	} else if sc.member {
+		req.Host, req.User = host, acct
 	}
 	if req.User = strings.TrimSpace(req.User); req.User == "" {
 		req.User = s.sshUserFor(req.Host)
@@ -499,12 +532,12 @@ func findTab(sessions []*hub.Session, name string) (*hub.Session, error) {
 // signs with the name shown in the tab bar even after the tab was renamed
 // (or was picked up from another terminal app under that app's tmux name).
 func (s *Server) sayMe(w http.ResponseWriter, r *http.Request) {
-	user, ok := owner(w, r)
+	sc, ok := s.scopeOf(w, r)
 	if !ok {
 		return
 	}
 	ws := strings.TrimSpace(r.URL.Query().Get("workspace"))
-	for _, sess := range s.hub.List(user) {
+	for _, sess := range s.sessionsFor(sc) {
 		v := sess.View()
 		if ws != "" && strings.EqualFold(v.Workspace, ws) {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -518,12 +551,12 @@ func (s *Server) sayMe(w http.ResponseWriter, r *http.Request) {
 // sayTabs lists the open tabs as plain text, one per line, so a shell script
 // on a machine without a JSON parser can read it.
 func (s *Server) sayTabs(w http.ResponseWriter, r *http.Request) {
-	user, ok := owner(w, r)
+	sc, ok := s.scopeOf(w, r)
 	if !ok {
 		return
 	}
 	var b strings.Builder
-	for _, sess := range s.hub.List(user) {
+	for _, sess := range s.sessionsFor(sc) {
 		v := sess.View()
 		fmt.Fprintf(&b, "%-20s %-10s %s@%s  %s\n", v.Name, v.State, v.User, v.Host, v.Workspace)
 	}
@@ -544,16 +577,17 @@ type sayRequest struct {
 // say types a message into another tab's workspace. Agents use it to talk to
 // each other through papaya, by tab name, from any machine on the tailnet.
 func (s *Server) say(w http.ResponseWriter, r *http.Request) {
-	user, ok := owner(w, r)
+	sc, ok := s.scopeOf(w, r)
 	if !ok {
 		return
 	}
+	user := sc.user
 	var req sayRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, sshx.MaxSayBytes+1024)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json or message too long")
 		return
 	}
-	sess, err := findTab(s.hub.List(user), req.To)
+	sess, err := findTab(s.sessionsFor(sc), req.To)
 	if err != nil {
 		writeError(w, http.StatusNotFound, err.Error())
 		return
@@ -577,10 +611,11 @@ func (s *Server) say(w http.ResponseWriter, r *http.Request) {
 // so the tab can show it exactly (Claude Code hooks call it on submit, stop and
 // notification). The tab is found by name, as for papaya-say.
 func (s *Server) agentStatus(w http.ResponseWriter, r *http.Request) {
-	user, ok := owner(w, r)
+	sc, ok := s.scopeOf(w, r)
 	if !ok {
 		return
 	}
+	user := sc.user
 	var req struct {
 		Tab   string `json:"tab"`
 		State string `json:"state"`
@@ -594,7 +629,7 @@ func (s *Server) agentStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "state is working, done, needs-you or idle")
 		return
 	}
-	sess, err := findTab(s.hub.List(user), req.Tab)
+	sess, err := findTab(s.sessionsFor(sc), req.Tab)
 	if err != nil {
 		writeError(w, http.StatusNotFound, err.Error())
 		return
@@ -617,11 +652,11 @@ func sayFrom(text string) string {
 
 // screen returns the last lines of a tab's workspace as plain text.
 func (s *Server) screen(w http.ResponseWriter, r *http.Request) {
-	user, ok := owner(w, r)
+	sc, ok := s.scopeOf(w, r)
 	if !ok {
 		return
 	}
-	sess, err := findTab(s.hub.List(user), r.URL.Query().Get("to"))
+	sess, err := findTab(s.sessionsFor(sc), r.URL.Query().Get("to"))
 	if err != nil {
 		writeError(w, http.StatusNotFound, err.Error())
 		return

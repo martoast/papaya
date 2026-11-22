@@ -14,7 +14,24 @@ type ctxKey int
 const (
 	ctxUserKey ctxKey = iota
 	ctxNodeKey
+	ctxRoleKey
 )
+
+// Role is how much of papaya a caller may use.
+type Role int
+
+const (
+	// RoleAdmin is everyone papaya was configured for (its owner, or
+	// PAPAYA_ALLOWED_USERS / PAPAYA_ALLOWED_TAGS): full access, as always.
+	RoleAdmin Role = iota
+	// RoleMember is a teammate added by an admin: their own tabs, on their own
+	// machines, and no settings.
+	RoleMember
+)
+
+// MemberLookup matches a caller who is not an admin to a team member,
+// returning the identity their tabs belong to.
+type MemberLookup func(login string, tags []string) (string, bool)
 
 // WhoIser resolves a tailnet remote address to an identity. *local.Client
 // implements it; tests substitute a fake.
@@ -30,6 +47,26 @@ type Auth struct {
 	lc           WhoIser
 	allowedUsers map[string]bool
 	allowedTags  map[string]bool
+	// members is consulted only for callers who are not admins. Nil means no
+	// team, which is exactly the behaviour before teams existed.
+	members MemberLookup
+}
+
+// SetMembers enables team members. Admins are always matched first, so a
+// member entry can never narrow, or widen, an admin's access.
+func (a *Auth) SetMembers(fn MemberLookup) { a.members = fn }
+
+// IsAdmin reports whether a login (or tag) is one of the admin identities.
+func (a *Auth) IsAdmin(login string) bool {
+	if strings.HasPrefix(login, "tag:") {
+		return a.allowedTags[login]
+	}
+	for u := range a.allowedUsers {
+		if strings.EqualFold(u, login) {
+			return true
+		}
+	}
+	return false
 }
 
 // NewAuth builds the middleware. Both maps being empty is rejected in config
@@ -49,7 +86,7 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		login, ok := a.identify(who)
+		login, role, ok := a.identify(who)
 		if !ok {
 			log.Printf("auth: denied login=%q tags=%v path=%s", login, tagsOf(who), r.URL.Path)
 			http.Error(w, "forbidden", http.StatusForbidden)
@@ -57,6 +94,7 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 		}
 
 		ctx := context.WithValue(r.Context(), ctxUserKey, login)
+		ctx = context.WithValue(ctx, ctxRoleKey, role)
 		if who.Node != nil {
 			c := Caller{Name: strings.TrimSuffix(who.Node.Name, "."), Tagged: len(who.Node.Tags) > 0}
 			if who.Node.Hostinfo.Valid() {
@@ -68,11 +106,16 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// identify returns the owner string to attribute sessions to, and whether the
-// caller is authorized at all.
-func (a *Auth) identify(who *apitype.WhoIsResponse) (string, bool) {
+// identify returns the owner string to attribute sessions to, the caller's
+// role, and whether the caller is authorized at all.
+//
+// A machine calling papaya (papaya-say, papaya-status, the join script) is
+// identified the same way as a person: by the tailnet account that machine is
+// logged in as, or its tags. So a teammate's machine, logged in as the
+// teammate, gets the teammate's member scope and never more.
+func (a *Auth) identify(who *apitype.WhoIsResponse) (string, Role, bool) {
 	if who == nil {
-		return "", false
+		return "", RoleAdmin, false
 	}
 
 	var login string
@@ -80,17 +123,30 @@ func (a *Auth) identify(who *apitype.WhoIsResponse) (string, bool) {
 		login = who.UserProfile.LoginName
 	}
 	if login != "" && a.allowedUsers[login] {
-		return login, true
+		return login, RoleAdmin, true
 	}
 
 	// Tagged nodes have no user login, so they are matched on tag instead and
 	// the tag becomes the session owner.
 	for _, t := range tagsOf(who) {
 		if a.allowedTags[t] {
-			return t, true
+			return t, RoleAdmin, true
 		}
 	}
-	return login, false
+
+	if a.members != nil {
+		// A tagged node belongs to no person: Tailscale reports a placeholder
+		// profile for it, which must not be matched as a member's login.
+		tagged := len(tagsOf(who)) > 0
+		var memberLogin string
+		if !tagged {
+			memberLogin = login
+		}
+		if key, ok := a.members(memberLogin, tagsOf(who)); ok {
+			return key, RoleMember, true
+		}
+	}
+	return login, RoleAdmin, false
 }
 
 func tagsOf(who *apitype.WhoIsResponse) []string {
@@ -98,6 +154,22 @@ func tagsOf(who *apitype.WhoIsResponse) []string {
 		return nil
 	}
 	return who.Node.Tags
+}
+
+// RoleFrom returns the caller's role attached by Middleware. A context without
+// one (only possible in tests, which inject a user directly) is an admin, which
+// is what every caller was before teams existed.
+func RoleFrom(ctx context.Context) Role {
+	r, ok := ctx.Value(ctxRoleKey).(Role)
+	if !ok {
+		return RoleAdmin
+	}
+	return r
+}
+
+// WithRole injects a role. Test-only helper.
+func WithRole(ctx context.Context, r Role) context.Context {
+	return context.WithValue(ctx, ctxRoleKey, r)
 }
 
 // UserFrom returns the authenticated identity attached by Middleware.

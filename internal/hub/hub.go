@@ -186,10 +186,16 @@ func (h *Hub) Get(owner, id string) (*Session, error) {
 
 // List returns the owner's sessions in tab order.
 func (h *Hub) List(owner string) []*Session {
+	return h.ListOwners(func(o string) bool { return o == owner })
+}
+
+// ListOwners returns, in tab order, every session whose owner keep accepts.
+// Used to show an admin their teammates' tabs as well as their own.
+func (h *Hub) ListOwners(keep func(owner string) bool) []*Session {
 	h.mu.Lock()
 	out := make([]*Session, 0, len(h.sessions))
 	for _, s := range h.sessions {
-		if s.Owner == owner {
+		if keep(s.Owner) {
 			out = append(out, s)
 		}
 	}
@@ -205,14 +211,37 @@ func (h *Hub) List(owner string) []*Session {
 	return out
 }
 
+// GetFunc returns a session only if its owner is accepted by keep. A refusal is
+// reported as not-found, exactly like Get.
+func (h *Hub) GetFunc(id string, keep func(s *Session) bool) (*Session, error) {
+	h.mu.Lock()
+	s, ok := h.sessions[id]
+	h.mu.Unlock()
+	if !ok || !keep(s) {
+		return nil, ErrNotFound
+	}
+	return s, nil
+}
+
 // Delete closes and unregisters a session.
 func (h *Hub) Delete(owner, id string) error {
 	s, err := h.Get(owner, id)
 	if err != nil {
 		return err
 	}
+	h.Remove(s)
+	return nil
+}
 
+// Remove closes and unregisters a session the caller has already been allowed
+// to reach (see GetFunc).
+func (h *Hub) Remove(s *Session) {
+	id := s.ID
 	h.mu.Lock()
+	if h.sessions[id] != s {
+		h.mu.Unlock()
+		return
+	}
 	delete(h.sessions, id)
 	h.mu.Unlock()
 
@@ -233,7 +262,6 @@ func (h *Hub) Delete(owner, id string) error {
 	}()
 
 	s.Close("closed by user")
-	return nil
 }
 
 // WaitForCleanup blocks until every background workspace teardown has finished.

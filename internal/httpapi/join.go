@@ -65,7 +65,8 @@ func (s *Server) joinScript(w http.ResponseWriter, r *http.Request) {
 
 // join records what a machine reported about itself.
 func (s *Server) join(w http.ResponseWriter, r *http.Request) {
-	if _, ok := owner(w, r); !ok {
+	sc, ok := s.scopeOf(w, r)
+	if !ok {
 		return
 	}
 	if s.setup == nil {
@@ -81,6 +82,18 @@ func (s *Server) join(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		writeError(w, http.StatusForbidden, "could not tell which machine this is")
 		return
+	}
+	// A teammate's machine may report itself only if the admin has already
+	// given it to that teammate. It can never add itself, or touch (or pin
+	// host keys for) any other machine.
+	if sc.member {
+		canon, ok := s.machine(sc, name)
+		if !ok {
+			log.Printf("denied: member %s ran the join line on %q, which is not one of their machines", sc.user, name)
+			writeError(w, http.StatusForbidden, "ask the admin to add this machine to your team entry first")
+			return
+		}
+		name = canon
 	}
 	var req struct {
 		User string `json:"user"`

@@ -22,11 +22,19 @@ type Capabilities struct {
 	DefaultUser   string `json:"defaultUser"`
 	// VoiceSettable says the voice key can be pasted (or removed) in the app.
 	VoiceSettable bool `json:"voiceSettable"`
+	// Role is "admin" (full access) or "member" (a teammate limited to their
+	// own machines), so the app can leave out what a member cannot use.
+	Role string `json:"role"`
 }
 
 func (s *Server) capabilities(w http.ResponseWriter, r *http.Request) {
-	if _, ok := owner(w, r); !ok {
+	sc, ok := s.scopeOf(w, r)
+	if !ok {
 		return
+	}
+	role := "admin"
+	if sc.member {
+		role = "member"
 	}
 	writeJSON(w, http.StatusOK, Capabilities{
 		Transcription: s.transcriber.Enabled(),
@@ -34,7 +42,8 @@ func (s *Server) capabilities(w http.ResponseWriter, r *http.Request) {
 		MaxAudioMB:    s.opts.MaxAudioBytes >> 20,
 		MaxSessions:   s.opts.MaxSessions,
 		DefaultUser:   s.opts.DefaultSSHUser,
-		VoiceSettable: s.transcriber != nil && s.opts.VoiceKeyPath != "" && !s.opts.VoiceKeyFromEnv,
+		VoiceSettable: !sc.member && s.transcriber != nil && s.opts.VoiceKeyPath != "" && !s.opts.VoiceKeyFromEnv,
+		Role:          role,
 	})
 }
 
@@ -43,10 +52,11 @@ func (s *Server) capabilities(w http.ResponseWriter, r *http.Request) {
 //
 // The audio streams through to the upstream API; it is never buffered here.
 func (s *Server) transcribeAudio(w http.ResponseWriter, r *http.Request) {
-	user, ok := owner(w, r)
+	sc, ok := s.scopeOf(w, r)
 	if !ok {
 		return
 	}
+	user := sc.user
 
 	if !s.transcriber.Enabled() {
 		writeError(w, http.StatusServiceUnavailable,
@@ -63,7 +73,7 @@ func (s *Server) transcribeAudio(w http.ResponseWriter, r *http.Request) {
 
 	// A session is required: the transcript is injected into its stdin, and
 	// ownership must be checked before anything is sent upstream.
-	sess, err := s.hub.Get(user, r.URL.Query().Get("session"))
+	sess, err := s.sessionFor(sc, r.URL.Query().Get("session"))
 	if err != nil {
 		writeError(w, http.StatusNotFound, "session not found")
 		return

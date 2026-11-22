@@ -123,8 +123,10 @@ func (s *Server) Handler() http.Handler {
 	protected.HandleFunc("POST /upload", s.upload)
 	protected.HandleFunc("POST /api/transcribe", s.transcribeAudio)
 	protected.HandleFunc("GET /api/capabilities", s.capabilities)
-	protected.HandleFunc("PUT /api/voice/key", s.setVoiceKey)
-	protected.HandleFunc("DELETE /api/voice/key", s.deleteVoiceKey)
+	// The voice key is the admin's (it bills their account); a member may use
+	// voice but never set, replace or remove the key.
+	protected.HandleFunc("PUT /api/voice/key", s.adminOnly(s.setVoiceKey))
+	protected.HandleFunc("DELETE /api/voice/key", s.adminOnly(s.deleteVoiceKey))
 	s.setupRoutes(protected)
 	s.themeRoutes(protected)
 	protected.Handle("/", s.staticHandler())

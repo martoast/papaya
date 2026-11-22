@@ -151,6 +151,8 @@ type View struct {
 	// Cols and Rows are the shell's current size (the device in use's).
 	Cols int `json:"cols"`
 	Rows int `json:"rows"`
+	// Owner is set only when an admin is shown a teammate's tab: whose it is.
+	Owner string `json:"owner,omitempty"`
 }
 
 func (s *Session) View() View {

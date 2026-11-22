@@ -66,12 +66,15 @@ type setupAPI struct {
 func (s *Server) EnableSetup(d SetupDeps) { s.setup = &setupAPI{d: d, testing: map[string]bool{}} }
 
 func (s *Server) setupRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/setup", s.getSetup)
-	mux.HandleFunc("PUT /api/setup/machines", s.putSetupMachines)
-	mux.HandleFunc("POST /api/setup/test", s.testSetupMachine)
-	mux.HandleFunc("POST /api/setup/complete", s.completeSetup)
-	mux.HandleFunc("POST /api/setup/seen", s.seenSetup)
+	// Setup is the admin's: a team member can neither see the machine list nor
+	// change it.
+	mux.HandleFunc("GET /api/setup", s.adminOnly(s.getSetup))
+	mux.HandleFunc("PUT /api/setup/machines", s.adminOnly(s.putSetupMachines))
+	mux.HandleFunc("POST /api/setup/test", s.adminOnly(s.testSetupMachine))
+	mux.HandleFunc("POST /api/setup/complete", s.adminOnly(s.completeSetup))
+	mux.HandleFunc("POST /api/setup/seen", s.adminOnly(s.seenSetup))
 	s.joinRoutes(mux)
+	s.teamRoutes(mux)
 }
 
 // MachineView is one tailnet machine as the setup screen shows it.

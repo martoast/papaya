@@ -10,6 +10,7 @@ package setup
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net"
 	"os"
@@ -47,6 +48,19 @@ type Settings struct {
 	// Seen lists every tailnet machine the owner has been shown, so a machine
 	// that joins later can be pointed out as new.
 	Seen []string `json:"seen,omitempty"`
+	// Team is the people, besides the admin, who may use this papaya, each
+	// limited to their own machines. Empty means papaya behaves exactly as it
+	// always has: only the configured users, with full access.
+	Team []Member `json:"team,omitempty"`
+}
+
+// Member is a teammate: a tailnet identity (a login name such as
+// "ariosto@example.com", or a tag such as "tag:ariosto") and the machines they
+// may open terminals on. A member sees only their own tabs, only on those
+// machines, and can change no setting.
+type Member struct {
+	Login    string   `json:"login"`
+	Machines []string `json:"machines"`
 }
 
 // Store is the settings file, safe for concurrent use.
@@ -173,6 +187,13 @@ func clone(s Settings) Settings {
 	out := s
 	out.Machines = append([]Machine(nil), s.Machines...)
 	out.Seen = append([]string(nil), s.Seen...)
+	out.Team = make([]Member, 0, len(s.Team))
+	for _, m := range s.Team {
+		out.Team = append(out.Team, Member{Login: m.Login, Machines: append([]string(nil), m.Machines...)})
+	}
+	if len(out.Team) == 0 {
+		out.Team = nil
+	}
 	return out
 }
 
@@ -195,4 +216,137 @@ func AccountResolver(explicit, chosen func(string) string, fallback string) func
 		}
 		return fallback
 	}
+}
+
+// ErrInvalidTeam is returned by SetTeam for a team that cannot be saved.
+var ErrInvalidTeam = errors.New("invalid team")
+
+// Team returns a copy of the team.
+func (st *Store) Team() []Member {
+	return st.Get().Team
+}
+
+// SetTeam replaces the team. Every machine named must be one already chosen in
+// setup, and is stored under that machine's name; logins must be unique. The
+// admin's own identities can never be members (isAdmin reports them), so a
+// member entry can never shadow, or be confused with, full access.
+func (st *Store) SetTeam(team []Member, isAdmin func(login string) bool) error {
+	st.mu.Lock()
+	machines := append([]Machine(nil), st.s.Machines...)
+	st.mu.Unlock()
+
+	seen := map[string]bool{}
+	clean := make([]Member, 0, len(team))
+	for _, m := range team {
+		login := strings.TrimSpace(m.Login)
+		if login == "" || strings.ContainsAny(login, " \t\r\n") || len(login) > 200 {
+			return fmt.Errorf("%w: %q is not a tailnet login or tag", ErrInvalidTeam, m.Login)
+		}
+		key := strings.ToLower(login)
+		if seen[key] {
+			return fmt.Errorf("%w: %s is listed twice", ErrInvalidTeam, login)
+		}
+		if isAdmin != nil && isAdmin(login) {
+			return fmt.Errorf("%w: %s already has full access", ErrInvalidTeam, login)
+		}
+		seen[key] = true
+
+		var names []string
+		have := map[string]bool{}
+		for _, name := range m.Machines {
+			mc, ok := find(machines, name)
+			if !ok || norm(mc.Name) != norm(name) && norm(mc.FQDN) != norm(name) {
+				return fmt.Errorf("%w: %s is not one of the machines set up in papaya", ErrInvalidTeam, name)
+			}
+			if !have[mc.Name] {
+				have[mc.Name] = true
+				names = append(names, mc.Name)
+			}
+		}
+		sort.Strings(names)
+		clean = append(clean, Member{Login: login, Machines: names})
+	}
+	sort.Slice(clean, func(i, j int) bool { return strings.ToLower(clean[i].Login) < strings.ToLower(clean[j].Login) })
+	return st.Update(func(s *Settings) { s.Team = clean })
+}
+
+// MemberOf matches a caller to a team member: by login (without regard to
+// case), or, for a tagged machine with no login, by one of its tags. It returns
+// the member's identity as stored, which becomes the owner of their tabs.
+func (st *Store) MemberOf(login string, tags []string) (string, bool) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if login != "" {
+		for _, m := range st.s.Team {
+			if !strings.HasPrefix(m.Login, "tag:") && strings.EqualFold(m.Login, login) {
+				return m.Login, true
+			}
+		}
+	}
+	for _, t := range tags {
+		for _, m := range st.s.Team {
+			if strings.HasPrefix(m.Login, "tag:") && m.Login == t {
+				return m.Login, true
+			}
+		}
+	}
+	return "", false
+}
+
+// IsMember reports whether key (as returned by MemberOf) is on the team now.
+func (st *Store) IsMember(key string) bool {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	for _, m := range st.s.Team {
+		if m.Login == key {
+			return true
+		}
+	}
+	return false
+}
+
+// MemberMachines is the machines a member may use, read fresh so a change in
+// the team takes effect on the very next request.
+func (st *Store) MemberMachines(key string) []string {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	for _, m := range st.s.Team {
+		if m.Login == key {
+			return append([]string(nil), m.Machines...)
+		}
+	}
+	return nil
+}
+
+// MachineFor resolves host to one of the allowed machine names, strictly: the
+// name itself, the machine's full tailnet name, or (for a bare name with no
+// dots) its first label. An address matches only if it is literally listed.
+// The returned name is what papaya dials, so a member can never steer a
+// connection to a host merely sharing a first label with their machine.
+func (st *Store) MachineFor(allowed []string, host string) (string, bool) {
+	h := norm(host)
+	if h == "" {
+		return "", false
+	}
+	st.mu.Lock()
+	machines := append([]Machine(nil), st.s.Machines...)
+	st.mu.Unlock()
+
+	isIP := net.ParseIP(h) != nil
+	for _, name := range allowed {
+		n := norm(name)
+		if h == n {
+			return name, true
+		}
+		if isIP {
+			continue
+		}
+		if mc, ok := find(machines, name); ok && norm(mc.Name) == n && mc.FQDN != "" && h == norm(mc.FQDN) {
+			return name, true
+		}
+		if !strings.Contains(h, ".") && net.ParseIP(n) == nil && h == firstLabel(n) {
+			return name, true
+		}
+	}
+	return "", false
 }

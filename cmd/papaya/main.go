@@ -187,8 +187,13 @@ func run(addr string, verbose bool) error {
 	// in the setup screen, then PAPAYA_SSH_USER.
 	userForHost := setup.AccountResolver(cfg.ExplicitUserForHost, store.UserFor, cfg.SSHUser)
 
+	// Team members are matched only for callers who are not admins, and only
+	// ever get their own tabs on their own machines (see internal/httpapi/scope.go).
+	auth := tsnode.NewAuth(node.LocalClient(), allowedUsers, cfg.AllowedTags)
+	auth.SetMembers(store.MemberOf)
+
 	api := httpapi.NewWithTranscriber(h,
-		tsnode.NewAuth(node.LocalClient(), allowedUsers, cfg.AllowedTags),
+		auth,
 		node, web.Assets(), transcriber, httpapi.Options{
 			DefaultSSHUser:  cfg.SSHUser,
 			StaticHosts:     append(append([]string(nil), cfg.Hosts...), store.Hosts()...),
