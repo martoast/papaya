@@ -164,7 +164,8 @@ export class TabManager {
     close.textContent = '×'
 
     el.append(dot, name, close)
-    el.title = tabTitle(session.name || session.host, session.host)
+    if (session.owner) el.dataset.owner = session.owner
+    el.title = tabTitle(session.name || session.host, where(session))
 
     el.addEventListener('click', (e) => {
       if (e.target === close) return
@@ -301,7 +302,7 @@ export class TabManager {
     if (!entry) return
     entry.el.dataset.activity = state
     const msg = entry.tab.agentMsg ? ` · ${entry.tab.agentMsg}` : ''
-    entry.el.title = tabTitle(entry.tab.session.name || entry.tab.session.host, entry.tab.session.host) +
+    entry.el.title = tabTitle(entry.tab.session.name || entry.tab.session.host, where(entry.tab.session)) +
       (state === 'working' ? ' · working' : state === 'done' ? ' · finished, your turn' : '') + msg
     this.onSessionUpdate?.(id, { activity: state })
     this.refreshTitle()
@@ -322,7 +323,7 @@ export class TabManager {
     const entry = this.tabs.get(id)
     if (!entry) return
     entry.el.dataset.attention = String(on)
-    if (on && entry.tab.agentMsg) entry.el.title = `${tabTitle(entry.tab.session.name || entry.tab.session.host, entry.tab.session.host)} · needs you: ${entry.tab.agentMsg}`
+    if (on && entry.tab.agentMsg) entry.el.title = `${tabTitle(entry.tab.session.name || entry.tab.session.host, where(entry.tab.session))} · needs you: ${entry.tab.agentMsg}`
     this.onSessionUpdate?.(id, { attention: on })
     this.refreshTitle()
   }
@@ -340,7 +341,7 @@ export class TabManager {
     if (!entry) return
     sceneEvent({ type: 'tab-rename', id, tab: name })
     entry.nameEl.textContent = name
-    entry.el.title = tabTitle(name, entry.tab.session.host)
+    entry.el.title = tabTitle(name, where(entry.tab.session))
     this.onSessionUpdate?.(id, { name })
   }
 
@@ -431,6 +432,12 @@ export class TabManager {
 // tabTitle is the hover text, and the only place the app says out loud that a
 // tab can be renamed. Both gestures were previously undiscoverable: nothing
 // mentioned F2, and a double-click is not something you go looking for.
+// where names the machine a tab runs on, and, for an admin looking at a
+// teammate's tab, whose it is.
+function where(session) {
+  return session.owner ? `${session.host} · ${session.owner}'s tab` : session.host
+}
+
 function tabTitle(name, host) {
   return `${name} — ${host}\nDouble-click or hold to rename (F2)`
 }

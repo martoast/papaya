@@ -58,6 +58,10 @@ export const api = {
     request('POST', '/api/setup/test', { host, user, method, trust }),
   completeSetup: (complete = true) => request('POST', '/api/setup/complete', { complete }),
   seenMachines: () => request('POST', '/api/setup/seen'),
+
+  // The team: teammates, each limited to their own machines. Admin only.
+  team: () => request('GET', '/api/team'),
+  saveTeam: (members) => request('PUT', '/api/team', { members }),
 }
 
 // upload posts a file with progress. XMLHttpRequest rather than fetch, because

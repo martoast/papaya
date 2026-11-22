@@ -17,6 +17,7 @@ import { initThemes } from './themes.js'
 import { initInstall } from './install.js'
 import { showVoiceSetup } from './voicesetup.js'
 import { showThemePicker } from './themepicker.js'
+import { openTeam } from './team.js'
 
 const el = (id) => document.getElementById(id)
 
@@ -995,7 +996,9 @@ async function start() {
   } else {
     restore()
   }
-  watchNewMachines(el('settings-dot'))
+  // Only someone who can see setup (an admin) is told about new machines; a
+  // teammate would just be refused every minute.
+  if (setupState) watchNewMachines(el('settings-dot'))
   // After setup, so the install guide never covers the first-run screen.
   initInstall(el('install-app'))
 }
@@ -1008,6 +1011,33 @@ async function openOn({ host, user }) {
     notice(err.message, 'error')
   }
 }
+
+// Roles: an admin gets the Team panel; a teammate never sees the settings
+// (the server refuses them anyway).
+async function initRole() {
+  let caps
+  try {
+    caps = await api.capabilities()
+  } catch {
+    return
+  }
+  if (caps.role === 'member') {
+    el('settings').classList.add('hidden')
+    el('team-item').classList.add('hidden')
+  } else if (caps.role === 'admin') {
+    try {
+      await api.team()
+      el('team-item').classList.remove('hidden')
+    } catch {
+      // No setup on this server: there is nothing to give out.
+    }
+  }
+}
+
+el('team-item').addEventListener('click', async () => {
+  const res = await openTeam(el('overlays'))
+  if (res?.error) notice(`could not open the team: ${res.error}`, 'error')
+})
 
 el('settings').addEventListener('click', async () => {
   let st
@@ -1025,6 +1055,7 @@ el('settings').addEventListener('click', async () => {
 
 start()
 initVoice()
+initRole()
 
 // The worker only supplies an offline fallback page (see public/sw.js). It is
 // registered last and never awaited: the app must behave identically whether or
